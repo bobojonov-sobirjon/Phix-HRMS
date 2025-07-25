@@ -1,0 +1,302 @@
+[
+  {
+    "type": "University",
+    "name": "Massachusetts Institute of Technology (MIT)",
+    "icon": "https://web.mit.edu/favicon.ico",
+    "country": "United States"
+  },
+  {
+    "type": "University",
+    "name": "Imperial College London",
+    "icon": "https://www.imperial.ac.uk/favicon.ico",
+    "country": "United Kingdom"
+  },
+  {
+    "type": "University",
+    "name": "University of Oxford",
+    "icon": "https://www.ox.ac.uk/favicon.ico",
+    "country": "United Kingdom"
+  },
+  {
+    "type": "University",
+    "name": "Harvard University",
+    "icon": "https://www.harvard.edu/favicon.ico",
+    "country": "United States"
+  },
+  {
+    "type": "University",
+    "name": "University of Cambridge",
+    "icon": "https://www.cam.ac.uk/favicon.ico",
+    "country": "United Kingdom"
+  },
+  {
+    "type": "University",
+    "name": "Stanford University",
+    "icon": "https://www.stanford.edu/favicon.ico",
+    "country": "United States"
+  },
+  {
+    "type": "University",
+    "name": "ETH Zurich",
+    "icon": "https://ethz.ch/favicon.ico",
+    "country": "Switzerland"
+  },
+  {
+    "type": "University",
+    "name": "National University of Singapore (NUS)",
+    "icon": "https://www.nus.edu.sg/favicon.ico",
+    "country": "Singapore"
+  },
+  {
+    "type": "University",
+    "name": "University College London (UCL)",
+    "icon": "https://www.ucl.ac.uk/favicon.ico",
+    "country": "United Kingdom"
+  },
+  {
+    "type": "University",
+    "name": "California Institute of Technology (Caltech)",
+    "icon": "https://www.caltech.edu/favicon.ico",
+    "country": "United States"
+  },
+  {
+    "type": "University",
+    "name": "University of Pennsylvania",
+    "icon": "https://www.upenn.edu/favicon.ico",
+    "country": "United States"
+  },
+  {
+    "type": "University",
+    "name": "University of California, Berkeley",
+    "icon": "https://www.berkeley.edu/favicon.ico",
+    "country": "United States"
+  },
+  {
+    "type": "University",
+    "name": "University of Melbourne",
+    "icon": "https://www.unimelb.edu.au/favicon.ico",
+    "country": "Australia"
+  },
+  {
+    "type": "University",
+    "name": "Peking University",
+    "icon": "https://www.pku.edu.cn/favicon.ico",
+    "country": "China"
+  },
+  {
+    "type": "University",
+    "name": "Nanyang Technological University (NTU)",
+    "icon": "https://www.ntu.edu.sg/favicon.ico",
+    "country": "Singapore"
+  },
+  {
+    "type": "University",
+    "name": "University of Chicago",
+    "icon": "https://www.uchicago.edu/favicon.ico",
+    "country": "United States"
+  },
+  {
+    "type": "University",
+    "name": "Princeton University",
+    "icon": "https://www.princeton.edu/favicon.ico",
+    "country": "United States"
+  },
+  {
+    "type": "University",
+    "name": "Yale University",
+    "icon": "https://www.yale.edu/favicon.ico",
+    "country": "United States"
+  },
+  {
+    "type": "University",
+    "name": "University of Tokyo",
+    "icon": "https://www.u-tokyo.ac.jp/favicon.ico",
+    "country": "Japan"
+  },
+  {
+    "type": "University",
+    "name": "University of Toronto",
+    "icon": "https://www.utoronto.ca/favicon.ico",
+    "country": "Canada"
+  },
+  {
+    "type": "University",
+    "name": "University of California, Los Angeles (UCLA)",
+    "icon": "https://www.ucla.edu/favicon.ico",
+    "country": "United States"
+  },
+  {
+    "type": "University",
+    "name": "University of Michigan",
+    "icon": "https://umich.edu/favicon.ico",
+    "country": "United States"
+  },
+  {
+    "type": "University",
+    "name": "Columbia University",
+    "icon": "https://www.columbia.edu/favicon.ico",
+    "country": "United States"
+  },
+  {
+    "type": "University",
+    "name": "University of Edinburgh",
+    "icon": "https://www.ed.ac.uk/favicon.ico",
+    "country": "United Kingdom"
+  },
+  {
+    "type": "University",
+    "name": "University of Hong Kong",
+    "icon": "https://www.hku.hk/favicon.ico",
+    "country": "Hong Kong"
+  },
+  {
+    "type": "University",
+    "name": "Tsinghua University",
+    "icon": "https://www.tsinghua.edu.cn/favicon.ico",
+    "country": "China"
+  },
+  {
+    "type": "University",
+    "name": "University of Sydney",
+    "icon": "https://www.sydney.edu.au/favicon.ico",
+    "country": "Australia"
+  },
+  {
+    "type": "University",
+    "name": "University of Amsterdam",
+    "icon": "https://www.uva.nl/favicon.ico",
+    "country": "Netherlands"
+  },
+  {
+    "type": "University",
+    "name": "London School of Economics (LSE)",
+    "icon": "https://www.lse.ac.uk/favicon.ico",
+    "country": "United Kingdom"
+  },
+  {
+    "type": "University",
+    "name": "University of British Columbia",
+    "icon": "https://www.ubc.ca/favicon.ico",
+    "country": "Canada"
+  },
+  {
+    "type": "University",
+    "name": "University of Copenhagen",
+    "icon": "https://www.ku.dk/favicon.ico",
+    "country": "Denmark"
+  },
+  {
+    "type": "University",
+    "name": "University of Manchester",
+    "icon": "https://www.manchester.ac.uk/favicon.ico",
+    "country": "United Kingdom"
+  },
+  {
+    "type": "University",
+    "name": "University of Munich (LMU)",
+    "icon": "https://www.lmu.de/favicon.ico",
+    "country": "Germany"
+  },
+  {
+    "type": "University",
+    "name": "University of Queensland",
+    "icon": "https://www.uq.edu.au/favicon.ico",
+    "country": "Australia"
+  },
+  {
+    "type": "University",
+    "name": "Seoul National University",
+    "icon": "https://www.snu.ac.kr/favicon.ico",
+    "country": "South Korea"
+  },
+  {
+    "type": "University",
+    "name": "University of California, San Diego",
+    "icon": "https://ucsd.edu/favicon.ico",
+    "country": "United States"
+  },
+  {
+    "type": "University",
+    "name": "University of Wisconsin-Madison",
+    "icon": "https://www.wisc.edu/favicon.ico",
+    "country": "United States"
+  },
+  {
+    "type": "University",
+    "name": "University of Zurich",
+    "icon": "https://www.uzh.ch/favicon.ico",
+    "country": "Switzerland"
+  },
+  {
+    "type": "University",
+    "name": "Sorbonne University",
+    "icon": "https://www.sorbonne-universite.fr/favicon.ico",
+    "country": "France"
+  },
+  {
+    "type": "University",
+    "name": "University of Texas at Austin",
+    "icon": "https://www.utexas.edu/favicon.ico",
+    "country": "United States"
+  },
+  {
+    "type": "University",
+    "name": "University of Heidelberg",
+    "icon": "https://www.uni-heidelberg.de/favicon.ico",
+    "country": "Germany"
+  },
+  {
+    "type": "University",
+    "name": "Australian National University",
+    "icon": "https://www.anu.edu.au/favicon.ico",
+    "country": "Australia"
+  },
+  {
+    "type": "University",
+    "name": "University of Illinois Urbana-Champaign",
+    "icon": "https://illinois.edu/favicon.ico",
+    "country": "United States"
+  },
+  {
+    "type": "University",
+    "name": "University of Bristol",
+    "icon": "https://www.bristol.ac.uk/favicon.ico",
+    "country": "United Kingdom"
+  },
+  {
+    "type": "University",
+    "name": "University of Maryland, College Park",
+    "icon": "https://www.umd.edu/favicon.ico",
+    "country": "United States"
+  },
+  {
+    "type": "University",
+    "name": "University of Oslo",
+    "icon": "https://www.uio.no/favicon.ico",
+    "country": "Norway"
+  },
+  {
+    "type": "University",
+    "name": "University of Warwick",
+    "icon": "https://warwick.ac.uk/favicon.ico",
+    "country": "United Kingdom"
+  },
+  {
+    "type": "University",
+    "name": "University of California, Davis",
+    "icon": "https://www.ucdavis.edu/favicon.ico",
+    "country": "United States"
+  },
+  {
+    "type": "University",
+    "name": "Monash University",
+    "icon": "https://www.monash.edu/favicon.ico",
+    "country": "Australia"
+  },
+  {
+    "type": "University",
+    "name": "University of Auckland",
+    "icon": "https://www.auckland.ac.nz/favicon.ico",
+    "country": "New Zealand"
+  }
+]

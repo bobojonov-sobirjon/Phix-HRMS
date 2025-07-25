@@ -1,0 +1,502 @@
+[
+    {
+        "name": "Coursera",
+        "icon": "https://www.coursera.org/favicon.ico",
+        "country": "United States"
+    },
+    {
+        "name": "Udemy",
+        "icon": "https://www.udemy.com/staticx/udemy/images/v7/favicon.ico",
+        "country": "United States"
+    },
+    {
+        "name": "Pluralsight",
+        "icon": "https://www.pluralsight.com/etc.clientlibs/pluralsight/clientlibs/clientlib-main/resources/favicon.ico",
+        "country": "United States"
+    },
+    {
+        "name": "CompTIA",
+        "icon": "https://www.comptia.org/favicon.ico",
+        "country": "United States"
+    },
+    {
+        "name": "AWS Certification",
+        "icon": "https://aws.amazon.com/favicon.ico",
+        "country": "United States"
+    },
+    {
+        "name": "Microsoft Learn",
+        "icon": "https://learn.microsoft.com/favicon.ico",
+        "country": "United States"
+    },
+    {
+        "name": "Google Cloud",
+        "icon": "https://cloud.google.com/_static/favicon.ico",
+        "country": "United States"
+    },
+    {
+        "name": "Cisco Learning Network",
+        "icon": "https://www.cisco.com/favicon.ico",
+        "country": "United States"
+    },
+    {
+        "name": "EC-Council",
+        "icon": "https://www.eccouncil.org/favicon.ico",
+        "country": "United States"
+    },
+    {
+        "name": "ISACA",
+        "icon": "https://www.isaca.org/favicon.ico",
+        "country": "United States"
+    },
+    {
+        "name": "freeCodeCamp",
+        "icon": "https://www.freecodecamp.org/favicon.ico",
+        "country": "United States"
+    },
+    {
+        "name": "CodeSignal",
+        "icon": "https://codesignal.com/favicon.ico",
+        "country": "United States"
+    },
+    {
+        "name": "HackerRank",
+        "icon": "https://www.hackerrank.com/favicon.ico",
+        "country": "United States"
+    },
+    {
+        "name": "edX",
+        "icon": "https://www.edx.org/favicon.ico",
+        "country": "United States"
+    },
+    {
+        "name": "Skillsoft",
+        "icon": "https://www.skillsoft.com/favicon.ico",
+        "country": "United States"
+    },
+    {
+        "name": "Hugging Face",
+        "icon": "https://huggingface.co/favicon.ico",
+        "country": "United States"
+    },
+    {
+        "name": "IBM Cognitive Class",
+        "icon": "https://cognitiveclass.ai/favicon.ico",
+        "country": "United States"
+    },
+    {
+        "name": "MongoDB University",
+        "icon": "https://university.mongodb.com/favicon.ico",
+        "country": "United States"
+    },
+    {
+        "name": "MathWorks",
+        "icon": "https://www.mathworks.com/favicon.ico",
+        "country": "United States"
+    },
+    {
+        "name": "CareerFoundry",
+        "icon": "https://careerfoundry.com/favicon.ico",
+        "country": "Germany"
+    },
+    {
+        "name": "Ironhack",
+        "icon": "https://www.ironhack.com/favicon.ico",
+        "country": "Spain"
+    },
+    {
+        "name": "Hasso Plattner Institute",
+        "icon": "https://hpi.de/favicon.ico",
+        "country": "Germany"
+    },
+    {
+        "name": "Grow with Google",
+        "icon": "https://grow.google/favicon.ico",
+        "country": "United States"
+    },
+    {
+        "name": "Linux Foundation",
+        "icon": "https://www.linuxfoundation.org/favicon.ico",
+        "country": "United States"
+    },
+    {
+        "name": "(ISC)²",
+        "icon": "https://www.isc2.org/favicon.ico",
+        "country": "United States"
+    },
+    {
+        "name": "Coursera (AWS Courses)",
+        "icon": "https://www.coursera.org/favicon.ico",
+        "country": "United States"
+    },
+    {
+        "name": "Udemy (Cisco CCNA)",
+        "icon": "https://www.udemy.com/staticx/udemy/images/v7/favicon.ico",
+        "country": "United States"
+    },
+    {
+        "name": "Pluralsight (CompTIA Prep)",
+        "icon": "https://www.pluralsight.com/etc.clientlibs/pluralsight/clientlibs/clientlib-main/resources/favicon.ico",
+        "country": "United States"
+    },
+    {
+        "name": "CompTIA CertMaster",
+        "icon": "https://www.comptia.org/favicon.ico",
+        "country": "United States"
+    },
+    {
+        "name": "AWS Skill Builder",
+        "icon": "https://aws.amazon.com/favicon.ico",
+        "country": "United States"
+    },
+    {
+        "name": "Microsoft Azure Fundamentals",
+        "icon": "https://learn.microsoft.com/favicon.ico",
+        "country": "United States"
+    },
+    {
+        "name": "Google Cloud Digital Leader",
+        "icon": "https://cloud.google.com/_static/favicon.ico",
+        "country": "United States"
+    },
+    {
+        "name": "Cisco Networking Academy",
+        "icon": "https://www.cisco.com/favicon.ico",
+        "country": "United States"
+    },
+    {
+        "name": "EC-Council CEH",
+        "icon": "https://www.eccouncil.org/favicon.ico",
+        "country": "United States"
+    },
+    {
+        "name": "ISACA CISM",
+        "icon": "https://www.isaca.org/favicon.ico",
+        "country": "United States"
+    },
+    {
+        "name": "freeCodeCamp Web Dev",
+        "icon": "https://www.freecodecamp.org/favicon.ico",
+        "country": "United States"
+    },
+    {
+        "name": "CodeSignal AI & ML",
+        "icon": "https://codesignal.com/favicon.ico",
+        "country": "United States"
+    },
+    {
+        "name": "HackerRank Python",
+        "icon": "https://www.hackerrank.com/favicon.ico",
+        "country": "United States"
+    },
+    {
+        "name": "edX CS50",
+        "icon": "https://www.edx.org/favicon.ico",
+        "country": "United States"
+    },
+    {
+        "name": "Skillsoft Python Automation",
+        "icon": "https://www.skillsoft.com/favicon.ico",
+        "country": "United States"
+    },
+    {
+        "name": "Hugging Face ML Courses",
+        "icon": "https://huggingface.co/favicon.ico",
+        "country": "United States"
+    },
+    {
+        "name": "IBM Data Science",
+        "icon": "https://cognitiveclass.ai/favicon.ico",
+        "country": "United States"
+    },
+    {
+        "name": "MongoDB Developer",
+        "icon": "https://university.mongodb.com/favicon.ico",
+        "country": "United States"
+    },
+    {
+        "name": "MathWorks MATLAB",
+        "icon": "https://www.mathworks.com/favicon.ico",
+        "country": "United States"
+    },
+    {
+        "name": "CareerFoundry Full-Stack",
+        "icon": "https://careerfoundry.com/favicon.ico",
+        "country": "Germany"
+    },
+    {
+        "name": "Ironhack Web Dev",
+        "icon": "https://www.ironhack.com/favicon.ico",
+        "country": "Spain"
+    },
+    {
+        "name": "HPI Open Courses",
+        "icon": "https://hpi.de/favicon.ico",
+        "country": "Germany"
+    },
+    {
+        "name": "Google IT Automation",
+        "icon": "https://grow.google/favicon.ico",
+        "country": "United States"
+    },
+    {
+        "name": "Linux Foundation CKA",
+        "icon": "https://www.linuxfoundation.org/favicon.ico",
+        "country": "United States"
+    },
+    {
+        "name": "(ISC)² CISSP",
+        "icon": "https://www.isc2.org/favicon.ico",
+        "country": "United States"
+    },
+    {
+        "name": "Coursera (Google IT Support)",
+        "icon": "https://www.coursera.org/favicon.ico",
+        "country": "United States"
+    },
+    {
+        "name": "Udemy (AWS Developer)",
+        "icon": "https://www.udemy.com/staticx/udemy/images/v7/favicon.ico",
+        "country": "United States"
+    },
+    {
+        "name": "Pluralsight (Cisco CCNP)",
+        "icon": "https://www.pluralsight.com/etc.clientlibs/pluralsight/clientlibs/clientlib-main/resources/favicon.ico",
+        "country": "United States"
+    },
+    {
+        "name": "CompTIA Security+",
+        "icon": "https://www.comptia.org/favicon.ico",
+        "country": "United States"
+    },
+    {
+        "name": "AWS Certified Developer",
+        "icon": "https://aws.amazon.com/favicon.ico",
+        "country": "United States"
+    },
+    {
+        "name": "Microsoft Power Platform",
+        "icon": "https://learn.microsoft.com/favicon.ico",
+        "country": "United States"
+    },
+    {
+        "name": "Google Professional Cloud Architect",
+        "icon": "https://cloud.google.com/_static/favicon.ico",
+        "country": "United States"
+    },
+    {
+        "name": "Cisco CCNA",
+        "icon": "https://www.cisco.com/favicon.ico",
+        "country": "United States"
+    },
+    {
+        "name": "EC-Council CHFI",
+        "icon": "https://www.eccouncil.org/favicon.ico",
+        "country": "United States"
+    },
+    {
+        "name": "ISACA CRISC",
+        "icon": "https://www.isaca.org/favicon.ico",
+        "country": "United States"
+    },
+    {
+        "name": "freeCodeCamp Data Analysis",
+        "icon": "https://www.freecodecamp.org/favicon.ico",
+        "country": "United States"
+    },
+    {
+        "name": "CodeSignal Coding Prep",
+        "icon": "https://codesignal.com/favicon.ico",
+        "country": "United States"
+    },
+    {
+        "name": "HackerRank JavaScript",
+        "icon": "https://www.hackerrank.com/favicon.ico",
+        "country": "United States"
+    },
+    {
+        "name": "edX Data Science",
+        "icon": "https://www.edx.org/favicon.ico",
+        "country": "United States"
+    },
+    {
+        "name": "Skillsoft Cloud Computing",
+        "icon": "https://www.skillsoft.com/favicon.ico",
+        "country": "United States"
+    },
+    {
+        "name": "Hugging Face AI",
+        "icon": "https://huggingface.co/favicon.ico",
+        "country": "United States"
+    },
+    {
+        "name": "IBM Blockchain",
+        "icon": "https://cognitiveclass.ai/favicon.ico",
+        "country": "United States"
+    },
+    {
+        "name": "MongoDB Atlas",
+        "icon": "https://university.mongodb.com/favicon.ico",
+        "country": "United States"
+    },
+    {
+        "name": "MathWorks Simulink",
+        "icon": "https://www.mathworks.com/favicon.ico",
+        "country": "United States"
+    },
+    {
+        "name": "CareerFoundry UX Design",
+        "icon": "https://careerfoundry.com/favicon.ico",
+        "country": "Germany"
+    },
+    {
+        "name": "Ironhack Data Analytics",
+        "icon": "https://www.ironhack.com/favicon.ico",
+        "country": "Spain"
+    },
+    {
+        "name": "HPI Software Engineering",
+        "icon": "https://hpi.de/favicon.ico",
+        "country": "Germany"
+    },
+    {
+        "name": "Google Data Analytics",
+        "icon": "https://grow.google/favicon.ico",
+        "country": "United States"
+    },
+    {
+        "name": "Linux Foundation CKAD",
+        "icon": "https://www.linuxfoundation.org/favicon.ico",
+        "country": "United States"
+    },
+    {
+        "name": "(ISC)² CCSP",
+        "icon": "https://www.isc2.org/favicon.ico",
+        "country": "United States"
+    },
+    {
+        "name": "Coursera (Microsoft Azure)",
+        "icon": "https://www.coursera.org/favicon.ico",
+        "country": "United States"
+    },
+    {
+        "name": "Udemy (Python Bootcamp)",
+        "icon": "https://www.udemy.com/staticx/udemy/images/v7/favicon.ico",
+        "country": "United States"
+    },
+    {
+        "name": "Pluralsight (Google Cloud)",
+        "icon": "https://www.pluralsight.com/etc.clientlibs/pluralsight/clientlibs/clientlib-main/resources/favicon.ico",
+        "country": "United States"
+    },
+    {
+        "name": "CompTIA Network+",
+        "icon": "https://www.comptia.org/favicon.ico",
+        "country": "United States"
+    },
+    {
+        "name": "AWS Solutions Architect",
+        "icon": "https://aws.amazon.com/favicon.ico",
+        "country": "United States"
+    },
+    {
+        "name": "Microsoft Dynamics 365",
+        "icon": "https://learn.microsoft.com/favicon.ico",
+        "country": "United States"
+    },
+    {
+        "name": "Google Cybersecurity",
+        "icon": "https://cloud.google.com/_static/favicon.ico",
+        "country": "United States"
+    },
+    {
+        "name": "Cisco CyberOps",
+        "icon": "https://www.cisco.com/favicon.ico",
+        "country": "United States"
+    },
+    {
+        "name": "EC-Council ECSA",
+        "icon": "https://www.eccouncil.org/favicon.ico",
+        "country": "United States"
+    },
+    {
+        "name": "ISACA CISA",
+        "icon": "https://www.isaca.org/favicon.ico",
+        "country": "United States"
+    },
+    {
+        "name": "freeCodeCamp JavaScript",
+        "icon": "https://www.freecodecamp.org/favicon.ico",
+        "country": "United States"
+    },
+    {
+        "name": "CodeSignal Data Science",
+        "icon": "https://codesignal.com/favicon.ico",
+        "country": "United States"
+    },
+    {
+        "name": "HackerRank SQL",
+        "icon": "https://www.hackerrank.com/favicon.ico",
+        "country": "United States"
+    },
+    {
+        "name": "edX Python",
+        "icon": "https://www.edx.org/favicon.ico",
+        "country": "United States"
+    },
+    {
+        "name": "Skillsoft Cybersecurity",
+        "icon": "https://www.skillsoft.com/favicon.ico",
+        "country": "United States"
+    },
+    {
+        "name": "Hugging Face NLP",
+        "icon": "https://huggingface.co/favicon.ico",
+        "country": "United States"
+    },
+    {
+        "name": "IBM AI Engineering",
+        "icon": "https://cognitiveclass.ai/favicon.ico",
+        "country": "United States"
+    },
+    {
+        "name": "MongoDB Cluster Admin",
+        "icon": "https://university.mongodb.com/favicon.ico",
+        "country": "United States"
+    },
+    {
+        "name": "MathWorks MATLAB Onramp",
+        "icon": "https://www.mathworks.com/favicon.ico",
+        "country": "United States"
+    },
+    {
+        "name": "CareerFoundry Data Analytics",
+        "icon": "https://careerfoundry.com/favicon.ico",
+        "country": "Germany"
+    },
+    {
+        "name": "Ironhack UX/UI",
+        "icon": "https://www.ironhack.com/favicon.ico",
+        "country": "Spain"
+    },
+    {
+        "name": "HPI Cybersecurity",
+        "icon": "https://hpi.de/favicon.ico",
+        "country": "Germany"
+    },
+    {
+        "name": "Google UX Design",
+        "icon": "https://grow.google/favicon.ico",
+        "country": "United States"
+    },
+    {
+        "name": "Linux Foundation LFCS",
+        "icon": "https://www.linuxfoundation.org/favicon.ico",
+        "country": "United States"
+    },
+    {
+        "name": "(ISC)² SSCP",
+        "icon": "https://www.isc2.org/favicon.ico",
+        "country": "United States"
+    }
+]

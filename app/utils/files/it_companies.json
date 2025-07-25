@@ -1,0 +1,102 @@
+[
+    {
+        "name": "Microsoft Corporation",
+        "icon": "https://logo.clearbit.com/microsoft.com",
+        "country": "United States"
+    },
+    {
+        "name": "Apple Inc.",
+        "icon": "https://logo.clearbit.com/apple.com",
+        "country": "United States"
+    },
+    {
+        "name": "Alphabet Inc.",
+        "icon": "https://logo.clearbit.com/google.com",
+        "country": "United States"
+    },
+    {
+        "name": "Amazon Web Services",
+        "icon": "https://logo.clearbit.com/amazonaws.com",
+        "country": "United States"
+    },
+    {
+        "name": "Meta Platforms",
+        "icon": "https://logo.clearbit.com/meta.com",
+        "country": "United States"
+    },
+    {
+        "name": "IBM",
+        "icon": "https://logo.clearbit.com/ibm.com",
+        "country": "United States"
+    },
+    {
+        "name": "Oracle Corporation",
+        "icon": "https://logo.clearbit.com/oracle.com",
+        "country": "United States"
+    },
+    {
+        "name": "SAP SE",
+        "icon": "https://logo.clearbit.com/sap.com",
+        "country": "Germany"
+    },
+    {
+        "name": "Accenture",
+        "icon": "https://logo.clearbit.com/accenture.com",
+        "country": "Ireland"
+    },
+    {
+        "name": "Tata Consultancy Services",
+        "icon": "https://logo.clearbit.com/tcs.com",
+        "country": "India"
+    },
+    {
+        "name": "Infosys",
+        "icon": "https://logo.clearbit.com/infosys.com",
+        "country": "India"
+    },
+    {
+        "name": "HCL Technologies",
+        "icon": "https://logo.clearbit.com/hcltech.com",
+        "country": "India"
+    },
+    {
+        "name": "Wipro Limited",
+        "icon": "https://logo.clearbit.com/wipro.com",
+        "country": "India"
+    },
+    {
+        "name": "Tech Mahindra",
+        "icon": "https://logo.clearbit.com/techmahindra.com",
+        "country": "India"
+    },
+    {
+        "name": "LTIMindtree",
+        "icon": "https://www.ltimindtree.com/wp-content/uploads/2023/08/LTIMindtree-Logo.png",
+        "country": "India"
+    },
+    {
+        "name": "Cognizant",
+        "icon": "https://logo.clearbit.com/cognizant.com",
+        "country": "United States"
+    },
+    {
+        "name": "Capgemini",
+        "icon": "https://logo.clearbit.com/capgemini.com",
+        "country": "France"
+    },
+    {
+        "name": "Adobe Inc.",
+        "icon": "https://logo.clearbit.com/adobe.com",
+        "country": "United States"
+    },
+    {
+        "name": "Salesforce",
+        "icon": "https://logo.clearbit.com/salesforce.com",
+        "country": "United States"
+    },
+    {
+        "name": "Cisco Systems",
+        "icon": "https://logo.clearbit.com/cisco.com",
+        "country": "United States"
+    }
+]
