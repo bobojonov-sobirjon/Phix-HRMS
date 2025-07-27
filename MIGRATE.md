@@ -71,3 +71,8 @@ alembic upgrade head
 If you encounter issues, check the Alembic docs or consult the project README.
 
 Last updated: [Insert Date] 
+
+sudo systemctl start gunicorn.socket
+sudo systemctl enable gunicorn.socket
+sudo systemctl daemon-reload
+sudo systemctl restart gunicorn

@@ -5,6 +5,7 @@ from ..database import get_db
 from ..models.company import Company
 from ..models.education_facility import EducationFacility
 from ..models.certification_center import CertificationCenter
+from ..models.location import Location
 import json
 import os
 
@@ -14,6 +15,7 @@ router = APIRouter(prefix="/data-management", tags=["Data Management"])
 COMPANIES_FILE = "app/utils/files/it_companies.json"
 CERTIFICATIONS_FILE = "app/utils/files/it_certifications.json"
 EDUCATION_FILE = "app/utils/files/education_institutions_corrected.json"
+COUNTRIES_FILE = "app/utils/files/countries.json"
 
 def read_json_file(file_path: str) -> List[Dict[str, Any]]:
     """Read JSON file and return its content"""
@@ -25,6 +27,54 @@ def read_json_file(file_path: str) -> List[Dict[str, Any]]:
     except json.JSONDecodeError:
         return []
 
+@router.post("/import-locations")
+async def import_locations(db: Session = Depends(get_db)):
+    """
+    Import location data from countries.json file into database
+    """
+    try:
+        # Read countries JSON file
+        countries_data = read_json_file(COUNTRIES_FILE)
+        
+        if not countries_data:
+            raise HTTPException(status_code=404, detail="Countries file not found or empty")
+        
+        locations_imported = 0
+        for country_data in countries_data:
+            try:
+                # Check if location already exists
+                existing_location = db.query(Location).filter(
+                    Location.name == country_data.get("name"),
+                    Location.code == country_data.get("code"),
+                    Location.is_deleted == False
+                ).first()
+                
+                if not existing_location:
+                    location = Location(
+                        name=country_data.get("name"),
+                        flag_image=country_data.get("flag_image"),
+                        code=country_data.get("code")
+                    )
+                    db.add(location)
+                    locations_imported += 1
+            except Exception as e:
+                print(f"Error importing location {country_data.get('name')}: {e}")
+        
+        # Commit all changes
+        db.commit()
+        
+        return {
+            "message": "Location data imported successfully",
+            "data": {
+                "locations_imported": locations_imported,
+                "total_countries_in_file": len(countries_data)
+            }
+        }
+    
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Failed to import location data: {str(e)}")
+
 @router.post("/import-all")
 async def import_all_data(db: Session = Depends(get_db)):
     """
@@ -35,6 +85,7 @@ async def import_all_data(db: Session = Depends(get_db)):
         companies_data = read_json_file(COMPANIES_FILE)
         certifications_data = read_json_file(CERTIFICATIONS_FILE)
         education_data = read_json_file(EDUCATION_FILE)
+        countries_data = read_json_file(COUNTRIES_FILE)
         
         # Import companies
         companies_imported = 0
@@ -104,6 +155,29 @@ async def import_all_data(db: Session = Depends(get_db)):
             except Exception as e:
                 print(f"Error importing certification center {cert_data.get('name')}: {e}")
         
+        # Import locations (countries)
+        locations_imported = 0
+        for country_data in countries_data:
+            try:
+                # Check if location already exists
+                existing_location = db.query(Location).filter(
+                    Location.name == country_data.get("name"),
+                    Location.flag_image == country_data.get("flag_image"),
+                    Location.code == country_data.get("code"),
+                    Location.is_deleted == False
+                ).first()
+                
+                if not existing_location:
+                    location = Location(
+                        name=country_data.get("name"),
+                        flag_image=country_data.get("flag_image"),
+                        code=country_data.get("code")
+                    )
+                    db.add(location)
+                    locations_imported += 1
+            except Exception as e:
+                print(f"Error importing location {country_data.get('name')}: {e}")
+        
         # Commit all changes
         db.commit()
         
@@ -113,7 +187,8 @@ async def import_all_data(db: Session = Depends(get_db)):
                 "companies_imported": companies_imported,
                 "education_facilities_imported": education_imported,
                 "certification_centers_imported": certifications_imported,
-                "total_imported": companies_imported + education_imported + certifications_imported
+                "locations_imported": locations_imported,
+                "total_imported": companies_imported + education_imported + certifications_imported + locations_imported
             }
         }
     
@@ -131,24 +206,28 @@ async def get_import_stats(db: Session = Depends(get_db)):
         companies_count = db.query(Company).filter(Company.is_deleted == False).count()
         education_count = db.query(EducationFacility).filter(EducationFacility.is_deleted == False).count()
         certifications_count = db.query(CertificationCenter).filter(CertificationCenter.is_deleted == False).count()
+        locations_count = db.query(Location).filter(Location.is_deleted == False).count()
         
         # Count records in JSON files
         companies_data = read_json_file(COMPANIES_FILE)
         education_data = read_json_file(EDUCATION_FILE)
         certifications_data = read_json_file(CERTIFICATIONS_FILE)
+        countries_data = read_json_file(COUNTRIES_FILE)
         
         return {
             "database_stats": {
                 "companies": companies_count,
                 "education_facilities": education_count,
                 "certification_centers": certifications_count,
-                "total": companies_count + education_count + certifications_count
+                "locations": locations_count,
+                "total": companies_count + education_count + certifications_count + locations_count
             },
             "json_file_stats": {
                 "companies": len(companies_data),
                 "education_facilities": len(education_data),
                 "certification_centers": len(certifications_data),
-                "total": len(companies_data) + len(education_data) + len(certifications_data)
+                "locations": len(countries_data),
+                "total": len(companies_data) + len(education_data) + len(certifications_data) + len(countries_data)
             }
         }
     
