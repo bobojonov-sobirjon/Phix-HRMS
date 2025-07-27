@@ -27,54 +27,6 @@ def read_json_file(file_path: str) -> List[Dict[str, Any]]:
     except json.JSONDecodeError:
         return []
 
-@router.post("/import-locations")
-async def import_locations(db: Session = Depends(get_db)):
-    """
-    Import location data from countries.json file into database
-    """
-    try:
-        # Read countries JSON file
-        countries_data = read_json_file(COUNTRIES_FILE)
-        
-        if not countries_data:
-            raise HTTPException(status_code=404, detail="Countries file not found or empty")
-        
-        locations_imported = 0
-        for country_data in countries_data:
-            try:
-                # Check if location already exists
-                existing_location = db.query(Location).filter(
-                    Location.name == country_data.get("name"),
-                    Location.code == country_data.get("code"),
-                    Location.is_deleted == False
-                ).first()
-                
-                if not existing_location:
-                    location = Location(
-                        name=country_data.get("name"),
-                        flag_image=country_data.get("flag_image"),
-                        code=country_data.get("code")
-                    )
-                    db.add(location)
-                    locations_imported += 1
-            except Exception as e:
-                print(f"Error importing location {country_data.get('name')}: {e}")
-        
-        # Commit all changes
-        db.commit()
-        
-        return {
-            "message": "Location data imported successfully",
-            "data": {
-                "locations_imported": locations_imported,
-                "total_countries_in_file": len(countries_data)
-            }
-        }
-    
-    except Exception as e:
-        db.rollback()
-        raise HTTPException(status_code=500, detail=f"Failed to import location data: {str(e)}")
-
 @router.post("/import-all")
 async def import_all_data(db: Session = Depends(get_db)):
     """
