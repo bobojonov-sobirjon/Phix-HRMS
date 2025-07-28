@@ -17,7 +17,7 @@ def get_locations(current_user: User = Depends(get_current_user), db: Session = 
     base_url = str(request.base_url).rstrip("/") if request else ""
     result = []
     for loc in locations:
-        loc_data = LocationResponse.from_orm(loc).dict()
+        loc_data = LocationResponse.model_validate(loc).dict()
         if loc_data["flag_image"] and not loc_data["flag_image"].startswith("http"):
             loc_data["flag_image"] = f"{base_url}{loc_data['flag_image']}"
         result.append(loc_data)
@@ -27,9 +27,9 @@ def get_locations(current_user: User = Depends(get_current_user), db: Session = 
 def get_location(location_id: int, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     repo = LocationRepository(db)
     location = repo.get_location_by_id(location_id)
-    if not location:
+    if not location or location.is_deleted:
         raise HTTPException(status_code=404, detail="Location not found")
-    return location
+    return LocationResponse.model_validate(location)
 
 @router.post("/", response_model=LocationResponse, tags=["Locations"])
 async def create_location(
@@ -60,7 +60,7 @@ async def create_location(
     ))
 
     # Add base URL to flag_image in response
-    location_data = LocationResponse.from_orm(location).dict()
+    location_data = LocationResponse.model_validate(location).dict()
     if location_data["flag_image"]:
         base_url = str(request.base_url).rstrip("/")
         location_data["flag_image"] = f"{base_url}{location_data['flag_image']}"

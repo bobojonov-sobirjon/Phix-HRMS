@@ -198,4 +198,4 @@ async def upload_avatar(file: UploadFile = File(...), current_user: User = Depen
     current_user.avatar_url = f"/{file_path}"
     db.commit()
     db.refresh(current_user)
-    return UserFullResponse.from_orm(current_user) 
+    return UserFullResponse.model_validate(current_user) 

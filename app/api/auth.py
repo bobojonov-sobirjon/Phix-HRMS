@@ -361,7 +361,7 @@ async def get_current_user_info(request: Request, current_user: User = Depends(g
     full_user = user_repo.get_user_full_profile(current_user.id)
     if not full_user:
         raise HTTPException(status_code=404, detail="User not found")
-    user_data = UserFullResponse.from_orm(full_user).dict()
+    user_data = UserFullResponse.model_validate(full_user).dict()
     base_url = str(request.base_url).rstrip("/")
     # Fix avatar_url
     if user_data["avatar_url"]:

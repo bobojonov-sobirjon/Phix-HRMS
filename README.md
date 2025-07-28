@@ -1,33 +1,40 @@
-# Phix HRMS Authentication API
+# Phix HRMS - Human Resource Management System
 
-Complete mobile authentication system with login, register, social login (Google, Facebook, Apple), and password recovery with OTP verification.
+A comprehensive HR management system with authentication, user management, and data import capabilities.
 
 ## Features
 
-- ✅ **User Registration** - Email and password registration
-- ✅ **User Login** - Email and password authentication
+- ✅ **User Authentication** - Registration, login, and password recovery
 - ✅ **Social Login** - Google, Facebook, and Apple ID authentication
-- ✅ **Password Reset** - OTP verification via email
 - ✅ **JWT Authentication** - Secure token-based authentication
-- ✅ **PostgreSQL Database** - Reliable data storage
-- ✅ **Mobile Optimized** - CORS enabled for mobile apps
+- ✅ **PostgreSQL Database** - Reliable data storage with migrations
 - ✅ **Email Integration** - SMTP email for OTP delivery
+- ✅ **Data Import** - Import companies, education facilities, and certifications
+- ✅ **User Management** - Profile management, skills, roles, and languages
+- ✅ **Mobile Optimized** - CORS enabled for mobile apps
 
-## API Endpoints
+## Project Structure
 
-### Authentication Endpoints
+```
+Phix-Hrms/
+├── app/
+│   ├── api/                 # API endpoints
+│   ├── models/              # Database models
+│   ├── repositories/        # Data access layer
+│   ├── schemas/            # Pydantic schemas
+│   ├── utils/              # Utility functions
+│   ├── config.py           # Configuration settings
+│   ├── database.py         # Database connection
+│   └── main.py            # FastAPI application
+├── alembic/                # Database migrations
+├── static/                 # Static files (avatars, flags, projects)
+├── test/                   # Test files
+├── requirements.txt        # Python dependencies
+├── env.example            # Environment variables template
+└── README.md              # This file
+```
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| POST | `/api/v1/auth/register` | Register new user |
-| POST | `/api/v1/auth/login` | Login with email/password |
-| POST | `/api/v1/auth/social-login` | Login with social provider |
-| POST | `/api/v1/auth/forgot-password` | Send OTP for password reset |
-| POST | `/api/v1/auth/verify-otp` | Verify OTP code |
-| POST | `/api/v1/auth/reset-password` | Reset password with OTP |
-| GET | `/api/v1/auth/me` | Get current user info |
-
-## Setup Instructions
+## Quick Start
 
 ### 1. Install Dependencies
 
@@ -74,10 +81,41 @@ APPLE_CLIENT_SECRET=your-apple-client-secret
 
 ### 3. Database Setup
 
-Create PostgreSQL database:
+#### Option A: Automatic Setup (Recommended)
 
+```bash
+# Create database and run migrations (like Django's migrate)
+python setup_database.py
+```
+
+This script will:
+- Create the database if it doesn't exist
+- Run all pending migrations
+- Test the database connection
+
+#### Option B: Manual Setup
+
+1. Create PostgreSQL database:
 ```sql
 CREATE DATABASE phix_hrms;
+```
+
+2. Run migrations:
+```bash
+alembic upgrade head
+```
+
+#### Database Setup Commands
+
+```bash
+# Full setup (create DB + run migrations)
+python setup_database.py
+
+# Run migrations only (like Django's migrate)
+python setup_database.py migrate
+
+# Create new migration (like Django's makemigrations)
+python setup_database.py makemigrations "Add new model"
 ```
 
 ### 4. Run the Application
@@ -90,158 +128,138 @@ python -m uvicorn app.main:app --reload
 python -m uvicorn app.main:app --host 0.0.0.0 --port 8000
 ```
 
-## API Usage Examples
+The application will be available at:
+- **API Documentation**: http://localhost:8000/docs
+- **Health Check**: http://localhost:8000/health
 
-### 1. User Registration
+## Database Management
+
+### Creating New Models
+
+When adding new database models:
+
+1. **Create the model** in `app/models/` directory
+2. **Import the model** in `alembic/env.py`:
+```python
+from app.models.your_model import YourModel
+```
+3. **Generate migration**:
+```bash
+alembic revision --autogenerate -m "Add YourModel table"
+```
+4. **Apply migration**:
+```bash
+alembic upgrade head
+```
+
+### Migration Commands
 
 ```bash
-curl -X POST "http://localhost:8000/api/v1/auth/register" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "name": "Ahmed Khaled",
-    "email": "ahmeduiux206@gmail.com",
-    "password": "password123"
-  }'
+# Create new migration
+alembic revision --autogenerate -m "Description of changes"
+
+# Apply migrations
+alembic upgrade head
+
+# Rollback migrations
+alembic downgrade -1
+
+# Check migration status
+alembic current
+
+# View migration history
+alembic history
 ```
 
-### 2. User Login
+### Database Schema
+
+The system includes these main tables:
+
+- **users** - User accounts and authentication
+- **otps** - One-time passwords for verification
+- **roles** - User roles and permissions
+- **skills** - User skills and competencies
+- **languages** - Language support
+- **locations** - Geographic locations
+- **companies** - Company information
+- **education_facilities** - Educational institutions
+- **certification_centers** - Certification providers
+- **projects** - User projects and portfolios
+- **experiences** - Work experience records
+- **educations** - Educational background
+- **certifications** - Professional certifications
+
+## Email Configuration
+
+### Gmail Setup
+
+1. **Enable 2-Factor Authentication** on your Gmail account
+2. **Generate App Password**:
+   - Go to Google Account settings
+   - Security → 2-Step Verification → App passwords
+   - Select 'Mail' and 'Other (Custom name)'
+   - Enter 'Phix HRMS' as the name
+   - Copy the 16-character password
+3. **Update .env file** with your App Password
+
+### Testing Email Configuration
 
 ```bash
-curl -X POST "http://localhost:8000/api/v1/auth/login" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "email": "ahmeduiux206@gmail.com",
-    "password": "password123"
-  }'
+# Test SMTP connection
+python -c "
+import smtplib
+import os
+from dotenv import load_dotenv
+load_dotenv()
+
+smtp_server = os.getenv('SMTP_SERVER')
+smtp_port = int(os.getenv('SMTP_PORT'))
+smtp_username = os.getenv('SMTP_USERNAME')
+smtp_password = os.getenv('SMTP_PASSWORD')
+
+server = smtplib.SMTP(smtp_server, smtp_port)
+server.starttls()
+server.login(smtp_username, smtp_password)
+print('Email configuration is working!')
+server.quit()
+"
 ```
 
-### 3. Social Login
+## Data Import
+
+The system supports importing data from JSON files:
+
+- **Companies**: `app/utils/files/it_companies.json`
+- **Education Facilities**: `app/utils/files/education_institutions_corrected.json`
+- **Certification Centers**: `app/utils/files/it_certifications.json`
+
+Import data using the data management endpoints or run the import script.
+
+## Testing
+
+### Run Tests
 
 ```bash
-curl -X POST "http://localhost:8000/api/v1/auth/social-login" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "provider": "google",
-    "access_token": "google-access-token"
-  }'
+# Run all tests
+pytest test/
+
+# Run specific test file
+pytest test/test_auth.py
 ```
 
-### 4. Forgot Password
+### Test Database Connection
 
 ```bash
-curl -X POST "http://localhost:8000/api/v1/auth/forgot-password" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "email": "ahmeduiux206@gmail.com"
-  }'
+python -c "
+import psycopg2
+try:
+    conn = psycopg2.connect('postgresql://postgres:0576@localhost:5432/phix_hrms')
+    print('Database connection successful!')
+    conn.close()
+except Exception as e:
+    print(f'Database connection failed: {e}')
+"
 ```
-
-### 5. Verify OTP
-
-```bash
-curl -X POST "http://localhost:8000/api/v1/auth/verify-otp" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "email": "ahmeduiux206@gmail.com",
-    "otp_code": "123456"
-  }'
-```
-
-### 6. Reset Password
-
-```bash
-curl -X POST "http://localhost:8000/api/v1/auth/reset-password" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "email": "ahmeduiux206@gmail.com",
-    "otp_code": "123456",
-    "new_password": "newpassword123"
-  }'
-```
-
-### 7. Get Current User
-
-```bash
-curl -X GET "http://localhost:8000/api/v1/auth/me" \
-  -H "Authorization: Bearer YOUR_JWT_TOKEN"
-```
-
-## Mobile App Integration
-
-### React Native Example
-
-```javascript
-// Login function
-const login = async (email, password) => {
-  try {
-    const response = await fetch('http://localhost:8000/api/v1/auth/login', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        email: email,
-        password: password,
-      }),
-    });
-    
-    const data = await response.json();
-    // Store token in secure storage
-    await SecureStore.setItemAsync('token', data.token.access_token);
-    return data;
-  } catch (error) {
-    console.error('Login error:', error);
-  }
-};
-
-// Social login function
-const socialLogin = async (provider, accessToken) => {
-  try {
-    const response = await fetch('http://localhost:8000/api/v1/auth/social-login', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        provider: provider, // 'google', 'facebook', 'apple'
-        access_token: accessToken,
-      }),
-    });
-    
-    const data = await response.json();
-    await SecureStore.setItemAsync('token', data.token.access_token);
-    return data;
-  } catch (error) {
-    console.error('Social login error:', error);
-  }
-};
-```
-
-## Database Schema
-
-### Users Table
-- `id` - Primary key
-- `name` - User's full name
-- `email` - Unique email address
-- `password_hash` - Hashed password (nullable for social users)
-- `google_id` - Google OAuth ID
-- `facebook_id` - Facebook OAuth ID
-- `apple_id` - Apple OAuth ID
-- `phone` - Phone number
-- `avatar_url` - Profile picture URL
-- `is_active` - Account status
-- `is_verified` - Email verification status
-- `created_at` - Account creation timestamp
-- `updated_at` - Last update timestamp
-- `last_login` - Last login timestamp
-
-### OTPs Table
-- `id` - Primary key
-- `email` - Email address
-- `otp_code` - OTP code
-- `is_used` - Usage status
-- `created_at` - Creation timestamp
-- `expires_at` - Expiration timestamp
 
 ## Security Features
 
@@ -254,6 +272,8 @@ const socialLogin = async (provider, accessToken) => {
 
 ## Production Deployment
 
+### Environment Setup
+
 1. **Environment Variables** - Configure all environment variables
 2. **Database** - Use production PostgreSQL instance
 3. **Email Service** - Configure SMTP for OTP delivery
@@ -261,6 +281,64 @@ const socialLogin = async (provider, accessToken) => {
 5. **HTTPS** - Enable SSL/TLS encryption
 6. **Rate Limiting** - Implement API rate limiting
 7. **Monitoring** - Add logging and monitoring
+
+### Nginx Configuration
+
+The project includes an `nginx.conf` file for production deployment with:
+- Reverse proxy to FastAPI application
+- Static file serving
+- SSL/TLS configuration
+- Security headers
+
+### Docker Deployment
+
+```dockerfile
+FROM python:3.11-slim
+
+WORKDIR /app
+COPY requirements.txt .
+RUN pip install -r requirements.txt
+
+COPY . .
+EXPOSE 8000
+
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+```
+
+## Troubleshooting
+
+### Common Issues
+
+1. **Database Connection Error**
+   - Ensure PostgreSQL is running
+   - Check database credentials in `.env`
+   - Verify database exists
+
+2. **Email Authentication Error**
+   - Enable 2-Factor Authentication on Gmail
+   - Use App Password instead of regular password
+   - Check SMTP settings in `.env`
+
+3. **Migration Errors**
+   - Ensure all models are imported in `alembic/env.py`
+   - Check for conflicting migrations
+   - Verify database is up to date
+
+4. **Import Errors**
+   - Check JSON file paths
+   - Verify database tables exist
+   - Ensure proper permissions
+
+### Reset Database (Development Only)
+
+```bash
+# Drop and recreate database
+psql -U postgres -h localhost -c "DROP DATABASE IF EXISTS phix_hrms;"
+psql -U postgres -h localhost -c "CREATE DATABASE phix_hrms;"
+
+# Run migrations
+alembic upgrade head
+```
 
 ## Contributing
 
@@ -272,4 +350,12 @@ const socialLogin = async (provider, accessToken) => {
 
 ## License
 
-This project is licensed under the MIT License. 
+This project is licensed under the MIT License.
+
+## Support
+
+For issues and questions:
+1. Check the troubleshooting section
+2. Review the logs for specific error messages
+3. Verify all environment variables are correctly set
+4. Ensure all dependencies are installed correctly 

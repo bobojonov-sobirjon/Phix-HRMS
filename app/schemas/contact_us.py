@@ -10,7 +10,7 @@ class ContactUsBase(BaseModel):
 class ContactUsCreate(ContactUsBase):
     pass
 
-class ContactUsUpdate(BaseModel):
+class ContactUsUpdate(ContactUsBase):
     name: Optional[str] = None
     contact_type: Optional[str] = None
     value: Optional[str] = None
@@ -21,4 +21,4 @@ class ContactUsOut(ContactUsBase):
     updated_at: Optional[datetime]
 
     class Config:
-        orm_mode = True 
+        from_attributes = True 

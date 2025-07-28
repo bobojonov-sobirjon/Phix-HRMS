@@ -9,7 +9,7 @@ class FAQBase(BaseModel):
 class FAQCreate(FAQBase):
     pass
 
-class FAQUpdate(BaseModel):
+class FAQUpdate(FAQBase):
     question: Optional[str] = None
     answer: Optional[str] = None
 
@@ -19,4 +19,4 @@ class FAQOut(FAQBase):
     updated_at: Optional[datetime]
 
     class Config:
-        orm_mode = True 
+        from_attributes = True 

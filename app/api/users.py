@@ -15,7 +15,15 @@ def get_user_profile(user_id: int = Header(..., description="User ID to retrieve
     user = repo.get_user_full_profile(user_id)
     if not user or user.is_deleted:
         raise HTTPException(status_code=404, detail="User not found")
-    return UserFullResponse.from_orm(user)
+    return UserFullResponse.model_validate(user)
+
+@router.get("/profile", response_model=UserFullResponse)
+def get_my_profile(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    repo = UserRepository(db)
+    user = repo.get_user_full_profile(current_user.id)
+    if not user or user.is_deleted:
+        raise HTTPException(status_code=404, detail="User not found")
+    return UserFullResponse.model_validate(user)
 
 @router.patch("/", response_model=UserFullResponse)
 def update_user_profile(

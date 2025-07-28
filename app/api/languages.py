@@ -1,39 +1,40 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from ..database import get_db
-from ..schemas.language import LanguageCreate, LanguageUpdate, LanguageResponse
 from ..repositories.language_repository import LanguageRepository
-from typing import List
+from ..schemas.language import LanguageResponse, LanguageCreate, LanguageUpdate
+from ..models.user import User
+from ..utils.auth import get_current_user
 
 router = APIRouter(prefix="/languages", tags=["Languages"])
 
-@router.post("/", response_model=LanguageResponse)
-def create_language(language: LanguageCreate, db: Session = Depends(get_db)):
-    repo = LanguageRepository(db)
-    lang = repo.create(name=language.name)
-    return LanguageResponse.from_orm(lang)
-
-@router.get("/", response_model=List[LanguageResponse])
-def get_languages(db: Session = Depends(get_db)):
-    repo = LanguageRepository(db)
-    langs = repo.get_all()
-    return [LanguageResponse.from_orm(l) for l in langs]
-
 @router.get("/{language_id}", response_model=LanguageResponse)
-def get_language(language_id: int, db: Session = Depends(get_db)):
+def get_language(language_id: int, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     repo = LanguageRepository(db)
-    lang = repo.get(language_id)
-    if not lang:
+    lang = repo.get_language_by_id(language_id)
+    if not lang or lang.is_deleted:
         raise HTTPException(status_code=404, detail="Language not found")
-    return LanguageResponse.from_orm(lang)
+    return LanguageResponse.model_validate(lang)
+
+@router.get("/", response_model=list[LanguageResponse])
+def get_languages(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    repo = LanguageRepository(db)
+    langs = repo.get_all_languages()
+    return [LanguageResponse.model_validate(l) for l in langs]
+
+@router.post("/", response_model=LanguageResponse)
+def create_language(language: LanguageCreate, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    repo = LanguageRepository(db)
+    lang = repo.create_language(language.name)
+    return LanguageResponse.model_validate(lang)
 
 @router.put("/{language_id}", response_model=LanguageResponse)
-def update_language(language_id: int, language: LanguageUpdate, db: Session = Depends(get_db)):
+def update_language(language_id: int, language: LanguageUpdate, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     repo = LanguageRepository(db)
-    lang = repo.update(language_id, name=language.name)
+    lang = repo.update_language(language_id, language.name)
     if not lang:
         raise HTTPException(status_code=404, detail="Language not found")
-    return LanguageResponse.from_orm(lang)
+    return LanguageResponse.model_validate(lang)
 
 @router.delete("/{language_id}")
 def delete_language(language_id: int, db: Session = Depends(get_db)):
