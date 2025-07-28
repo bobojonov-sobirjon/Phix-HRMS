@@ -253,7 +253,7 @@ pytest test/test_auth.py
 python -c "
 import psycopg2
 try:
-    conn = psycopg2.connect('postgresql://postgres:0576@localhost:5432/phix_hrms')
+    conn = psycopg2.connect('postgresql://postgres:your_password@localhost:5432/your_database')
     print('Database connection successful!')
     conn.close()
 except Exception as e:
