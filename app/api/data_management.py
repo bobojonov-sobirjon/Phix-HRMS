@@ -144,8 +144,7 @@ def batch_insert_certification_centers(db: Session, certifications_data: List[Di
         if cert_key not in existing_keys:
             certification_center = CertificationCenter(
                 name=cert_data.get("name"),
-                icon=cert_data.get("icon"),
-                country=cert_data.get("country")
+                icon=cert_data.get("icon")
             )
             new_certifications.append(certification_center)
             certifications_imported += 1
