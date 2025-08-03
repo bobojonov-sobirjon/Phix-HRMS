@@ -1,8 +1,9 @@
-from sqlalchemy import Column, Integer, String, DateTime, Boolean
+from sqlalchemy import Column, Integer, String, DateTime, Boolean, Text
 from sqlalchemy.sql import func
 from ..database import Base
 from datetime import datetime, timedelta
 from ..config import settings
+import json
 
 class OTP(Base):
     __tablename__ = "otps"
@@ -13,7 +14,11 @@ class OTP(Base):
     # OTP details
     email = Column(String(255), nullable=False, index=True)
     otp_code = Column(String(10), nullable=False)
+    otp_type = Column(String(20), nullable=False, default="password_reset")  # password_reset, registration
     is_used = Column(Boolean, default=False)
+    
+    # Additional data (for storing registration info, etc.)
+    data = Column(Text, nullable=True)
     
     # Expiration
     created_at = Column(DateTime(timezone=True), server_default=func.now())
@@ -27,12 +32,29 @@ class OTP(Base):
         """Check if OTP is valid and not used"""
         return not self.is_used and not self.is_expired()
     
+    def get_data(self) -> dict:
+        """Get stored data as dictionary"""
+        if self.data:
+            try:
+                return json.loads(self.data)
+            except:
+                return {}
+        return {}
+    
+    def set_data(self, data: dict):
+        """Set data as JSON string"""
+        self.data = json.dumps(data)
+    
     @classmethod
-    def create_otp(cls, email: str, otp_code: str):
+    def create_otp(cls, email: str, otp_code: str, otp_type: str = "password_reset", data: dict = None):
         """Create new OTP with expiration"""
         expires_at = datetime.utcnow() + timedelta(minutes=settings.OTP_EXPIRE_MINUTES)
-        return cls(
+        otp = cls(
             email=email,
             otp_code=otp_code,
+            otp_type=otp_type,
             expires_at=expires_at
-        ) 
+        )
+        if data:
+            otp.set_data(data)
+        return otp 

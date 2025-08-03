@@ -8,11 +8,7 @@ from ..models.certification_center import CertificationCenter
 from ..models.location import Location
 import json
 import os
-import logging
 from sqlalchemy import and_
-
-# Configure logging
-logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/data-management", tags=["Data Management"])
 
@@ -28,13 +24,10 @@ def read_json_file(file_path: str) -> List[Dict[str, Any]]:
         with open(file_path, 'r', encoding='utf-8') as f:
             return json.load(f)
     except FileNotFoundError:
-        logger.error(f"File not found: {file_path}")
         return []
     except json.JSONDecodeError as e:
-        logger.error(f"JSON decode error in {file_path}: {e}")
         return []
     except Exception as e:
-        logger.error(f"Error reading file {file_path}: {e}")
         return []
 
 def batch_insert_companies(db: Session, companies_data: List[Dict[str, Any]]) -> int:
@@ -124,7 +117,7 @@ def batch_insert_certification_centers(db: Session, certifications_data: List[Di
     # Group by unique combinations
     unique_certifications = {}
     for cert_data in certifications_data:
-        key = (cert_data.get("name"), cert_data.get("icon"), cert_data.get("country"))
+        key = (cert_data.get("name"), cert_data.get("icon"))
         if key not in unique_certifications:
             unique_certifications[key] = cert_data
     
@@ -135,12 +128,12 @@ def batch_insert_certification_centers(db: Session, certifications_data: List[Di
         )
     ).all()
     
-    existing_keys = {(c.name, c.icon, c.country) for c in existing_certifications}
+    existing_keys = {(c.name, c.icon) for c in existing_certifications}
     
     # Prepare new certifications for batch insert
     new_certifications = []
     for cert_data in unique_certifications.values():
-        cert_key = (cert_data.get("name"), cert_data.get("icon"), cert_data.get("country"))
+        cert_key = (cert_data.get("name"), cert_data.get("icon"))
         if cert_key not in existing_keys:
             certification_center = CertificationCenter(
                 name=cert_data.get("name"),
@@ -208,8 +201,6 @@ async def import_all_data(db: Session = Depends(get_db)):
         education_data = read_json_file(EDUCATION_FILE)
         countries_data = read_json_file(COUNTRIES_FILE)
         
-        logger.info(f"Starting import: {len(companies_data)} companies, {len(education_data)} education facilities, {len(certifications_data)} certifications, {len(countries_data)} locations")
-        
         # Import companies using batch operations
         companies_imported = batch_insert_companies(db, companies_data)
         
@@ -224,8 +215,6 @@ async def import_all_data(db: Session = Depends(get_db)):
         
         total_imported = companies_imported + education_imported + certifications_imported + locations_imported
         
-        logger.info(f"Import completed: {total_imported} total records imported")
-        
         return {
             "message": "Data imported successfully",
             "data": {
@@ -238,7 +227,6 @@ async def import_all_data(db: Session = Depends(get_db)):
         }
     
     except Exception as e:
-        logger.error(f"Failed to import data: {str(e)}")
         db.rollback()
         raise HTTPException(status_code=500, detail=f"Failed to import data: {str(e)}")
 
@@ -278,5 +266,4 @@ async def get_import_stats(db: Session = Depends(get_db)):
         }
     
     except Exception as e:
-        logger.error(f"Failed to get stats: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Failed to get stats: {str(e)}") 

@@ -7,11 +7,6 @@ This script helps you create the database and run migrations with optimizations
 import psycopg2
 import os
 from dotenv import load_dotenv
-import logging
-
-# Configure logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
 
 # Load environment variables
 load_dotenv()
@@ -34,17 +29,14 @@ def create_database():
         exists = cursor.fetchone()
         
         if not exists:
-            logger.info("Creating database 'phix_hrms'...")
             cursor.execute("CREATE DATABASE phix_hrms")
-            logger.info("✅ Database 'phix_hrms' created successfully!")
         else:
-            logger.info("✅ Database 'phix_hrms' already exists!")
+            pass
         
         cursor.close()
         conn.close()
         
     except Exception as e:
-        logger.error(f"❌ Error creating database: {e}")
         return False
     
     return True
@@ -52,22 +44,39 @@ def create_database():
 def run_migrations():
     """Run Alembic migrations"""
     try:
-        logger.info("Running database migrations...")
         result = os.system("alembic upgrade head")
         if result == 0:
-            logger.info("✅ Migrations completed successfully!")
             return True
         else:
-            logger.error(f"❌ Migration failed with exit code: {result}")
             return False
     except Exception as e:
-        logger.error(f"❌ Error running migrations: {e}")
+        return False
+
+def seed_initial_data():
+    """Seed initial data like roles"""
+    try:
+        from sqlalchemy import create_engine
+        from sqlalchemy.orm import sessionmaker
+        from app.repositories.role_repository import RoleRepository
+        
+        # Create database engine
+        database_url = os.getenv("DATABASE_URL", "postgresql://postgres:0576@localhost:5432/phix_hrms")
+        engine = create_engine(database_url)
+        SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+        
+        # Create session and seed roles
+        db = SessionLocal()
+        role_repo = RoleRepository(db)
+        role_repo.seed_initial_roles()
+        db.close()
+        
+        return True
+    except Exception as e:
         return False
 
 def create_performance_indexes():
     """Create database indexes for better performance"""
     try:
-        logger.info("Creating performance indexes...")
         
         # Connect to the phix_hrms database
         conn = psycopg2.connect(
@@ -140,23 +149,19 @@ def create_performance_indexes():
         for index_sql in indexes:
             try:
                 cursor.execute(index_sql)
-                logger.info(f"✅ Created index: {index_sql.split('IF NOT EXISTS ')[1].split(' ON ')[0]}")
             except Exception as e:
-                logger.warning(f"⚠️ Index creation failed: {e}")
+                pass
         
         cursor.close()
         conn.close()
-        logger.info("✅ Performance indexes created successfully!")
         return True
         
     except Exception as e:
-        logger.error(f"❌ Error creating indexes: {e}")
         return False
 
 def optimize_database_settings():
     """Optimize PostgreSQL settings for better performance"""
     try:
-        logger.info("Optimizing database settings...")
         
         conn = psycopg2.connect(
             host="localhost",
@@ -188,61 +193,48 @@ def optimize_database_settings():
         for optimization in optimizations:
             try:
                 cursor.execute(optimization)
-                logger.info(f"✅ Applied optimization: {optimization.split('SET ')[1].split(' =')[0]}")
             except Exception as e:
-                logger.warning(f"⚠️ Optimization failed: {e}")
+                pass
         
         cursor.close()
         conn.close()
-        logger.info("✅ Database optimizations applied successfully!")
         return True
         
     except Exception as e:
-        logger.error(f"❌ Error optimizing database: {e}")
         return False
 
 def main():
     """Main setup function with optimizations"""
-    logger.info("🚀 Setting up Phix HRMS Database with optimizations...")
-    logger.info("=" * 60)
     
     # Step 1: Create database
     if create_database():
-        logger.info("\n📊 Database setup completed!")
+        pass
     else:
-        logger.error("\n❌ Database setup failed!")
         return
     
     # Step 2: Run migrations
     if run_migrations():
-        logger.info("\n🔄 Migration setup completed!")
+        pass
     else:
-        logger.error("\n❌ Migration setup failed!")
         return
     
-    # Step 3: Create performance indexes
+    # Step 3: Seed initial data (roles)
+    if seed_initial_data():
+        pass
+    else:
+        pass
+    
+    # Step 4: Create performance indexes
     if create_performance_indexes():
-        logger.info("\n⚡ Performance indexes created!")
+        pass
     else:
-        logger.warning("\n⚠️ Performance indexes creation failed!")
+        pass
     
-    # Step 4: Optimize database settings
+    # Step 5: Optimize database settings
     if optimize_database_settings():
-        logger.info("\n🔧 Database optimizations applied!")
+        pass
     else:
-        logger.warning("\n⚠️ Database optimizations failed!")
-    
-    logger.info("\n🎉 Database setup completed successfully!")
-    logger.info("\n📈 Performance optimizations applied:")
-    logger.info("   ✅ Increased connection pool size")
-    logger.info("   ✅ Added database indexes")
-    logger.info("   ✅ Optimized PostgreSQL settings")
-    logger.info("   ✅ Batch operations for data import")
-    logger.info("   ✅ Async email operations")
-    logger.info("   ✅ Performance monitoring middleware")
-    
-    logger.info("\nYou can now run the application with:")
-    logger.info("python -m uvicorn app.main:app --reload")
+        pass
 
 if __name__ == "__main__":
     main() 

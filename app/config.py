@@ -1,7 +1,16 @@
 import os
 from dotenv import load_dotenv
 
+# Load .env file
 load_dotenv()
+
+# If .env doesn't exist, create it from env.example
+if not os.path.exists('.env') and os.path.exists('env.example'):
+    import shutil
+    shutil.copy('env.example', '.env')
+    
+    # Reload environment variables
+    load_dotenv()
 
 class Settings:
     # Database Configuration

@@ -5,13 +5,14 @@ from ..database import get_db
 from ..schemas.auth import (
     UserRegister, UserLogin, SocialLogin, OTPRequest, 
     OTPVerify, PasswordReset, LoginResponse, UserResponse, 
-    Token, OTPResponse, UserUpdate
+    Token, OTPResponse, UserUpdate, RegisterOTPRequest, 
+    RegisterOTPVerify, RegisterResponse
 )
 from ..schemas.profile import UserFullResponse, RoleResponse
 from ..repositories.user_repository import UserRepository, OTPRepository
 from ..repositories.role_repository import RoleRepository
 from ..utils.auth import create_access_token, verify_password
-from ..utils.email import generate_otp, send_otp_email
+from ..utils.email import generate_otp, send_otp_email, send_registration_otp_email
 from ..utils.social_auth import verify_social_token
 from ..models.user import User
 from ..models.role import Role
@@ -21,6 +22,8 @@ import os
 import base64
 from io import BytesIO
 from json import JSONDecodeError
+
+
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 
@@ -71,10 +74,11 @@ def get_current_user(
     
     return user
 
-@router.post("/register", response_model=LoginResponse)
-async def register(user_data: UserRegister, db: Session = Depends(get_db)):
-    """Register new user with email and password"""
+@router.post("/register", response_model=RegisterResponse)
+async def register(user_data: RegisterOTPRequest, db: Session = Depends(get_db)):
+    """Register new user - send OTP for email verification"""
     user_repo = UserRepository(db)
+    otp_repo = OTPRepository(db)
     
     # Check if user already exists
     existing_user = user_repo.get_user_by_email(user_data.email)
@@ -84,18 +88,74 @@ async def register(user_data: UserRegister, db: Session = Depends(get_db)):
             detail="User with this email already exists"
         )
     
-    # Create new user
+    # Generate OTP for registration
+    otp_code = generate_otp(settings.OTP_LENGTH)
+    
+    # Create OTP record for registration with user data
+    registration_data = {
+        "name": user_data.name,
+        "email": user_data.email,
+        "password": user_data.password
+    }
+    otp = otp_repo.create_otp_with_data(user_data.email, otp_code, "registration", registration_data)
+    
+    # Send registration OTP via email
+    email_sent = await send_registration_otp_email(user_data.email, otp_code)
+    if not email_sent:
+        # For development/testing, return OTP in response instead of failing
+        return RegisterResponse(
+            message="Registration OTP code generated (email failed, check console for OTP)",
+            email=user_data.email,
+            otp_code=otp_code  # Include OTP in response for testing
+        )
+    
+    return RegisterResponse(
+        message="Registration OTP code sent to your email",
+        email=user_data.email
+    )
+
+@router.post("/register-code-check", response_model=LoginResponse)
+async def verify_registration_otp(otp_verify: RegisterOTPVerify, db: Session = Depends(get_db)):
+    """Verify registration OTP and create user account"""
+    user_repo = UserRepository(db)
+    otp_repo = OTPRepository(db)
+    
+    # Get valid registration OTP
+    otp = otp_repo.get_valid_otp_by_type(otp_verify.email, otp_verify.otp_code, "registration")
+    if not otp:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid or expired registration OTP code"
+        )
+    
+    # Check if user already exists (double check)
+    existing_user = user_repo.get_user_by_email(otp_verify.email)
+    if existing_user:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="User with this email already exists"
+        )
+    
+    # Get user data from OTP
+    registration_data = otp.get_data()
+    if not registration_data:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid registration data"
+        )
+    
+    # Create new user with stored data
     user = user_repo.create_user(
-        name=user_data.name,
-        email=user_data.email,
-        password=user_data.password
+        name=registration_data["name"],
+        email=registration_data["email"],
+        password=registration_data["password"]
     )
     
-    # Assign default user role
-    role_repo = RoleRepository(db)  # Assuming RoleRepository is imported
-    user_role = role_repo.get_role_by_name('user')
-    if user_role:
-        user_repo.assign_role_to_user(user.id, user_role.id)
+    # Mark OTP as used
+    otp_repo.mark_otp_used(otp.id)
+    
+    # Assign default user and admin roles
+    user_repo.assign_roles_to_user(user.id, ['user', 'admin'])
     
     # Create access token
     access_token = create_access_token(
@@ -226,11 +286,8 @@ async def social_login(social_data: SocialLogin, db: Session = Depends(get_db)):
                 social_id=social_user_info["id"],
                 avatar_url=social_user_info.get("picture")
             )
-            # Assign default user role
-            role_repo = RoleRepository(db)
-            user_role = role_repo.get_role_by_name('user')
-            if user_role:
-                user_repo.assign_role_to_user(user.id, user_role.id)
+            # Assign default user and admin roles
+            user_repo.assign_roles_to_user(user.id, ['user', 'admin'])
     
     # Check if user is active
     if not user.is_active:
@@ -291,10 +348,10 @@ async def forgot_password(otp_request: OTPRequest, db: Session = Depends(get_db)
     otp = otp_repo.create_otp(otp_request.email, otp_code)
     
     # Send OTP via email
-    email_sent = send_otp_email(otp_request.email, otp_code)
+    email_sent = await send_otp_email(otp_request.email, otp_code)
+    
     if not email_sent:
         # For development/testing, return OTP in response instead of failing
-        print(f"⚠️  Email sending failed, but returning OTP for testing: {otp_code}")
         return OTPResponse(
             message="OTP code generated (email failed, check console for OTP)",
             email=otp_request.email,

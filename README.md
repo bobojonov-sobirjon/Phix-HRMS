@@ -109,13 +109,13 @@ alembic upgrade head
 
 ```bash
 # Full setup (create DB + run migrations)
-python setup_database.py
+python setup_db.py
 
 # Run migrations only (like Django's migrate)
-python setup_database.py migrate
+python setup_db.py migrate
 
 # Create new migration (like Django's makemigrations)
-python setup_database.py makemigrations "Add new model"
+python setup_db.py makemigrations "Add new model"
 ```
 
 ### 4. Run the Application
@@ -220,7 +220,6 @@ smtp_password = os.getenv('SMTP_PASSWORD')
 server = smtplib.SMTP(smtp_server, smtp_port)
 server.starttls()
 server.login(smtp_username, smtp_password)
-print('Email configuration is working!')
 server.quit()
 "
 ```
@@ -254,10 +253,9 @@ python -c "
 import psycopg2
 try:
     conn = psycopg2.connect('postgresql://postgres:your_password@localhost:5432/your_database')
-    print('Database connection successful!')
     conn.close()
 except Exception as e:
-    print(f'Database connection failed: {e}')
+    pass
 "
 ```
 

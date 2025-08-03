@@ -13,6 +13,7 @@ from ..models.certification_center import CertificationCenter
 from ..models.education import Education
 from ..models.experience import Experience
 from ..models.certification import Certification
+from .role_repository import RoleRepository
 
 class UserRepository:
     """Repository for user database operations with optimized queries"""
@@ -130,6 +131,27 @@ class UserRepository:
             return True
         return False
 
+    def assign_roles_to_user(self, user_id: int, role_names: List[str]) -> bool:
+        """Assign multiple roles to user by role names with optimized query"""
+        user = self.get_user_by_id(user_id)
+        if not user:
+            return False
+        
+        # Get roles that exist
+        roles = self.db.query(Role).filter(Role.name.in_(role_names)).all()
+        
+        # If no roles found, try to create them (for backward compatibility)
+        if not roles:
+            role_repo = RoleRepository(self.db)
+            role_repo.seed_initial_roles()
+            roles = self.db.query(Role).filter(Role.name.in_(role_names)).all()
+        
+        if roles:
+            user.roles.extend(roles)
+            self.db.commit()
+            return True
+        return False
+
     def get_user_full_profile(self, user_id: int) -> Optional[User]:
         """Get user full profile with optimized eager loading to prevent N+1 queries"""
         return self.db.query(User).options(
@@ -170,12 +192,40 @@ class OTPRepository:
         self.db.refresh(otp)
         return otp
     
+    def create_otp_with_type(self, email: str, otp_code: str, otp_type: str = "password_reset") -> OTP:
+        """Create new OTP with specific type (registration or password_reset)"""
+        otp = OTP.create_otp(email, otp_code, otp_type)
+        self.db.add(otp)
+        self.db.commit()
+        self.db.refresh(otp)
+        return otp
+    
+    def create_otp_with_data(self, email: str, otp_code: str, otp_type: str = "password_reset", data: dict = None) -> OTP:
+        """Create new OTP with specific type and additional data"""
+        otp = OTP.create_otp(email, otp_code, otp_type, data)
+        self.db.add(otp)
+        self.db.commit()
+        self.db.refresh(otp)
+        return otp
+    
     def get_valid_otp(self, email: str, otp_code: str) -> Optional[OTP]:
         """Get valid OTP for email and code with optimized query"""
         return self.db.query(OTP).filter(
             and_(
                 OTP.email == email,
                 OTP.otp_code == otp_code,
+                OTP.is_used == False,
+                OTP.expires_at > datetime.utcnow()  # Add expiration check
+            )
+        ).first()
+    
+    def get_valid_otp_by_type(self, email: str, otp_code: str, otp_type: str) -> Optional[OTP]:
+        """Get valid OTP for email, code and type with optimized query"""
+        return self.db.query(OTP).filter(
+            and_(
+                OTP.email == email,
+                OTP.otp_code == otp_code,
+                OTP.otp_type == otp_type,
                 OTP.is_used == False,
                 OTP.expires_at > datetime.utcnow()  # Add expiration check
             )

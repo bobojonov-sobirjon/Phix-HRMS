@@ -38,6 +38,29 @@ class OTPVerify(BaseModel):
     email: EmailStr
     otp_code: str
 
+# Registration OTP Request Schema
+class RegisterOTPRequest(BaseModel):
+    name: str
+    email: EmailStr
+    password: str
+    
+    @validator('password')
+    def validate_password(cls, v):
+        if len(v) < 6:
+            raise ValueError('Password must be at least 6 characters long')
+        return v
+
+# Registration OTP Verification Schema
+class RegisterOTPVerify(BaseModel):
+    email: EmailStr
+    otp_code: str
+
+# Registration Response Schema
+class RegisterResponse(BaseModel):
+    message: str
+    email: EmailStr
+    otp_code: Optional[str] = None  # For development/testing
+
 # Password Reset Schema
 class PasswordReset(BaseModel):
     email: EmailStr

@@ -186,7 +186,7 @@ def delete_project(id: int, current_user: User = Depends(get_current_user), db: 
         raise HTTPException(status_code=404, detail="Project not found")
     return {"message": "Project deleted"}
 
-@router.post("/avatar", response_model=UserFullResponse, tags=["User Profile"])
+@router.patch("/avatar", response_model=UserFullResponse, tags=["User Avatar Upload"])
 async def upload_avatar(file: UploadFile = File(...), current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     if not file.content_type.startswith('image/'):
         raise HTTPException(status_code=400, detail="Only images allowed")

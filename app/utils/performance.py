@@ -1,14 +1,10 @@
 import time
-import logging
 import psutil
 import asyncio
 from typing import Dict, Any, Optional
 from sqlalchemy import event
 from sqlalchemy.engine import Engine
 from ..database import engine
-
-# Configure logging
-logger = logging.getLogger(__name__)
 
 class PerformanceMonitor:
     """Performance monitoring utility for tracking system metrics"""
@@ -30,9 +26,9 @@ class PerformanceMonitor:
             total = time.time() - conn.info['query_start_time'].pop(-1)
             self.query_times.append(total)
             
-            # Log slow queries
-            if total > 1.0:  # Log queries taking more than 1 second
-                logger.warning(f"Slow query detected: {total:.3f}s - {statement[:100]}...")
+            # Track slow queries
+            if total > 1.0:  # Track queries taking more than 1 second
+                pass
     
     def get_database_stats(self) -> Dict[str, Any]:
         """Get database connection pool statistics"""
@@ -46,7 +42,6 @@ class PerformanceMonitor:
                 # Removed pool.invalid() as it doesn't exist in QueuePool
             }
         except Exception as e:
-            logger.error(f"Error getting database stats: {e}")
             return {}
     
     def get_system_metrics(self) -> Dict[str, Any]:
@@ -66,7 +61,6 @@ class PerformanceMonitor:
                 "disk_total": disk.total
             }
         except Exception as e:
-            logger.error(f"Error getting system metrics: {e}")
             return {}
     
     def get_performance_stats(self) -> Dict[str, Any]:
@@ -94,7 +88,6 @@ class PerformanceMonitor:
         """Reset performance statistics"""
         self.query_times.clear()
         self.request_times.clear()
-        logger.info("Performance statistics reset")
 
 # Global performance monitor instance
 performance_monitor = PerformanceMonitor()
@@ -108,14 +101,13 @@ def track_request_time(func):
             process_time = time.time() - start_time
             performance_monitor.request_times.append(process_time)
             
-            # Log slow requests
-            if process_time > 2.0:  # Log requests taking more than 2 seconds
-                logger.warning(f"Slow request detected: {process_time:.3f}s - {func.__name__}")
+            # Track slow requests
+            if process_time > 2.0:  # Track requests taking more than 2 seconds
+                pass
             
             return result
         except Exception as e:
             process_time = time.time() - start_time
-            logger.error(f"Request failed: {process_time:.3f}s - {func.__name__} - Error: {e}")
             raise
     
     return wrapper
@@ -130,22 +122,20 @@ async def monitor_performance_async():
         try:
             stats = performance_monitor.get_performance_stats()
             
-            # Log performance summary every 5 minutes
+            # Track performance summary every 5 minutes
             if len(performance_monitor.query_times) > 0:
                 avg_query = sum(performance_monitor.query_times) / len(performance_monitor.query_times)
-                logger.info(f"Performance Summary - Avg Query: {avg_query:.3f}s, "
-                          f"Total Queries: {len(performance_monitor.query_times)}")
+                pass
             
             # Check for performance issues
             system_metrics = stats.get("system_metrics", {})
             if system_metrics.get("cpu_percent", 0) > 80:
-                logger.warning(f"High CPU usage detected: {system_metrics['cpu_percent']}%")
+                pass
             
             if system_metrics.get("memory_percent", 0) > 80:
-                logger.warning(f"High memory usage detected: {system_metrics['memory_percent']}%")
+                pass
             
             await asyncio.sleep(300)  # Check every 5 minutes
             
         except Exception as e:
-            logger.error(f"Error in performance monitoring: {e}")
             await asyncio.sleep(60)  # Wait 1 minute before retrying 

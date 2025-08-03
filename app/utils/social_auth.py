@@ -22,7 +22,7 @@ class GoogleAuth:
                     "picture": user_info.get("picture")
                 }
         except Exception as e:
-            print(f"Google token verification failed: {e}")
+            pass
         return None
 
 class FacebookAuth:
@@ -45,7 +45,7 @@ class FacebookAuth:
                     "picture": user_info.get("picture", {}).get("data", {}).get("url")
                 }
         except Exception as e:
-            print(f"Facebook token verification failed: {e}")
+            pass
         return None
 
 class AppleAuth:
@@ -70,7 +70,7 @@ class AppleAuth:
                     "picture": None
                 }
         except Exception as e:
-            print(f"Apple token verification failed: {e}")
+            pass
         return None
 
 def verify_social_token(provider: str, access_token: str) -> Optional[Dict[str, Any]]:

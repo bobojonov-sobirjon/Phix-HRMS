@@ -190,4 +190,6 @@
   {"name": "Venezuela", "flag_image": "https://flagcdn.com/w320/ve.png", "code": "VE"},
   {"name": "Vietnam", "flag_image": "https://flagcdn.com/w320/vn.png", "code": "VN"},
   {"name": "Yemen", "flag_image": "https://flagcdn.com/w320/ye.png", "code": "YE"},
-  {"name": "Zambia", "flag_image": "https://flagcdn.com/w320/z
+  {"name": "Zambia", "flag_image": "https://flagcdn.com/w320/zm.png", "code": "ZM"},
+  {"name": "Zimbabwe", "flag_image": "https://flagcdn.com/w320/zw.png", "code": "ZW"}
+]
