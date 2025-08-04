@@ -7,10 +7,105 @@ import string
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
 from typing import Optional
+import socket
 
 
 # Thread pool executor for async email operations
 email_executor = ThreadPoolExecutor(max_workers=4, thread_name_prefix="email_worker")
+
+def test_smtp_connection(server: str, port: int, timeout: int = 5) -> bool:
+    """Test if SMTP connection is possible"""
+    try:
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.settimeout(timeout)
+        result = sock.connect_ex((server, port))
+        sock.close()
+        return result == 0
+    except Exception:
+        return False
+
+def send_email_with_retry(email: str, otp_code: str, email_type: str = "registration") -> bool:
+    """Send email with multiple fallback methods"""
+    
+    # Define multiple SMTP configurations to try
+    smtp_configs = [
+        {
+            "name": "Gmail SSL (465)",
+            "server": "smtp.gmail.com",
+            "port": 465,
+            "use_ssl": True,
+            "use_tls": False
+        },
+        {
+            "name": "Gmail TLS (587)",
+            "server": "smtp.gmail.com", 
+            "port": 587,
+            "use_ssl": False,
+            "use_tls": True
+        },
+        {
+            "name": "Gmail TLS (25)",
+            "server": "smtp.gmail.com",
+            "port": 25,
+            "use_ssl": False,
+            "use_tls": True
+        }
+    ]
+    
+    for config in smtp_configs:
+        print(f"Trying {config['name']}...")
+        
+        # Test connection first
+        if not test_smtp_connection(config['server'], config['port']):
+            print(f"Connection test failed for {config['name']}")
+            continue
+            
+        try:
+            # Create message
+            msg = MIMEMultipart()
+            msg['From'] = settings.SMTP_USERNAME
+            msg['To'] = email
+            msg['Subject'] = f"Registration OTP - {settings.APP_NAME}"
+            
+            # Email body
+            body = f"""
+            <html>
+            <body>
+                <h2>Registration Verification</h2>
+                <p>Thank you for registering with {settings.APP_NAME}.</p>
+                <p>Your verification code is: <strong>{otp_code}</strong></p>
+                <p>This code will expire in {settings.OTP_EXPIRE_MINUTES} minutes.</p>
+                <br>
+                <p>Best regards,<br>{settings.APP_NAME} Team</p>
+            </body>
+            </html>
+            """
+            
+            msg.attach(MIMEText(body, 'html'))
+            
+            # Create SMTP connection based on config
+            if config['use_ssl']:
+                server = smtplib.SMTP_SSL(config['server'], config['port'], timeout=10)
+            else:
+                server = smtplib.SMTP(config['server'], config['port'], timeout=10)
+                if config['use_tls']:
+                    server.starttls()
+            
+            # Login and send
+            server.login(settings.SMTP_USERNAME, settings.SMTP_PASSWORD)
+            text = msg.as_string()
+            server.sendmail(settings.SMTP_USERNAME, email, text)
+            server.quit()
+            
+            print(f"Email sent successfully using {config['name']}!")
+            return True
+            
+        except Exception as e:
+            print(f"Failed with {config['name']}: {e}")
+            continue
+    
+    print("All SMTP configurations failed")
+    return False
 
 def generate_otp(length: int = 6) -> str:
     """Generate random OTP code"""
@@ -128,57 +223,9 @@ def send_registration_otp_email_sync(email: str, otp_code: str) -> bool:
             print("ERROR: SMTP_USERNAME or SMTP_PASSWORD not configured!")
             return False
         
-        # Create message
-        msg = MIMEMultipart()
-        msg['From'] = settings.SMTP_USERNAME
-        msg['To'] = email
-        msg['Subject'] = f"Email Verification - {settings.APP_NAME}"
+        # Use the new retry mechanism with multiple SMTP configurations
+        return send_email_with_retry(email, otp_code, "registration")
         
-        # Email body
-        body = f"""
-        <html>
-        <body>
-            <h2>Email Verification</h2>
-            <p>Thank you for registering with {settings.APP_NAME}!</p>
-            <p>Please verify your email address by entering the following verification code:</p>
-            <p><strong>{otp_code}</strong></p>
-            <p>This code will expire in {settings.OTP_EXPIRE_MINUTES} minutes.</p>
-            <p>If you didn't create an account, please ignore this email.</p>
-            <br>
-            <p>Best regards,<br>{settings.APP_NAME} Team</p>
-        </body>
-        </html>
-        """
-        
-        msg.attach(MIMEText(body, 'html'))
-        
-        print("Attempting to connect to SMTP server...")
-        
-        # Send email with optimized error handling
-        server = smtplib.SMTP(settings.SMTP_SERVER, settings.SMTP_PORT, timeout=10)
-        
-        print("SMTP connection established, starting TLS...")
-        server.starttls()
-        
-        print("TLS started, attempting login...")
-        server.login(settings.SMTP_USERNAME, settings.SMTP_PASSWORD)
-        
-        print("Login successful, sending email...")
-        text = msg.as_string()
-        server.sendmail(settings.SMTP_USERNAME, email, text)
-        
-        print("Email sent successfully!")
-        server.quit()
-        print("SMTP connection closed")
-        print("=== EMAIL SENDING COMPLETE ===")
-        return True
-        
-    except smtplib.SMTPAuthenticationError as e:
-        print(f"SMTP Authentication Error: {e}")
-        return False
-    except smtplib.SMTPException as e:
-        print(f"SMTP Exception: {e}")
-        return False
     except Exception as e:
         print(f"General Exception during email sending: {e}")
         print(f"Exception type: {type(e)}")
