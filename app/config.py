@@ -40,7 +40,11 @@ class Settings:
     SMTP_YAHOO_USERNAME: str = os.getenv("SMTP_YAHOO_USERNAME", "")
     SMTP_YAHOO_PASSWORD: str = os.getenv("SMTP_YAHOO_PASSWORD", "")
     
-    # SendGrid (Recommended for servers)
+    # Brevo (Sendinblue) - Free email service - 300 emails/day
+    BREVO_API_KEY: str = os.getenv("BREVO_API_KEY", "")
+    BREVO_FROM_EMAIL: str = os.getenv("BREVO_FROM_EMAIL", "noreply@yourdomain.com")
+    
+    # SendGrid (Alternative - 100 emails/day free)
     SENDGRID_API_KEY: str = os.getenv("SENDGRID_API_KEY", "")
     SENDGRID_FROM_EMAIL: str = os.getenv("SENDGRID_FROM_EMAIL", "noreply@yourdomain.com")
     

@@ -212,6 +212,16 @@ def send_registration_otp_email_sync(email: str, otp_code: str) -> bool:
         print("=== EMAIL SENDING DEBUG ===")
         print(f"Starting email send to: {email}")
         print(f"OTP Code: {otp_code}")
+        
+        # First try Brevo if configured (free service - 300 emails/day)
+        if settings.BREVO_API_KEY and settings.BREVO_FROM_EMAIL:
+            print("Trying Brevo first...")
+            from .brevo_email import send_email_brevo_sync
+            if send_email_brevo_sync(email, otp_code, "registration"):
+                return True
+            print("Brevo failed, trying SMTP...")
+        
+        # Fallback to SMTP
         print(f"SMTP Settings:")
         print(f"  Server: {settings.SMTP_SERVER}")
         print(f"  Port: {settings.SMTP_PORT}")

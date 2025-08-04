@@ -62,16 +62,16 @@ async def performance_middleware(request: Request, call_next):
         raise
 
 # Include routers
-app.include_router(auth.router, prefix="/api/v1")
-app.include_router(roles.router, prefix="/api/v1")
-app.include_router(locations.router, prefix="/api/v1")
-app.include_router(skills.router, prefix="/api/v1")
-app.include_router(profile.router, prefix="/api/v1")
-app.include_router(user_skills.router, prefix="/api/v1")
-app.include_router(faq.router, prefix="/api/v1")
-app.include_router(contact_us.router, prefix="/api/v1")
-app.include_router(languages.router, prefix="/api/v1")
-app.include_router(data_management.router, prefix="/api/v1")
+app.include_router(auth, prefix="/api/v1")
+app.include_router(roles, prefix="/api/v1")
+app.include_router(locations, prefix="/api/v1")
+app.include_router(skills, prefix="/api/v1")
+app.include_router(profile, prefix="/api/v1")
+app.include_router(user_skills, prefix="/api/v1")
+app.include_router(faq, prefix="/api/v1")
+app.include_router(contact_us, prefix="/api/v1")
+app.include_router(languages, prefix="/api/v1")
+app.include_router(data_management, prefix="/api/v1")
 
 @app.on_event("startup")
 async def startup_event():
