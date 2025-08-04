@@ -98,9 +98,10 @@ async def send_otp_email(email: str, otp_code: str) -> bool:
         loop = asyncio.get_event_loop()
         result = await loop.run_in_executor(
             email_executor, 
-            send_otp_email_sync, 
+            send_email_with_fallback, 
             email, 
-            otp_code
+            otp_code,
+            "password_reset"
         )
         print(f"Async password reset email send completed with result: {result}")
         return result
@@ -194,9 +195,10 @@ async def send_registration_otp_email(email: str, otp_code: str) -> bool:
         loop = asyncio.get_event_loop()
         result = await loop.run_in_executor(
             email_executor, 
-            send_registration_otp_email_sync, 
+            send_email_with_fallback, 
             email, 
-            otp_code
+            otp_code,
+            "registration"
         )
         print(f"Async email send completed with result: {result}")
         return result
@@ -226,6 +228,103 @@ async def send_otp_email_batch(emails_and_otps: list) -> dict:
             results[email] = False
     
     return results
+
+def send_email_with_fallback(email: str, otp_code: str, email_type: str = "registration") -> bool:
+    """Send email with fallback to multiple email services"""
+    email_services = [
+        {
+            "name": "Gmail",
+            "server": settings.SMTP_SERVER,
+            "port": settings.SMTP_PORT,
+            "username": settings.SMTP_USERNAME,
+            "password": settings.SMTP_PASSWORD
+        },
+        {
+            "name": "Outlook",
+            "server": settings.SMTP_OUTLOOK_SERVER,
+            "port": settings.SMTP_OUTLOOK_PORT,
+            "username": settings.SMTP_OUTLOOK_USERNAME,
+            "password": settings.SMTP_OUTLOOK_PASSWORD
+        },
+        {
+            "name": "Yahoo",
+            "server": settings.SMTP_YAHOO_SERVER,
+            "port": settings.SMTP_YAHOO_PORT,
+            "username": settings.SMTP_YAHOO_USERNAME,
+            "password": settings.SMTP_YAHOO_PASSWORD
+        }
+    ]
+    
+    for service in email_services:
+        if not service["username"] or not service["password"]:
+            print(f"Skipping {service['name']} - credentials not configured")
+            continue
+            
+        print(f"Trying {service['name']} email service...")
+        
+        try:
+            # Create message
+            msg = MIMEMultipart()
+            msg['From'] = service["username"]
+            msg['To'] = email
+            
+            if email_type == "registration":
+                msg['Subject'] = f"Email Verification - {settings.APP_NAME}"
+                body = f"""
+                <html>
+                <body>
+                    <h2>Email Verification</h2>
+                    <p>Thank you for registering with {settings.APP_NAME}!</p>
+                    <p>Please verify your email address by entering the following verification code:</p>
+                    <p><strong>{otp_code}</strong></p>
+                    <p>This code will expire in {settings.OTP_EXPIRE_MINUTES} minutes.</p>
+                    <p>If you didn't create an account, please ignore this email.</p>
+                    <br>
+                    <p>Best regards,<br>{settings.APP_NAME} Team</p>
+                </body>
+                </html>
+                """
+            else:
+                msg['Subject'] = f"Password Reset OTP - {settings.APP_NAME}"
+                body = f"""
+                <html>
+                <body>
+                    <h2>Password Reset Request</h2>
+                    <p>You have requested to reset your password for {settings.APP_NAME}.</p>
+                    <p>Your OTP code is: <strong>{otp_code}</strong></p>
+                    <p>This code will expire in {settings.OTP_EXPIRE_MINUTES} minutes.</p>
+                    <p>If you didn't request this, please ignore this email.</p>
+                    <br>
+                    <p>Best regards,<br>{settings.APP_NAME} Team</p>
+                </body>
+                </html>
+                """
+            
+            msg.attach(MIMEText(body, 'html'))
+            
+            print(f"Connecting to {service['server']}:{service['port']}...")
+            server = smtplib.SMTP(service["server"], service["port"], timeout=10)
+            
+            print("Starting TLS...")
+            server.starttls()
+            
+            print("Logging in...")
+            server.login(service["username"], service["password"])
+            
+            print("Sending email...")
+            text = msg.as_string()
+            server.sendmail(service["username"], email, text)
+            
+            print(f"Email sent successfully via {service['name']}!")
+            server.quit()
+            return True
+            
+        except Exception as e:
+            print(f"Failed to send via {service['name']}: {e}")
+            continue
+    
+    print("All email services failed")
+    return False
 
 def cleanup_email_executor():
     """Cleanup email executor on application shutdown"""

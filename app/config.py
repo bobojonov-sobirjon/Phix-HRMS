@@ -27,6 +27,19 @@ class Settings:
     SMTP_USERNAME: str = os.getenv("SMTP_USERNAME", "")
     SMTP_PASSWORD: str = os.getenv("SMTP_PASSWORD", "")
     
+    # Alternative Email Services (for fallback)
+    # Outlook/Hotmail
+    SMTP_OUTLOOK_SERVER: str = os.getenv("SMTP_OUTLOOK_SERVER", "smtp-mail.outlook.com")
+    SMTP_OUTLOOK_PORT: int = int(os.getenv("SMTP_OUTLOOK_PORT", "587"))
+    SMTP_OUTLOOK_USERNAME: str = os.getenv("SMTP_OUTLOOK_USERNAME", "")
+    SMTP_OUTLOOK_PASSWORD: str = os.getenv("SMTP_OUTLOOK_PASSWORD", "")
+    
+    # Yahoo
+    SMTP_YAHOO_SERVER: str = os.getenv("SMTP_YAHOO_SERVER", "smtp.mail.yahoo.com")
+    SMTP_YAHOO_PORT: int = int(os.getenv("SMTP_YAHOO_PORT", "587"))
+    SMTP_YAHOO_USERNAME: str = os.getenv("SMTP_YAHOO_USERNAME", "")
+    SMTP_YAHOO_PASSWORD: str = os.getenv("SMTP_YAHOO_PASSWORD", "")
+    
     # OTP Configuration
     OTP_EXPIRE_MINUTES: int = int(os.getenv("OTP_EXPIRE_MINUTES", "5"))
     OTP_LENGTH: int = int(os.getenv("OTP_LENGTH", "6"))
