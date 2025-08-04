@@ -98,10 +98,9 @@ async def send_otp_email(email: str, otp_code: str) -> bool:
         loop = asyncio.get_event_loop()
         result = await loop.run_in_executor(
             email_executor, 
-            send_email_simple_smtp, 
+            send_otp_email_sync, 
             email, 
-            otp_code,
-            "password_reset"
+            otp_code
         )
         print(f"Async password reset email send completed with result: {result}")
         return result
@@ -195,10 +194,9 @@ async def send_registration_otp_email(email: str, otp_code: str) -> bool:
         loop = asyncio.get_event_loop()
         result = await loop.run_in_executor(
             email_executor, 
-            send_email_simple_smtp, 
+            send_registration_otp_email_sync, 
             email, 
-            otp_code,
-            "registration"
+            otp_code
         )
         print(f"Async email send completed with result: {result}")
         return result
