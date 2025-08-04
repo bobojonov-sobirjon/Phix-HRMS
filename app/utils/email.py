@@ -345,23 +345,32 @@ def send_email_with_fallback(email: str, otp_code: str, email_type: str = "regis
     return False
 
 def send_email_simple_smtp(email: str, otp_code: str, email_type: str = "registration") -> bool:
-    """Simple SMTP email sending with minimal dependencies"""
+    """Send email with SendGrid first, then fallback to SMTP"""
     try:
-        print("=== SIMPLE EMAIL SENDING ===")
+        print("=== EMAIL SENDING WITH FALLBACK ===")
         print(f"Attempting to send email to: {email}")
         
+        # Try SendGrid first (bypasses SMTP restrictions)
+        if settings.SENDGRID_API_KEY:
+            print("Trying SendGrid...")
+            if send_email_sendgrid(email, otp_code, email_type):
+                return True
+            else:
+                print("SendGrid failed, trying SMTP...")
+        
+        # Fallback to SMTP if SendGrid fails or not configured
         # Use a simple approach - try different ports and methods
         smtp_servers = [
-            {"name": "Gmail SSL", "server": "smtp.gmail.com", "port": 465, "use_ssl": True},
-            {"name": "Gmail TLS", "server": "smtp.gmail.com", "port": 587, "use_ssl": False},
+            {"name": "Gmail SSL (465)", "server": "smtp.gmail.com", "port": 465, "use_ssl": True},
+            {"name": "Gmail TLS (587)", "server": "smtp.gmail.com", "port": 587, "use_ssl": False},
             {"name": "Outlook", "server": "smtp-mail.outlook.com", "port": 587, "use_ssl": False},
             {"name": "Yahoo", "server": "smtp.mail.yahoo.com", "port": 587, "use_ssl": False},
         ]
         
         for smtp_config in smtp_servers:
             if not settings.SMTP_USERNAME or not settings.SMTP_PASSWORD:
-                print("No email credentials configured")
-                return False
+                print("No SMTP credentials configured")
+                continue
                 
             print(f"Trying {smtp_config['name']}...")
             
@@ -430,11 +439,85 @@ def send_email_simple_smtp(email: str, otp_code: str, email_type: str = "registr
                 print(f"Failed with {smtp_config['name']}: {e}")
                 continue
         
-        print("All SMTP servers failed")
+        print("All email methods failed")
         return False
         
     except Exception as e:
-        print(f"General error in simple email sending: {e}")
+        print(f"General error in email sending: {e}")
+        return False
+
+def send_email_sendgrid(email: str, otp_code: str, email_type: str = "registration") -> bool:
+    """Send email using SendGrid API (bypasses SMTP restrictions)"""
+    try:
+        print("=== SENDGRID EMAIL SENDING ===")
+        print(f"Attempting to send email to: {email}")
+        
+        if not settings.SENDGRID_API_KEY:
+            print("SendGrid API key not configured")
+            return False
+        
+        # Import SendGrid (you'll need to install it: pip install sendgrid)
+        try:
+            from sendgrid import SendGridAPIClient
+            from sendgrid.helpers.mail import Mail
+        except ImportError:
+            print("SendGrid not installed. Install with: pip install sendgrid")
+            return False
+        
+        # Create email message
+        if email_type == "registration":
+            subject = f"Email Verification - {settings.APP_NAME}"
+            body = f"""
+            <html>
+            <body>
+                <h2>Email Verification</h2>
+                <p>Thank you for registering with {settings.APP_NAME}!</p>
+                <p>Please verify your email address by entering the following verification code:</p>
+                <p><strong>{otp_code}</strong></p>
+                <p>This code will expire in {settings.OTP_EXPIRE_MINUTES} minutes.</p>
+                <p>If you didn't create an account, please ignore this email.</p>
+                <br>
+                <p>Best regards,<br>{settings.APP_NAME} Team</p>
+            </body>
+            </html>
+            """
+        else:
+            subject = f"Password Reset OTP - {settings.APP_NAME}"
+            body = f"""
+            <html>
+            <body>
+                <h2>Password Reset Request</h2>
+                <p>You have requested to reset your password for {settings.APP_NAME}.</p>
+                <p>Your OTP code is: <strong>{otp_code}</strong></p>
+                <p>This code will expire in {settings.OTP_EXPIRE_MINUTES} minutes.</p>
+                <p>If you didn't request this, please ignore this email.</p>
+                <br>
+                <p>Best regards,<br>{settings.APP_NAME} Team</p>
+            </body>
+            </html>
+            """
+        
+        # Create SendGrid message
+        message = Mail(
+            from_email=settings.SENDGRID_FROM_EMAIL,
+            to_emails=email,
+            subject=subject,
+            html_content=body
+        )
+        
+        # Send email
+        sg = SendGridAPIClient(api_key=settings.SENDGRID_API_KEY)
+        response = sg.send(message)
+        
+        if response.status_code == 202:
+            print("✓ Email sent successfully via SendGrid!")
+            return True
+        else:
+            print(f"✗ SendGrid failed with status code: {response.status_code}")
+            return False
+            
+    except Exception as e:
+        print(f"SendGrid error: {e}")
         return False
 
 def cleanup_email_executor():
