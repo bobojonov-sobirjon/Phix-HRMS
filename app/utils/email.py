@@ -233,9 +233,16 @@ def send_email_with_fallback(email: str, otp_code: str, email_type: str = "regis
     """Send email with fallback to multiple email services"""
     email_services = [
         {
-            "name": "Gmail",
+            "name": "Gmail (587)",
             "server": settings.SMTP_SERVER,
             "port": settings.SMTP_PORT,
+            "username": settings.SMTP_USERNAME,
+            "password": settings.SMTP_PASSWORD
+        },
+        {
+            "name": "Gmail (465)",
+            "server": "smtp.gmail.com",
+            "port": 465,
             "username": settings.SMTP_USERNAME,
             "password": settings.SMTP_PASSWORD
         },
@@ -303,10 +310,18 @@ def send_email_with_fallback(email: str, otp_code: str, email_type: str = "regis
             msg.attach(MIMEText(body, 'html'))
             
             print(f"Connecting to {service['server']}:{service['port']}...")
-            server = smtplib.SMTP(service["server"], service["port"], timeout=10)
             
-            print("Starting TLS...")
-            server.starttls()
+            # Try different connection methods based on port
+            if service["port"] == 465:
+                # Use SSL for port 465
+                import ssl
+                server = smtplib.SMTP_SSL(service["server"], service["port"], timeout=10)
+                print("Using SSL connection...")
+            else:
+                # Use STARTTLS for port 587
+                server = smtplib.SMTP(service["server"], service["port"], timeout=10)
+                print("Starting TLS...")
+                server.starttls()
             
             print("Logging in...")
             server.login(service["username"], service["password"])
@@ -321,6 +336,9 @@ def send_email_with_fallback(email: str, otp_code: str, email_type: str = "regis
             
         except Exception as e:
             print(f"Failed to send via {service['name']}: {e}")
+            print(f"Error type: {type(e)}")
+            if "Network is unreachable" in str(e):
+                print("This appears to be a network connectivity issue")
             continue
     
     print("All email services failed")
