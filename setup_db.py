@@ -17,9 +17,11 @@ from app.database import Base, engine
 from app.models import (
     User, Role, UserRole, Skill, UserSkill, Location, 
     Education, Experience, Project, ProjectImage, 
-    Certification, CertificationCenter, ContactUs, FAQ,
+    Certification, CertificationCenter,
     Language, OTP
 )
+from app.models.contact_us import ContactUs
+from app.models.faq import FAQ
 
 # Load environment variables
 load_dotenv()
