@@ -98,7 +98,7 @@ async def send_otp_email(email: str, otp_code: str) -> bool:
         loop = asyncio.get_event_loop()
         result = await loop.run_in_executor(
             email_executor, 
-            send_email_with_fallback, 
+            send_email_simple_smtp, 
             email, 
             otp_code,
             "password_reset"
@@ -195,7 +195,7 @@ async def send_registration_otp_email(email: str, otp_code: str) -> bool:
         loop = asyncio.get_event_loop()
         result = await loop.run_in_executor(
             email_executor, 
-            send_email_with_fallback, 
+            send_email_simple_smtp, 
             email, 
             otp_code,
             "registration"
@@ -343,6 +343,99 @@ def send_email_with_fallback(email: str, otp_code: str, email_type: str = "regis
     
     print("All email services failed")
     return False
+
+def send_email_simple_smtp(email: str, otp_code: str, email_type: str = "registration") -> bool:
+    """Simple SMTP email sending with minimal dependencies"""
+    try:
+        print("=== SIMPLE EMAIL SENDING ===")
+        print(f"Attempting to send email to: {email}")
+        
+        # Use a simple approach - try different ports and methods
+        smtp_servers = [
+            {"name": "Gmail SSL", "server": "smtp.gmail.com", "port": 465, "use_ssl": True},
+            {"name": "Gmail TLS", "server": "smtp.gmail.com", "port": 587, "use_ssl": False},
+            {"name": "Outlook", "server": "smtp-mail.outlook.com", "port": 587, "use_ssl": False},
+            {"name": "Yahoo", "server": "smtp.mail.yahoo.com", "port": 587, "use_ssl": False},
+        ]
+        
+        for smtp_config in smtp_servers:
+            if not settings.SMTP_USERNAME or not settings.SMTP_PASSWORD:
+                print("No email credentials configured")
+                return False
+                
+            print(f"Trying {smtp_config['name']}...")
+            
+            try:
+                # Create message
+                msg = MIMEMultipart()
+                msg['From'] = settings.SMTP_USERNAME
+                msg['To'] = email
+                
+                if email_type == "registration":
+                    msg['Subject'] = f"Email Verification - {settings.APP_NAME}"
+                    body = f"""
+                    <html>
+                    <body>
+                        <h2>Email Verification</h2>
+                        <p>Thank you for registering with {settings.APP_NAME}!</p>
+                        <p>Please verify your email address by entering the following verification code:</p>
+                        <p><strong>{otp_code}</strong></p>
+                        <p>This code will expire in {settings.OTP_EXPIRE_MINUTES} minutes.</p>
+                        <p>If you didn't create an account, please ignore this email.</p>
+                        <br>
+                        <p>Best regards,<br>{settings.APP_NAME} Team</p>
+                    </body>
+                    </html>
+                    """
+                else:
+                    msg['Subject'] = f"Password Reset OTP - {settings.APP_NAME}"
+                    body = f"""
+                    <html>
+                    <body>
+                        <h2>Password Reset Request</h2>
+                        <p>You have requested to reset your password for {settings.APP_NAME}.</p>
+                        <p>Your OTP code is: <strong>{otp_code}</strong></p>
+                        <p>This code will expire in {settings.OTP_EXPIRE_MINUTES} minutes.</p>
+                        <p>If you didn't request this, please ignore this email.</p>
+                        <br>
+                        <p>Best regards,<br>{settings.APP_NAME} Team</p>
+                    </body>
+                    </html>
+                    """
+                
+                msg.attach(MIMEText(body, 'html'))
+                
+                # Connect to SMTP server
+                if smtp_config['use_ssl']:
+                    server = smtplib.SMTP_SSL(smtp_config['server'], smtp_config['port'], timeout=15)
+                    print(f"Connected via SSL to {smtp_config['server']}:{smtp_config['port']}")
+                else:
+                    server = smtplib.SMTP(smtp_config['server'], smtp_config['port'], timeout=15)
+                    print(f"Connected to {smtp_config['server']}:{smtp_config['port']}")
+                    server.starttls()
+                    print("TLS started")
+                
+                # Login and send
+                server.login(settings.SMTP_USERNAME, settings.SMTP_PASSWORD)
+                print("Login successful")
+                
+                text = msg.as_string()
+                server.sendmail(settings.SMTP_USERNAME, email, text)
+                print(f"Email sent successfully via {smtp_config['name']}!")
+                
+                server.quit()
+                return True
+                
+            except Exception as e:
+                print(f"Failed with {smtp_config['name']}: {e}")
+                continue
+        
+        print("All SMTP servers failed")
+        return False
+        
+    except Exception as e:
+        print(f"General error in simple email sending: {e}")
+        return False
 
 def cleanup_email_executor():
     """Cleanup email executor on application shutdown"""
