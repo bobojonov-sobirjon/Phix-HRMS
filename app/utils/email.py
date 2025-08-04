@@ -19,8 +19,18 @@ def generate_otp(length: int = 6) -> str:
 def send_otp_email_sync(email: str, otp_code: str) -> bool:
     """Send OTP code via email (synchronous version)"""
     try:
+        print("=== PASSWORD RESET EMAIL DEBUG ===")
+        print(f"Starting password reset email send to: {email}")
+        print(f"OTP Code: {otp_code}")
+        print(f"SMTP Settings:")
+        print(f"  Server: {settings.SMTP_SERVER}")
+        print(f"  Port: {settings.SMTP_PORT}")
+        print(f"  Username: {settings.SMTP_USERNAME}")
+        print(f"  Password: {'*' * len(settings.SMTP_PASSWORD) if settings.SMTP_PASSWORD else 'NOT SET'}")
+        
         # Check if email settings are configured
         if not settings.SMTP_USERNAME or not settings.SMTP_PASSWORD:
+            print("ERROR: SMTP_USERNAME or SMTP_PASSWORD not configured!")
             return False
         
         # Create message
@@ -46,29 +56,44 @@ def send_otp_email_sync(email: str, otp_code: str) -> bool:
         
         msg.attach(MIMEText(body, 'html'))
         
+        print("Attempting to connect to SMTP server...")
+        
         # Send email with optimized error handling
         server = smtplib.SMTP(settings.SMTP_SERVER, settings.SMTP_PORT, timeout=10)
         
+        print("SMTP connection established, starting TLS...")
         server.starttls()
         
+        print("TLS started, attempting login...")
         server.login(settings.SMTP_USERNAME, settings.SMTP_PASSWORD)
         
+        print("Login successful, sending email...")
         text = msg.as_string()
         server.sendmail(settings.SMTP_USERNAME, email, text)
         
+        print("Password reset email sent successfully!")
         server.quit()
+        print("SMTP connection closed")
+        print("=== PASSWORD RESET EMAIL COMPLETE ===")
         return True
         
     except smtplib.SMTPAuthenticationError as e:
+        print(f"SMTP Authentication Error: {e}")
         return False
     except smtplib.SMTPException as e:
+        print(f"SMTP Exception: {e}")
         return False
     except Exception as e:
+        print(f"General Exception during password reset email sending: {e}")
+        print(f"Exception type: {type(e)}")
+        import traceback
+        print(f"Traceback: {traceback.format_exc()}")
         return False
 
 async def send_otp_email(email: str, otp_code: str) -> bool:
     """Send OTP code via email (async version)"""
     try:
+        print(f"Starting async password reset email send to: {email}")
         # Run email sending in thread pool to avoid blocking
         loop = asyncio.get_event_loop()
         result = await loop.run_in_executor(
@@ -77,13 +102,32 @@ async def send_otp_email(email: str, otp_code: str) -> bool:
             email, 
             otp_code
         )
+        print(f"Async password reset email send completed with result: {result}")
         return result
     except Exception as e:
+        print(f"Exception in async password reset email send: {e}")
+        print(f"Exception type: {type(e)}")
+        import traceback
+        print(f"Async traceback: {traceback.format_exc()}")
         return False
 
 def send_registration_otp_email_sync(email: str, otp_code: str) -> bool:
     """Send registration verification OTP code via email (synchronous version)"""
     try:
+        print("=== EMAIL SENDING DEBUG ===")
+        print(f"Starting email send to: {email}")
+        print(f"OTP Code: {otp_code}")
+        print(f"SMTP Settings:")
+        print(f"  Server: {settings.SMTP_SERVER}")
+        print(f"  Port: {settings.SMTP_PORT}")
+        print(f"  Username: {settings.SMTP_USERNAME}")
+        print(f"  Password: {'*' * len(settings.SMTP_PASSWORD) if settings.SMTP_PASSWORD else 'NOT SET'}")
+        
+        # Check if email settings are configured
+        if not settings.SMTP_USERNAME or not settings.SMTP_PASSWORD:
+            print("ERROR: SMTP_USERNAME or SMTP_PASSWORD not configured!")
+            return False
+        
         # Create message
         msg = MIMEMultipart()
         msg['From'] = settings.SMTP_USERNAME
@@ -108,29 +152,44 @@ def send_registration_otp_email_sync(email: str, otp_code: str) -> bool:
         
         msg.attach(MIMEText(body, 'html'))
         
+        print("Attempting to connect to SMTP server...")
+        
         # Send email with optimized error handling
         server = smtplib.SMTP(settings.SMTP_SERVER, settings.SMTP_PORT, timeout=10)
         
+        print("SMTP connection established, starting TLS...")
         server.starttls()
         
+        print("TLS started, attempting login...")
         server.login(settings.SMTP_USERNAME, settings.SMTP_PASSWORD)
         
+        print("Login successful, sending email...")
         text = msg.as_string()
         server.sendmail(settings.SMTP_USERNAME, email, text)
         
+        print("Email sent successfully!")
         server.quit()
+        print("SMTP connection closed")
+        print("=== EMAIL SENDING COMPLETE ===")
         return True
         
     except smtplib.SMTPAuthenticationError as e:
+        print(f"SMTP Authentication Error: {e}")
         return False
     except smtplib.SMTPException as e:
+        print(f"SMTP Exception: {e}")
         return False
     except Exception as e:
+        print(f"General Exception during email sending: {e}")
+        print(f"Exception type: {type(e)}")
+        import traceback
+        print(f"Traceback: {traceback.format_exc()}")
         return False
 
 async def send_registration_otp_email(email: str, otp_code: str) -> bool:
     """Send registration verification OTP code via email (async version)"""
     try:
+        print(f"Starting async email send to: {email}")
         # Run email sending in thread pool to avoid blocking
         loop = asyncio.get_event_loop()
         result = await loop.run_in_executor(
@@ -139,8 +198,13 @@ async def send_registration_otp_email(email: str, otp_code: str) -> bool:
             email, 
             otp_code
         )
+        print(f"Async email send completed with result: {result}")
         return result
     except Exception as e:
+        print(f"Exception in async email send: {e}")
+        print(f"Exception type: {type(e)}")
+        import traceback
+        print(f"Async traceback: {traceback.format_exc()}")
         return False
 
 async def send_otp_email_batch(emails_and_otps: list) -> dict:

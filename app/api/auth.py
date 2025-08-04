@@ -99,8 +99,21 @@ async def register(user_data: RegisterOTPRequest, db: Session = Depends(get_db))
     }
     otp = otp_repo.create_otp_with_data(user_data.email, otp_code, "registration", registration_data)
     
+    # Print email configuration for debugging
+    print("=== EMAIL DEBUG INFO ===")
+    print(f"SMTP_SERVER: {settings.SMTP_SERVER}")
+    print(f"SMTP_PORT: {settings.SMTP_PORT}")
+    print(f"SMTP_USERNAME: {settings.SMTP_USERNAME}")
+    print(f"SMTP_PASSWORD: {'*' * len(settings.SMTP_PASSWORD) if settings.SMTP_PASSWORD else 'NOT SET'}")
+    print(f"Recipient Email: {user_data.email}")
+    print(f"OTP Code: {otp_code}")
+    print("========================")
+    
     # Send registration OTP via email
     email_sent = await send_registration_otp_email(user_data.email, otp_code)
+    
+    print(f"Email sending result: {email_sent}")
+    
     if not email_sent:
         # For development/testing, return OTP in response instead of failing
         return RegisterResponse(
