@@ -115,7 +115,6 @@ def create_performance_indexes():
             
             # Certification centers table indexes
             "CREATE INDEX IF NOT EXISTS idx_certification_centers_name ON certification_centers(name)",
-            "CREATE INDEX IF NOT EXISTS idx_certification_centers_country ON certification_centers(country)",
             "CREATE INDEX IF NOT EXISTS idx_certification_centers_is_deleted ON certification_centers(is_deleted)",
             
             # Projects table indexes
@@ -173,7 +172,6 @@ def optimize_database_settings():
             "ALTER SYSTEM SET wal_buffers = '16MB'",
             "ALTER SYSTEM SET default_statistics_target = 100",
             "ALTER SYSTEM SET random_page_cost = 1.1",
-            "ALTER SYSTEM SET effective_io_concurrency = 200",
             "ALTER SYSTEM SET work_mem = '4MB'",
             "ALTER SYSTEM SET min_wal_size = '1GB'",
             "ALTER SYSTEM SET max_wal_size = '4GB'",
