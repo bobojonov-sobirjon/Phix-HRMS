@@ -8,12 +8,6 @@ import asyncio
 from concurrent.futures import ThreadPoolExecutor
 from typing import Optional
 
-print(settings.SMTP_USERNAME)
-print(settings.SMTP_PASSWORD)
-print(settings.SMTP_SERVER)
-print(settings.SMTP_PORT)
-print(settings.APP_NAME)
-print(settings.OTP_EXPIRE_MINUTES)
 
 # Thread pool executor for async email operations
 email_executor = ThreadPoolExecutor(max_workers=4, thread_name_prefix="email_worker")
