@@ -156,7 +156,8 @@ async def add_project(
                 file_path = os.path.join(upload_dir, filename)
                 with open(file_path, "wb") as buffer:
                     buffer.write(await img.read())
-                rel_path = f"/{file_path.replace('\\', '/')}"
+                normalized_path = file_path.replace('\\', '/')
+                rel_path = f"/{normalized_path}"
                 image_obj = ProjectImage(project_id=project.id, image=rel_path)
                 db.add(image_obj)
                 image_objs.append(image_obj)
