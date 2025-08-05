@@ -7,6 +7,7 @@ from ..models.education_facility import EducationFacility
 from ..models.certification_center import CertificationCenter
 from ..models.location import Location
 from ..models.language import Language
+from ..schemas.common import SuccessResponse
 import json
 import os
 from sqlalchemy import and_
@@ -119,7 +120,7 @@ def batch_insert_certification_centers(db: Session, certifications_data: List[Di
     # Group by unique combinations
     unique_certifications = {}
     for cert_data in certifications_data:
-        key = (cert_data.get("name"), cert_data.get("icon"))
+        key = (cert_data.get("name"), cert_data.get("country"), cert_data.get("icon"))
         if key not in unique_certifications:
             unique_certifications[key] = cert_data
     
@@ -130,16 +131,17 @@ def batch_insert_certification_centers(db: Session, certifications_data: List[Di
         )
     ).all()
     
-    existing_keys = {(c.name, c.icon) for c in existing_certifications}
+    existing_keys = {(c.name, c.country, c.icon) for c in existing_certifications}
     
     # Prepare new certifications for batch insert
     new_certifications = []
     for cert_data in unique_certifications.values():
-        cert_key = (cert_data.get("name"), cert_data.get("icon"))
+        cert_key = (cert_data.get("name"), cert_data.get("country"), cert_data.get("icon"))
         if cert_key not in existing_keys:
             certification_center = CertificationCenter(
                 name=cert_data.get("name"),
-                icon=cert_data.get("icon")
+                icon=cert_data.get("icon"),
+                country=cert_data.get("country")
             )
             new_certifications.append(certification_center)
             certifications_imported += 1
@@ -158,7 +160,7 @@ def batch_insert_locations(db: Session, countries_data: List[Dict[str, Any]]) ->
     # Group by unique combinations
     unique_locations = {}
     for country_data in countries_data:
-        key = (country_data.get("name"), country_data.get("flag_image"), country_data.get("code"))
+        key = (country_data.get("name"), country_data.get("code"))
         if key not in unique_locations:
             unique_locations[key] = country_data
     
@@ -169,17 +171,17 @@ def batch_insert_locations(db: Session, countries_data: List[Dict[str, Any]]) ->
         )
     ).all()
     
-    existing_keys = {(l.name, l.flag_image, l.code) for l in existing_locations}
+    existing_keys = {(l.name, l.code) for l in existing_locations}
     
     # Prepare new locations for batch insert
     new_locations = []
     for country_data in unique_locations.values():
-        location_key = (country_data.get("name"), country_data.get("flag_image"), country_data.get("code"))
+        location_key = (country_data.get("name"), country_data.get("code"))
         if location_key not in existing_keys:
             location = Location(
                 name=country_data.get("name"),
-                flag_image=country_data.get("flag_image"),
-                code=country_data.get("code")
+                code=country_data.get("code"),
+                flag_image=country_data.get("flag_image")
             )
             new_locations.append(location)
             locations_imported += 1
@@ -195,21 +197,13 @@ def batch_insert_languages(db: Session, languages_data: List[Dict[str, Any]]) ->
     """Batch insert languages for better performance"""
     languages_imported = 0
     
-    # Group by unique combinations
-    unique_languages = {}
-    for lang_data in languages_data:
-        key = lang_data.get("language")
-        if key and key not in unique_languages:
-            unique_languages[key] = lang_data
-    
-    # Check existing languages in batch
+    # Get existing language names
     existing_languages = db.query(Language).all()
-    
-    existing_names = {l.name for l in existing_languages}
+    existing_names = {lang.name for lang in existing_languages}
     
     # Prepare new languages for batch insert
     new_languages = []
-    for lang_data in unique_languages.values():
+    for lang_data in languages_data:
         language_name = lang_data.get("language")
         if language_name and language_name not in existing_names:
             language = Language(name=language_name)
@@ -223,7 +217,7 @@ def batch_insert_languages(db: Session, languages_data: List[Dict[str, Any]]) ->
     
     return languages_imported
 
-@router.post("/import-all")
+@router.post("/import-all", response_model=SuccessResponse)
 async def import_all_data(db: Session = Depends(get_db)):
     """
     Import all data from JSON files into database models with optimized batch operations
@@ -253,9 +247,9 @@ async def import_all_data(db: Session = Depends(get_db)):
         
         total_imported = companies_imported + education_imported + certifications_imported + locations_imported + languages_imported
         
-        return {
-            "message": "Data imported successfully",
-            "data": {
+        return SuccessResponse(
+            msg="Data imported successfully",
+            data={
                 "companies_imported": companies_imported,
                 "education_facilities_imported": education_imported,
                 "certification_centers_imported": certifications_imported,
@@ -263,13 +257,13 @@ async def import_all_data(db: Session = Depends(get_db)):
                 "languages_imported": languages_imported,
                 "total_imported": total_imported
             }
-        }
+        )
     
     except Exception as e:
         db.rollback()
         raise HTTPException(status_code=500, detail=f"Failed to import data: {str(e)}")
 
-@router.get("/stats")
+@router.get("/stats", response_model=SuccessResponse)
 async def get_import_stats(db: Session = Depends(get_db)):
     """
     Get statistics about imported data with optimized queries
@@ -289,24 +283,27 @@ async def get_import_stats(db: Session = Depends(get_db)):
         countries_data = read_json_file(COUNTRIES_FILE)
         languages_data = read_json_file(LANGUAGES_FILE)
         
-        return {
-            "database_stats": {
-                "companies": companies_count,
-                "education_facilities": education_count,
-                "certification_centers": certifications_count,
-                "locations": locations_count,
-                "languages": languages_count,
-                "total": companies_count + education_count + certifications_count + locations_count + languages_count
-            },
-            "json_file_stats": {
-                "companies": len(companies_data),
-                "education_facilities": len(education_data),
-                "certification_centers": len(certifications_data),
-                "locations": len(countries_data),
-                "languages": len(languages_data),
-                "total": len(companies_data) + len(education_data) + len(certifications_data) + len(countries_data) + len(languages_data)
+        return SuccessResponse(
+            msg="Import statistics retrieved successfully",
+            data={
+                "database_stats": {
+                    "companies": companies_count,
+                    "education_facilities": education_count,
+                    "certification_centers": certifications_count,
+                    "locations": locations_count,
+                    "languages": languages_count,
+                    "total": companies_count + education_count + certifications_count + locations_count + languages_count
+                },
+                "json_file_stats": {
+                    "companies": len(companies_data),
+                    "education_facilities": len(education_data),
+                    "certification_centers": len(certifications_data),
+                    "locations": len(countries_data),
+                    "languages": len(languages_data),
+                    "total": len(companies_data) + len(education_data) + len(certifications_data) + len(countries_data) + len(languages_data)
+                }
             }
-        }
+        )
     
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to get stats: {str(e)}") 
