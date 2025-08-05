@@ -3,8 +3,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import JSONResponse
 from .api import auth, profile, contact_us, faq, skills, roles, languages, locations, user_skills, data_management
+from .api import job_post_type, job
 from .database import engine
-from .models import user, role, user_role, skill, user_skill, education, experience, certification, project, project_image, language, location, contact_us as contact_us_model, faq as faq_model
+from .models import user, role, user_role, skill, user_skill, education, experience, certification, project, project_image, language, location, contact_us as contact_us_model, faq as faq_model, job_post_type as job_post_type_model, job as job_model, job_skill as job_skill_model
 import traceback
 
 app = FastAPI(title="Phix HRMS API", version="1.0.0")
@@ -54,6 +55,8 @@ app.include_router(languages, prefix="/api/v1")
 app.include_router(locations, prefix="/api/v1")
 app.include_router(user_skills, prefix="/api/v1")
 app.include_router(data_management, prefix="/api/v1")
+app.include_router(job_post_type.router, prefix="/api/v1")
+app.include_router(job.router, prefix="/api/v1")
 
 # Mount static files
 app.mount("/static", StaticFiles(directory="static"), name="static")
@@ -73,6 +76,9 @@ language.Base.metadata.create_all(bind=engine)
 location.Base.metadata.create_all(bind=engine)
 contact_us_model.Base.metadata.create_all(bind=engine)
 faq_model.Base.metadata.create_all(bind=engine)
+job_post_type_model.Base.metadata.create_all(bind=engine)
+job_model.Base.metadata.create_all(bind=engine)
+job_skill_model.Base.metadata.create_all(bind=engine)
 
 @app.get("/")
 async def root():

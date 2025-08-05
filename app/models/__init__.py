@@ -14,6 +14,9 @@ from .language import Language
 from .company import Company
 from .education_facility import EducationFacility
 from .certification_center import CertificationCenter
+from .job_post_type import JobPostType
+from .job import Job
+from .job_skill import JobSkill
 
 __all__ = [
     "Certification",
@@ -32,4 +35,7 @@ __all__ = [
     "Company",
     "EducationFacility",
     "CertificationCenter",
+    "JobPostType",
+    "Job",
+    "JobSkill",
 ] 

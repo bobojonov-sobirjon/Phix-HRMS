@@ -29,6 +29,9 @@ from app.models.contact_us import ContactUs
 from app.models.company import Company
 from app.models.education_facility import EducationFacility
 from app.models.certification_center import CertificationCenter
+from app.models.job_post_type import JobPostType
+from app.models.job import Job
+from app.models.job_skill import JobSkill
 
 
 

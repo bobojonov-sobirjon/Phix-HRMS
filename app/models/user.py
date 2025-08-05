@@ -48,6 +48,7 @@ class User(Base):
     projects = relationship('Project', back_populates='user', cascade='all, delete-orphan')
     skills = relationship('Skill', secondary='user_skills', back_populates='users', viewonly=True)
     roles = relationship('Role', secondary='user_roles', back_populates='users')
+    jobs = relationship('Job', back_populates='user', cascade='all, delete-orphan')
     
     def set_password(self, password: str):
         """Hash password using bcrypt"""
