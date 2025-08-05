@@ -14,4 +14,4 @@ class EducationFacility(Base):
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
     is_deleted = Column(Boolean, default=False)
 
-    educations = relationship('Education', back_populates='education_facility_ref') 
+    educations = relationship('Education', back_populates='education_facility') 

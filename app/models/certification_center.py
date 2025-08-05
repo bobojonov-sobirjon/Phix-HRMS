@@ -13,4 +13,4 @@ class CertificationCenter(Base):
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
     is_deleted = Column(Boolean, default=False)
 
-    certifications = relationship('Certification', back_populates='certification_center_ref') 
+    certifications = relationship('Certification', back_populates='certification_center') 

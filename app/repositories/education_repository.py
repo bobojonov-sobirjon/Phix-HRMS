@@ -1,4 +1,4 @@
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 from typing import List, Optional, Dict
 from ..models.education import Education
 from ..schemas.profile import EducationCreate
@@ -29,10 +29,14 @@ class EducationRepository:
         return education
 
     def get_education_by_id(self, education_id: int) -> Optional[Education]:
-        return self.db.query(Education).filter(Education.id == education_id, Education.is_deleted == False).first()
+        return self.db.query(Education).options(
+            selectinload(Education.education_facility)
+        ).filter(Education.id == education_id, Education.is_deleted == False).first()
 
     def get_educations_by_user(self, user_id: int) -> List[Education]:
-        return self.db.query(Education).filter(Education.user_id == user_id, Education.is_deleted == False).all()
+        return self.db.query(Education).options(
+            selectinload(Education.education_facility)
+        ).filter(Education.user_id == user_id, Education.is_deleted == False).all()
 
     def update_education(self, education_id: int, update_data: Dict) -> Optional[Education]:
         education = self.get_education_by_id(education_id)

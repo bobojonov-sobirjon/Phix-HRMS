@@ -21,4 +21,4 @@ class Certification(Base):
     
     # Relationship
     user = relationship('User', back_populates='certifications')
-    certification_center_ref = relationship('CertificationCenter', back_populates='certifications') 
+    certification_center = relationship('CertificationCenter', back_populates='certifications') 

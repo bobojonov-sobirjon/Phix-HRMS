@@ -21,4 +21,4 @@ class Education(Base):
     
     # Relationship
     user = relationship('User', back_populates='educations')
-    education_facility_ref = relationship('EducationFacility', back_populates='educations') 
+    education_facility = relationship('EducationFacility', back_populates='educations') 

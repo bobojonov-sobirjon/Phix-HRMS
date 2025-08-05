@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, R
 from sqlalchemy.orm import Session
 from ..database import get_db
 from ..models.user import User
+from ..models.language import Language
 from ..utils.auth import get_current_user
 from ..repositories.user_repository import UserRepository
 from ..repositories.skill_repository import SkillRepository
@@ -9,13 +10,15 @@ from ..repositories.education_repository import EducationRepository
 from ..repositories.experience_repository import ExperienceRepository
 from ..repositories.certification_repository import CertificationRepository
 from ..repositories.project_repository import ProjectRepository
+from ..repositories.language_repository import LanguageRepository
 from ..schemas.profile import (
     UserFullResponse,
     SkillResponse, SkillCreate,
     EducationResponse, EducationCreate, EducationUpdate,
     ExperienceResponse, ExperienceCreate, ExperienceUpdate,
     CertificationResponse, CertificationCreate, CertificationUpdate,
-    ProjectResponse, ProjectCreate, ProjectUpdate
+    ProjectResponse, ProjectCreate, ProjectUpdate,
+    UserLanguageUpdate
 )
 from typing import List
 import os
@@ -186,7 +189,7 @@ def delete_project(id: int, current_user: User = Depends(get_current_user), db: 
         raise HTTPException(status_code=404, detail="Project not found")
     return {"message": "Project deleted"}
 
-@router.patch("/avatar", response_model=UserFullResponse, tags=["User Avatar Upload"])
+@router.patch("/avatar", response_model=UserFullResponse, tags=["Profile Avatar Upload and Update"])
 async def upload_avatar(file: UploadFile = File(...), current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     if not file.content_type.startswith('image/'):
         raise HTTPException(status_code=400, detail="Only images allowed")
@@ -198,4 +201,20 @@ async def upload_avatar(file: UploadFile = File(...), current_user: User = Depen
     current_user.avatar_url = f"/{file_path}"
     db.commit()
     db.refresh(current_user)
+    return UserFullResponse.model_validate(current_user)
+
+@router.post("/language", response_model=UserFullResponse, tags=["Profile Language"])
+def update_user_language(data: UserLanguageUpdate, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    # Check if language exists
+    language_repo = LanguageRepository(db)
+    language = language_repo.get(data.language_id)
+
+    if not language:
+        raise HTTPException(status_code=404, detail="Language not found")
+
+    # Update user's language
+    current_user.language_id = data.language_id
+    db.commit()
+    db.refresh(current_user)
+
     return UserFullResponse.model_validate(current_user) 

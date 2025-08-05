@@ -5,10 +5,10 @@ from ..database import get_db
 from ..models.user import User
 from ..utils.auth import get_current_user
 from ..repositories.skill_repository import SkillRepository
-from ..schemas.profile import UserSkillResponse, UserSkillCreate, UserSkillCreateWithoutUser
+from ..schemas.profile import UserSkillResponse, UserSkillCreate, UserSkillCreateWithoutUser, UserSkillCreateBySkillName, SkillResponse
 from ..models.user_skill import UserSkill
 
-router = APIRouter(prefix="/user-skills", tags=["User Skills"])
+router = APIRouter(prefix="/user-skills", tags=["Profile Skills"])
 
 @router.get("/", response_model=List[UserSkillResponse])
 def get_user_skills(
@@ -24,12 +24,45 @@ def get_user_skills(
         query = query.filter(UserSkill.skill_id == skill_id)
     return query.all()
 
-@router.post("/", response_model=UserSkillResponse)
-def create_user_skill(data: UserSkillCreateWithoutUser, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+@router.get("/search", response_model=List[SkillResponse])
+def search_skills_by_name(
+    name: str = Query(..., description="Skill name to search for"),
+    db: Session = Depends(get_db)
+):
+    """Search skills by name"""
     repo = SkillRepository(db)
-    if not repo.add_skill_to_user(current_user.id, data.skill_id):
-        raise HTTPException(status_code=400, detail="Association already exists or invalid IDs")
-    user_skill = db.query(UserSkill).filter(UserSkill.user_id == current_user.id, UserSkill.skill_id == data.skill_id).first()
+    skills = repo.get_skills_by_name(name)
+    return skills
+
+@router.post("/", response_model=UserSkillResponse,)
+def create_user_skill_by_skill_name(
+    data: UserSkillCreateBySkillName, 
+    current_user: User = Depends(get_current_user), 
+    db: Session = Depends(get_db)
+):
+    """Create user skill by skill name. If skill doesn't exist, create it first."""
+    repo = SkillRepository(db)
+    
+    # First check if skill exists
+    existing_skills = repo.get_skills_by_name(data.skill_name)
+    
+    if existing_skills:
+        # Use the first matching skill (case-insensitive match)
+        skill = existing_skills[0]
+    else:
+        # Create new skill if it doesn't exist
+        skill = repo.create_skill(data.skill_name)
+    
+    # Add skill to user
+    if not repo.add_skill_to_user(current_user.id, skill.id):
+        raise HTTPException(status_code=400, detail="Association already exists")
+    
+    # Get the created user skill
+    user_skill = db.query(UserSkill).filter(
+        UserSkill.user_id == current_user.id, 
+        UserSkill.skill_id == skill.id
+    ).first()
+    
     return user_skill
 
 @router.delete("/{user_skill_id}")

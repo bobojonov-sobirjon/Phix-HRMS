@@ -158,9 +158,9 @@ class UserRepository:
             # Use selectinload for better performance than joinedload
             selectinload(User.location),
             selectinload(User.roles),
-            selectinload(User.educations).selectinload(Education.education_facility_ref),
+            selectinload(User.educations).selectinload(Education.education_facility),
             selectinload(User.experiences).selectinload(Experience.company_ref),
-            selectinload(User.certifications).selectinload(Certification.certification_center_ref),
+            selectinload(User.certifications).selectinload(Certification.certification_center),
             selectinload(User.projects).selectinload(Project.images),
             selectinload(User.skills)
         ).filter(User.id == user_id).first()

@@ -62,12 +62,23 @@ class EducationUpdate(EducationBase):
     is_graduate: Optional[bool] = None
     description: Optional[str] = None
 
+class EducationFacilityResponse(BaseModel):
+    id: int
+    name: str
+    icon: Optional[str] = None
+    country: Optional[str] = None
+    created_at: datetime
+    updated_at: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
+
 class EducationResponse(EducationBase):
     id: int
     user_id: int
     created_at: datetime
     updated_at: Optional[datetime] = None
-    education_facility: Optional[dict] = None
+    education_facility: Optional[EducationFacilityResponse] = None
     class Config:
         from_attributes = True
 
@@ -104,6 +115,16 @@ class ExperienceResponse(ExperienceBase):
     class Config:
         from_attributes = True
 
+class CertificationCenterResponse(BaseModel):
+    id: int
+    name: str
+    icon: Optional[str] = None
+    created_at: datetime
+    updated_at: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
+
 class CertificationBase(BaseModel):
     title: str
     from_date: Optional[datetime] = None
@@ -129,7 +150,7 @@ class CertificationResponse(CertificationBase):
     user_id: int
     created_at: datetime
     updated_at: Optional[datetime] = None
-    certification_center: Optional[dict] = None
+    certification_center: Optional[CertificationCenterResponse] = None
     class Config:
         from_attributes = True
 
@@ -234,6 +255,9 @@ class UserSkillBase(BaseModel):
 class UserSkillCreateWithoutUser(BaseModel):
     skill_id: int
 
+class UserSkillCreateBySkillName(BaseModel):
+    skill_name: str
+
 class UserSkillCreate(UserSkillBase):
     pass
 
@@ -253,4 +277,7 @@ class CompanyResponse(BaseModel):
     created_at: datetime
     updated_at: Optional[datetime] = None
     class Config:
-        from_attributes = True 
+        from_attributes = True
+
+class UserLanguageUpdate(BaseModel):
+    language_id: int 

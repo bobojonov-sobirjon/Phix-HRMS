@@ -31,6 +31,7 @@ from app.models.education_facility import EducationFacility
 from app.models.certification_center import CertificationCenter
 
 
+
 from app.config import settings
 
 # this is the Alembic Config object, which provides

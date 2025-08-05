@@ -6,6 +6,7 @@ from ..models.company import Company
 from ..models.education_facility import EducationFacility
 from ..models.certification_center import CertificationCenter
 from ..models.location import Location
+from ..models.language import Language
 import json
 import os
 from sqlalchemy import and_
@@ -17,6 +18,7 @@ COMPANIES_FILE = "app/utils/files/it_companies.json"
 CERTIFICATIONS_FILE = "app/utils/files/it_certifications.json"
 EDUCATION_FILE = "app/utils/files/education_institutions_corrected.json"
 COUNTRIES_FILE = "app/utils/files/countries.json"
+LANGUAGES_FILE = "app/utils/files/languages.json"
 
 def read_json_file(file_path: str) -> List[Dict[str, Any]]:
     """Read JSON file and return its content with error handling"""
@@ -189,6 +191,38 @@ def batch_insert_locations(db: Session, countries_data: List[Dict[str, Any]]) ->
     
     return locations_imported
 
+def batch_insert_languages(db: Session, languages_data: List[Dict[str, Any]]) -> int:
+    """Batch insert languages for better performance"""
+    languages_imported = 0
+    
+    # Group by unique combinations
+    unique_languages = {}
+    for lang_data in languages_data:
+        key = lang_data.get("language")
+        if key and key not in unique_languages:
+            unique_languages[key] = lang_data
+    
+    # Check existing languages in batch
+    existing_languages = db.query(Language).all()
+    
+    existing_names = {l.name for l in existing_languages}
+    
+    # Prepare new languages for batch insert
+    new_languages = []
+    for lang_data in unique_languages.values():
+        language_name = lang_data.get("language")
+        if language_name and language_name not in existing_names:
+            language = Language(name=language_name)
+            new_languages.append(language)
+            languages_imported += 1
+    
+    # Batch insert
+    if new_languages:
+        db.bulk_save_objects(new_languages)
+        db.commit()
+    
+    return languages_imported
+
 @router.post("/import-all")
 async def import_all_data(db: Session = Depends(get_db)):
     """
@@ -200,6 +234,7 @@ async def import_all_data(db: Session = Depends(get_db)):
         certifications_data = read_json_file(CERTIFICATIONS_FILE)
         education_data = read_json_file(EDUCATION_FILE)
         countries_data = read_json_file(COUNTRIES_FILE)
+        languages_data = read_json_file(LANGUAGES_FILE)
         
         # Import companies using batch operations
         companies_imported = batch_insert_companies(db, companies_data)
@@ -213,7 +248,10 @@ async def import_all_data(db: Session = Depends(get_db)):
         # Import locations using batch operations
         locations_imported = batch_insert_locations(db, countries_data)
         
-        total_imported = companies_imported + education_imported + certifications_imported + locations_imported
+        # Import languages using batch operations
+        languages_imported = batch_insert_languages(db, languages_data)
+        
+        total_imported = companies_imported + education_imported + certifications_imported + locations_imported + languages_imported
         
         return {
             "message": "Data imported successfully",
@@ -222,6 +260,7 @@ async def import_all_data(db: Session = Depends(get_db)):
                 "education_facilities_imported": education_imported,
                 "certification_centers_imported": certifications_imported,
                 "locations_imported": locations_imported,
+                "languages_imported": languages_imported,
                 "total_imported": total_imported
             }
         }
@@ -241,12 +280,14 @@ async def get_import_stats(db: Session = Depends(get_db)):
         education_count = db.query(EducationFacility).filter(EducationFacility.is_deleted == False).count()
         certifications_count = db.query(CertificationCenter).filter(CertificationCenter.is_deleted == False).count()
         locations_count = db.query(Location).filter(Location.is_deleted == False).count()
+        languages_count = db.query(Language).count()
         
         # Count records in JSON files
         companies_data = read_json_file(COMPANIES_FILE)
         education_data = read_json_file(EDUCATION_FILE)
         certifications_data = read_json_file(CERTIFICATIONS_FILE)
         countries_data = read_json_file(COUNTRIES_FILE)
+        languages_data = read_json_file(LANGUAGES_FILE)
         
         return {
             "database_stats": {
@@ -254,14 +295,16 @@ async def get_import_stats(db: Session = Depends(get_db)):
                 "education_facilities": education_count,
                 "certification_centers": certifications_count,
                 "locations": locations_count,
-                "total": companies_count + education_count + certifications_count + locations_count
+                "languages": languages_count,
+                "total": companies_count + education_count + certifications_count + locations_count + languages_count
             },
             "json_file_stats": {
                 "companies": len(companies_data),
                 "education_facilities": len(education_data),
                 "certification_centers": len(certifications_data),
                 "locations": len(countries_data),
-                "total": len(companies_data) + len(education_data) + len(certifications_data) + len(countries_data)
+                "languages": len(languages_data),
+                "total": len(companies_data) + len(education_data) + len(certifications_data) + len(countries_data) + len(languages_data)
             }
         }
     
