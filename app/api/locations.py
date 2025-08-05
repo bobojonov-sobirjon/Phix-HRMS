@@ -49,7 +49,8 @@ async def create_location(
         file_path = os.path.join(upload_dir, filename)
         with open(file_path, "wb") as buffer:
             buffer.write(await flag_image.read())
-        flag_image_path = f"/{file_path.replace('\\', '/')}"
+        normalized_path = file_path.replace('\\', '/')
+        flag_image_path = f"/{normalized_path}"
 
     # Create location
     repo = LocationRepository(db)
