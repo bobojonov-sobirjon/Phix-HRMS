@@ -48,19 +48,19 @@ class EducationBase(BaseModel):
     to_date: Optional[datetime] = None
     is_graduate: bool = False
     description: Optional[str] = None
-    education_facility_id: Optional[int] = None
     school_name: Optional[str] = None
 
 class EducationCreate(EducationBase):
-    pass
+    education_facility_id: Optional[int] = None
 
 class EducationUpdate(EducationBase):
     degree: Optional[str] = None
-    school: Optional[str] = None
+    school_name: Optional[str] = None
     from_date: Optional[datetime] = None
     to_date: Optional[datetime] = None
     is_graduate: Optional[bool] = None
     description: Optional[str] = None
+    education_facility_id: Optional[int] = None
 
 class EducationFacilityResponse(BaseModel):
     id: int
@@ -76,6 +76,7 @@ class EducationFacilityResponse(BaseModel):
 class EducationResponse(EducationBase):
     id: int
     user_id: int
+    education_facility_id: int
     created_at: datetime
     updated_at: Optional[datetime] = None
     education_facility: Optional[EducationFacilityResponse] = None
@@ -127,9 +128,11 @@ class CertificationCenterResponse(BaseModel):
 
 class CertificationBase(BaseModel):
     title: str
+    publishing_organization: Optional[str] = None
     from_date: Optional[datetime] = None
     to_date: Optional[datetime] = None
     certificate_id: Optional[str] = None
+    certification_url: Optional[str] = None
     certificate_path: Optional[str] = None
     certification_center_id: Optional[int] = None
     center_name: Optional[str] = None
@@ -256,7 +259,7 @@ class UserSkillCreateWithoutUser(BaseModel):
     skill_id: int
 
 class UserSkillCreateBySkillName(BaseModel):
-    skill_name: str
+    skill_names: List[str]
 
 class UserSkillCreate(UserSkillBase):
     pass
@@ -278,6 +281,16 @@ class CompanyResponse(BaseModel):
     updated_at: Optional[datetime] = None
     class Config:
         from_attributes = True
+
+class CompanyCreate(BaseModel):
+    name: str
+    icon: Optional[str] = None
+    country: Optional[str] = None
+
+class CompanyUpdate(BaseModel):
+    name: Optional[str] = None
+    icon: Optional[str] = None
+    country: Optional[str] = None
 
 class UserLanguageUpdate(BaseModel):
     language_id: int 

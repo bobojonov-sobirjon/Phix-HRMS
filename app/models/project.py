@@ -7,7 +7,7 @@ class Project(Base):
     __tablename__ = "projects"
     
     id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, ForeignKey('users.id'), nullable=False)
+    user_id = Column(Integer, ForeignKey('users.id', ondelete='CASCADE'), nullable=False)
     project_name = Column(String(255), nullable=False)
     role = Column(String(255), nullable=True)
     from_date = Column(DateTime(timezone=True), nullable=True)

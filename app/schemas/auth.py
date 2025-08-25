@@ -12,11 +12,18 @@ class UserBase(BaseModel):
 # User Registration Schema
 class UserRegister(UserBase):
     password: str
+    phone: Optional[str] = None
     
     @validator('password')
     def validate_password(cls, v):
         if len(v) < 6:
             raise ValueError('Password must be at least 6 characters long')
+        return v
+    
+    @validator('phone')
+    def validate_phone(cls, v):
+        if v and not v.replace('+', '').replace('-', '').replace(' ', '').isdigit():
+            raise ValueError('Phone number must contain only digits, spaces, hyphens, and plus sign')
         return v
 
 # User Login Schema
@@ -43,11 +50,18 @@ class RegisterOTPRequest(BaseModel):
     name: str
     email: EmailStr
     password: str
+    phone: Optional[str] = None
     
     @validator('password')
     def validate_password(cls, v):
         if len(v) < 6:
             raise ValueError('Password must be at least 6 characters long')
+        return v
+    
+    @validator('phone')
+    def validate_phone(cls, v):
+        if v and not v.replace('+', '').replace('-', '').replace(' ', '').isdigit():
+            raise ValueError('Phone number must contain only digits, spaces, hyphens, and plus sign')
         return v
 
 # Registration OTP Verification Schema

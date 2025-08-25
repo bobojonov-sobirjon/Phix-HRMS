@@ -7,7 +7,7 @@ class ProjectImage(Base):
     __tablename__ = "project_images"
     
     id = Column(Integer, primary_key=True, index=True)
-    project_id = Column(Integer, ForeignKey('projects.id'), nullable=False)
+    project_id = Column(Integer, ForeignKey('projects.id', ondelete='CASCADE'), nullable=False)
     image = Column(Text, nullable=True)
     
     created_at = Column(DateTime(timezone=True), server_default=func.now())

@@ -88,6 +88,15 @@ async def register(user_data: RegisterOTPRequest, db: Session = Depends(get_db))
                 detail="User with this email already exists"
             )
         
+        # Check if phone already exists (if provided)
+        if user_data.phone:
+            existing_phone_user = user_repo.get_user_by_phone(user_data.phone)
+            if existing_phone_user:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="User with this phone number already exists"
+                )
+        
         # Generate OTP for registration
         otp_code = generate_otp(settings.OTP_LENGTH)
         
@@ -95,7 +104,8 @@ async def register(user_data: RegisterOTPRequest, db: Session = Depends(get_db))
         registration_data = {
             "name": user_data.name,
             "email": user_data.email,
-            "password": user_data.password
+            "password": user_data.password,
+            "phone": user_data.phone
         }
         otp = otp_repo.create_otp_with_data(user_data.email, otp_code, "registration", registration_data)
         
@@ -164,11 +174,21 @@ async def verify_registration_otp(otp_verify: RegisterOTPVerify, db: Session = D
                 detail="Invalid registration data"
             )
         
+        # Check if phone already exists (if provided)
+        if registration_data.get("phone"):
+            existing_phone_user = user_repo.get_user_by_phone(registration_data["phone"])
+            if existing_phone_user:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="User with this phone number already exists"
+                )
+        
         # Create new user with stored data
         user = user_repo.create_user(
             name=registration_data["name"],
             email=registration_data["email"],
-            password=registration_data["password"]
+            password=registration_data["password"],
+            phone=registration_data.get("phone")
         )
         
         # Mark OTP as used

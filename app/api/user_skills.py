@@ -58,35 +58,100 @@ def create_user_skill_by_skill_name(
     current_user: User = Depends(get_current_user), 
     db: Session = Depends(get_db)
 ):
-    """Create user skill by skill name. If skill doesn't exist, create it first."""
+    """Create multiple user skills by skill names. If skill doesn't exist, create it first."""
+    try:
+        repo = SkillRepository(db)
+        created_user_skills = []
+        
+        for skill_name in data.skill_names:
+            # First check if skill exists
+            existing_skills = repo.get_skills_by_name(skill_name)
+            
+            if existing_skills:
+                # Use the first matching skill (case-insensitive match)
+                skill = existing_skills[0]
+            else:
+                # Create new skill if it doesn't exist
+                skill = repo.create_skill(skill_name)
+            
+            # Add skill to user
+            if repo.add_skill_to_user(current_user.id, skill.id):
+                # Get the created user skill
+                user_skill = db.query(UserSkill).filter(
+                    UserSkill.user_id == current_user.id, 
+                    UserSkill.skill_id == skill.id
+                ).first()
+                
+                if user_skill:
+                    # Convert SQLAlchemy model to Pydantic response model
+                    user_skill_response = UserSkillResponse.model_validate(user_skill)
+                    created_user_skills.append(user_skill_response)
+        
+        if not created_user_skills:
+            raise HTTPException(status_code=400, detail="No new skills were added")
+        
+        return SuccessResponse(
+            msg=f"Successfully added {len(created_user_skills)} skills to user",
+            data=created_user_skills
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.put("/", response_model=SuccessResponse)
+def update_user_skills(
+    data: UserSkillCreateBySkillName, 
+    current_user: User = Depends(get_current_user), 
+    db: Session = Depends(get_db)
+):
+    """Replace all user skills with new ones (delete old, add new)"""
     try:
         repo = SkillRepository(db)
         
-        # First check if skill exists
-        existing_skills = repo.get_skills_by_name(data.skill_name)
+        # Delete all existing user skills (soft delete)
+        existing_user_skills = db.query(UserSkill).filter(
+            UserSkill.user_id == current_user.id,
+            UserSkill.is_deleted == False
+        ).all()
         
-        if existing_skills:
-            # Use the first matching skill (case-insensitive match)
-            skill = existing_skills[0]
-        else:
-            # Create new skill if it doesn't exist
-            skill = repo.create_skill(data.skill_name)
+        for user_skill in existing_user_skills:
+            user_skill.is_deleted = True
         
-        # Add skill to user
-        if not repo.add_skill_to_user(current_user.id, skill.id):
-            raise HTTPException(status_code=400, detail="Association already exists")
+        # Add new skills
+        created_user_skills = []
+        for skill_name in data.skill_names:
+            # First check if skill exists
+            existing_skills = repo.get_skills_by_name(skill_name)
+            
+            if existing_skills:
+                # Use the first matching skill (case-insensitive match)
+                skill = existing_skills[0]
+            else:
+                # Create new skill if it doesn't exist
+                skill = repo.create_skill(skill_name)
+            
+            # Add skill to user
+            if repo.add_skill_to_user(current_user.id, skill.id):
+                # Get the created user skill
+                user_skill = db.query(UserSkill).filter(
+                    UserSkill.user_id == current_user.id, 
+                    UserSkill.skill_id == skill.id
+                ).first()
+                
+                if user_skill:
+                    # Convert SQLAlchemy model to Pydantic response model
+                    user_skill_response = UserSkillResponse.model_validate(user_skill)
+                    created_user_skills.append(user_skill_response)
         
-        # Get the created user skill
-        user_skill = db.query(UserSkill).filter(
-            UserSkill.user_id == current_user.id, 
-            UserSkill.skill_id == skill.id
-        ).first()
+        db.commit()
         
-        # Convert SQLAlchemy model to Pydantic response model
-        user_skill_response = UserSkillResponse.model_validate(user_skill)
+        if not created_user_skills:
+            raise HTTPException(status_code=400, detail="No new skills were added")
+        
         return SuccessResponse(
-            msg="User skill created successfully",
-            data=user_skill_response
+            msg=f"Successfully updated user skills. Removed {len(existing_user_skills)} old skills, added {len(created_user_skills)} new skills",
+            data=created_user_skills
         )
     except HTTPException:
         raise

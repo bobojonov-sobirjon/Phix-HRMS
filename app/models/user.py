@@ -22,7 +22,7 @@ class User(Base):
     apple_id = Column(String(255), unique=True, nullable=True)
     
     # Profile information
-    phone = Column(String(20), nullable=True)
+    phone = Column(String(20), unique=True, nullable=True)
     avatar_url = Column(Text, nullable=True)
     about_me = Column(Text, nullable=True)
     current_position = Column(String(255), nullable=True)

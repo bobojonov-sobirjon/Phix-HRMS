@@ -41,6 +41,24 @@ def get_my_educations(current_user: User = Depends(get_current_user), db: Sessio
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+@router.get("/educations/{education_id}", response_model=SuccessResponse, tags=["Profile Education"])
+def get_education_by_id(education_id: int, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    try:
+        repo = EducationRepository(db)
+        education = repo.get_education_by_id(education_id)
+        if not education or education.user_id != current_user.id:
+            raise HTTPException(status_code=404, detail="Education not found")
+        # Convert SQLAlchemy model to Pydantic response model
+        education_response = EducationResponse.model_validate(education)
+        return SuccessResponse(
+            msg="Education retrieved successfully",
+            data=education_response
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 @router.post("/educations", response_model=SuccessResponse, tags=["Profile Education"])
 def add_education(education: EducationCreate, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     try:
@@ -97,6 +115,24 @@ def get_my_experiences(current_user: User = Depends(get_current_user), db: Sessi
             msg="Experiences retrieved successfully",
             data=experience_responses
         )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/experiences/{id}", response_model=SuccessResponse, tags=["Profile Experience"])
+def get_experience_by_id(id: int, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    try:
+        repo = ExperienceRepository(db)
+        experience = repo.get_experience_by_id(id)
+        if not experience or experience.user_id != current_user.id:
+            raise HTTPException(status_code=404, detail="Experience not found")
+        # Convert SQLAlchemy model to Pydantic response model
+        experience_response = ExperienceResponse.model_validate(experience)
+        return SuccessResponse(
+            msg="Experience retrieved successfully",
+            data=experience_response
+        )
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -159,6 +195,24 @@ def get_my_certifications(current_user: User = Depends(get_current_user), db: Se
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+@router.get("/certifications/{id}", response_model=SuccessResponse, tags=["Profile Certifications"])
+def get_certification_by_id(id: int, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    try:
+        repo = CertificationRepository(db)
+        certification = repo.get_certification_by_id(id)
+        if not certification or certification.user_id != current_user.id:
+            raise HTTPException(status_code=404, detail="Certification not found")
+        # Convert SQLAlchemy model to Pydantic response model
+        certification_response = CertificationResponse.model_validate(certification)
+        return SuccessResponse(
+            msg="Certification retrieved successfully",
+            data=certification_response
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 @router.post("/certifications", response_model=SuccessResponse, tags=["Profile Certifications"])
 def add_certification(data: CertificationCreate, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     try:
@@ -205,16 +259,49 @@ def delete_certification(id: int, current_user: User = Depends(get_current_user)
 
 # Projects
 @router.get("/projects", response_model=SuccessResponse, tags=["Profile Projects"])
-def get_my_projects(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+def get_my_projects(current_user: User = Depends(get_current_user), db: Session = Depends(get_db), request: Request = None):
     try:
         repo = ProjectRepository(db)
         projects = repo.get_projects_by_user(current_user.id)
         # Convert SQLAlchemy models to Pydantic response models
         project_responses = [ProjectResponse.model_validate(proj) for proj in projects]
+        
+        # Add base URL to image paths in response
+        base_url = str(request.base_url).rstrip("/") if request else ""
+        for project_response in project_responses:
+            for img in project_response.images:
+                if img.image and not img.image.startswith("http"):
+                    img.image = f"{base_url}{img.image}"
+        
         return SuccessResponse(
             msg="Projects retrieved successfully",
             data=project_responses
         )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/projects/{id}", response_model=SuccessResponse, tags=["Profile Projects"])
+def get_project_by_id(id: int, current_user: User = Depends(get_current_user), db: Session = Depends(get_db), request: Request = None):
+    try:
+        repo = ProjectRepository(db)
+        project = repo.get_project_by_id(id)
+        if not project or project.user_id != current_user.id:
+            raise HTTPException(status_code=404, detail="Project not found")
+        # Convert SQLAlchemy model to Pydantic response model
+        project_response = ProjectResponse.model_validate(project)
+        
+        # Add base URL to image paths in response
+        base_url = str(request.base_url).rstrip("/") if request else ""
+        for img in project_response.images:
+            if img.image and not img.image.startswith("http"):
+                img.image = f"{base_url}{img.image}"
+        
+        return SuccessResponse(
+            msg="Project retrieved successfully",
+            data=project_response
+        )
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -234,32 +321,31 @@ async def add_project(
     try:
         from datetime import datetime
         import os
-        from ..models.project import Project
         from ..models.project_image import ProjectImage
 
         # Parse dates
         from_date_parsed = datetime.fromisoformat(from_date) if from_date else None
         to_date_parsed = datetime.fromisoformat(to_date) if to_date else None
 
-        # Create project
-        project = Project(
-            user_id=current_user.id,
-            project_name=project_name,
-            role=role,
-            from_date=from_date_parsed,
-            to_date=to_date_parsed,
-            live_project_path=live_project_path,
-            description=description
-        )
-        db.add(project)
-        db.commit()
-        db.refresh(project)
+        # Prepare project data
+        project_data = {
+            "project_name": project_name,
+            "role": role,
+            "from_date": from_date_parsed,
+            "to_date": to_date_parsed,
+            "live_project_path": live_project_path,
+            "description": description
+        }
 
-        # Handle images
-        image_objs = []
+        # Use repository to create project
+        repo = ProjectRepository(db)
+        project = repo.create_project(current_user.id, project_data)
+
+        # Handle image uploads if provided
         if images:
             upload_dir = "static/projects"
             os.makedirs(upload_dir, exist_ok=True)
+            
             for img in images:
                 if img.content_type.startswith('image/'):
                     filename = f"{project.id}_{img.filename}"
@@ -268,37 +354,106 @@ async def add_project(
                         buffer.write(await img.read())
                     normalized_path = file_path.replace('\\', '/')
                     rel_path = f"/{normalized_path}"
+                    
+                    # Create image object
                     image_obj = ProjectImage(project_id=project.id, image=rel_path)
                     db.add(image_obj)
-                    image_objs.append(image_obj)
+            
             db.commit()
+            db.refresh(project)
 
-        db.refresh(project)
-        # Attach images to project for response
-        project.images = image_objs if image_objs else []
-
+        # Convert to response model
+        project_response = ProjectResponse.model_validate(project)
+        
         # Add base URL to image paths in response
         base_url = str(request.base_url).rstrip("/")
-        for img in project.images:
+        for img in project_response.images:
             if img.image and not img.image.startswith("http"):
                 img.image = f"{base_url}{img.image}"
 
         return SuccessResponse(
             msg="Project added successfully",
-            data=ProjectResponse.model_validate(project)
+            data=project_response
         )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.patch("/projects/{id}", response_model=SuccessResponse, tags=["Profile Projects"])
-def update_project(id: int, data: ProjectUpdate, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+async def update_project(
+    id: int, 
+    project_name: str = Form(None),
+    role: str = Form(None),
+    from_date: str = Form(None),
+    to_date: str = Form(None),
+    live_project_path: str = Form(None),
+    description: str = Form(None),
+    images: List[UploadFile] = File(None),
+    current_user: User = Depends(get_current_user), 
+    db: Session = Depends(get_db),
+    request: Request = None
+):
     try:
+        from datetime import datetime
+        import os
+        from ..models.project_image import ProjectImage
+        
         repo = ProjectRepository(db)
-        updated = repo.update_project(id, data.dict(exclude_unset=True))
-        if not updated or updated.user_id != current_user.id:
+        
+        # Check if project exists and belongs to user
+        project = repo.get_project_by_id(id)
+        if not project or project.user_id != current_user.id:
             raise HTTPException(status_code=404, detail="Project not found")
+        
+        # Prepare update data
+        update_data = {}
+        if project_name is not None:
+            update_data['project_name'] = project_name
+        if role is not None:
+            update_data['role'] = role
+        if from_date is not None:
+            update_data['from_date'] = datetime.fromisoformat(from_date)
+        if to_date is not None:
+            update_data['to_date'] = datetime.fromisoformat(to_date)
+        if live_project_path is not None:
+            update_data['live_project_path'] = live_project_path
+        if description is not None:
+            update_data['description'] = description
+        
+        # Handle image updates if provided
+        if images:
+            image_urls = []
+            upload_dir = "static/projects"
+            os.makedirs(upload_dir, exist_ok=True)
+            
+            for img in images:
+                if img.content_type.startswith('image/'):
+                    filename = f"{project.id}_{img.filename}"
+                    file_path = os.path.join(upload_dir, filename)
+                    with open(file_path, "wb") as buffer:
+                        buffer.write(await img.read())
+                    normalized_path = file_path.replace('\\', '/')
+                    rel_path = f"/{normalized_path}"
+                    image_urls.append(rel_path)
+            
+            if image_urls:
+                update_data['images'] = image_urls
+        
+        # Update project
+        updated = repo.update_project(id, update_data)
+        if not updated:
+            raise HTTPException(status_code=404, detail="Project not found")
+        
         # Convert SQLAlchemy model to Pydantic response model
         project_response = ProjectResponse.model_validate(updated)
+        
+        # Add base URL to image paths in response
+        base_url = str(request.base_url).rstrip("/")
+        for img in project_response.images:
+            if img.image and not img.image.startswith("http"):
+                img.image = f"{base_url}{img.image}"
+        
         return SuccessResponse(
             msg="Project updated successfully",
             data=project_response

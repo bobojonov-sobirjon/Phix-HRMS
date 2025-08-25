@@ -3,9 +3,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import JSONResponse
 from .api import auth, profile, contact_us, faq, skills, roles, languages, locations, user_skills, data_management
-from .api import job_post_type, job
+from .api import job_post_type, job, company, education_facility, certification_center
 from .database import engine
-from .models import user, role, user_role, skill, user_skill, education, experience, certification, project, project_image, language, location, contact_us as contact_us_model, faq as faq_model, job_post_type as job_post_type_model, job as job_model, job_skill as job_skill_model
+from .models import user, role, user_role, skill, user_skill, education, experience, certification, project, project_image, language, location, contact_us as contact_us_model, faq as faq_model, job_post_type as job_post_type_model, job as job_model, job_skill as job_skill_model, company as company_model, education_facility as education_facility_model, certification_center as certification_center_model
 import traceback
 
 app = FastAPI(title="Phix HRMS API", version="1.0.0")
@@ -57,6 +57,9 @@ app.include_router(user_skills, prefix="/api/v1")
 app.include_router(data_management, prefix="/api/v1")
 app.include_router(job_post_type.router, prefix="/api/v1")
 app.include_router(job.router, prefix="/api/v1")
+app.include_router(company.router, prefix="/api/v1")
+app.include_router(education_facility.router, prefix="/api/v1")
+app.include_router(certification_center.router, prefix="/api/v1")
 
 # Mount static files
 app.mount("/static", StaticFiles(directory="static"), name="static")
@@ -79,6 +82,9 @@ faq_model.Base.metadata.create_all(bind=engine)
 job_post_type_model.Base.metadata.create_all(bind=engine)
 job_model.Base.metadata.create_all(bind=engine)
 job_skill_model.Base.metadata.create_all(bind=engine)
+company_model.Base.metadata.create_all(bind=engine)
+education_facility_model.Base.metadata.create_all(bind=engine)
+certification_center_model.Base.metadata.create_all(bind=engine)
 
 @app.get("/")
 async def root():

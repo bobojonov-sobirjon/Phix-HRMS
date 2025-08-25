@@ -27,6 +27,12 @@ class UserRepository:
             selectinload(User.roles)  # Eager load roles to avoid N+1
         ).filter(User.email == email).first()
     
+    def get_user_by_phone(self, phone: str) -> Optional[User]:
+        """Get user by phone with optimized loading"""
+        return self.db.query(User).options(
+            selectinload(User.roles)  # Eager load roles to avoid N+1
+        ).filter(User.phone == phone).first()
+    
     def get_user_by_id(self, user_id: int) -> Optional[User]:
         """Get user by ID with optimized loading"""
         return self.db.query(User).options(
@@ -47,11 +53,12 @@ class UserRepository:
             return query.filter(User.apple_id == social_id).first()
         return None
     
-    def create_user(self, name: str, email: str, password: str = None) -> User:
+    def create_user(self, name: str, email: str, password: str = None, phone: str = None) -> User:
         """Create new user with optimized transaction"""
         user = User(
             name=name,
-            email=email
+            email=email,
+            phone=phone
         )
         if password:
             user.set_password(password)
