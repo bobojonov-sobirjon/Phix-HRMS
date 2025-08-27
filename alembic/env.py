@@ -29,9 +29,13 @@ from app.models.contact_us import ContactUs
 from app.models.company import Company
 from app.models.education_facility import EducationFacility
 from app.models.certification_center import CertificationCenter
-from app.models.job_post_type import JobPostType
-from app.models.job import Job
-from app.models.job_skill import JobSkill
+from app.models.gig_job import GigJob
+from app.models.proposal import Proposal
+from app.models.corporate_profile import CorporateProfile
+from app.models.full_time_job import FullTimeJob
+from app.models.team_member import TeamMember
+
+
 
 
 

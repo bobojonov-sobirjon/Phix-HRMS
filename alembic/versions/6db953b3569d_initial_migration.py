@@ -1,8 +1,8 @@
-"""Create all tables
+"""Initial migration
 
-Revision ID: 77e1a32335e2
+Revision ID: 6db953b3569d
 Revises: 
-Create Date: 2025-08-03 16:42:47.458172
+Create Date: 2025-08-27 04:51:40.662478
 
 """
 from alembic import op
@@ -10,7 +10,7 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision = '77e1a32335e2'
+revision = '6db953b3569d'
 down_revision = None
 branch_labels = None
 depends_on = None
@@ -144,7 +144,8 @@ def upgrade() -> None:
     sa.PrimaryKeyConstraint('id'),
     sa.UniqueConstraint('apple_id'),
     sa.UniqueConstraint('facebook_id'),
-    sa.UniqueConstraint('google_id')
+    sa.UniqueConstraint('google_id'),
+    sa.UniqueConstraint('phone')
     )
     op.create_index(op.f('ix_users_email'), 'users', ['email'], unique=True)
     op.create_index(op.f('ix_users_id'), 'users', ['id'], unique=False)
@@ -152,9 +153,11 @@ def upgrade() -> None:
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('user_id', sa.Integer(), nullable=False),
     sa.Column('title', sa.String(length=255), nullable=False),
+    sa.Column('publishing_organization', sa.String(length=255), nullable=True),
     sa.Column('from_date', sa.DateTime(timezone=True), nullable=True),
     sa.Column('to_date', sa.DateTime(timezone=True), nullable=True),
     sa.Column('certificate_id', sa.String(length=255), nullable=True),
+    sa.Column('certification_url', sa.Text(), nullable=True),
     sa.Column('certificate_path', sa.Text(), nullable=True),
     sa.Column('certification_center_id', sa.Integer(), nullable=True),
     sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=True),
@@ -201,6 +204,28 @@ def upgrade() -> None:
     sa.PrimaryKeyConstraint('id')
     )
     op.create_index(op.f('ix_experiences_id'), 'experiences', ['id'], unique=False)
+    op.create_table('gig_jobs',
+    sa.Column('id', sa.Integer(), nullable=False),
+    sa.Column('title', sa.String(length=255), nullable=False),
+    sa.Column('description', sa.Text(), nullable=False),
+    sa.Column('location', sa.String(length=100), nullable=False),
+    sa.Column('experience_level', sa.Enum('ENTRY_LEVEL', 'MID_LEVEL', 'JUNIOR', 'DIRECTOR', name='experiencelevel'), nullable=False),
+    sa.Column('job_type', sa.Enum('FULL_TIME', 'PART_TIME', 'FREELANCE', 'INTERNSHIP', name='jobtype'), nullable=False),
+    sa.Column('work_mode', sa.Enum('ON_SITE', 'REMOTE', 'HYBRID', 'FLEXIBLE_HOURS', name='workmode'), nullable=False),
+    sa.Column('remote_only', sa.Boolean(), nullable=True),
+    sa.Column('skills_required', sa.Text(), nullable=False),
+    sa.Column('min_salary', sa.Float(), nullable=False),
+    sa.Column('max_salary', sa.Float(), nullable=False),
+    sa.Column('deadline_days', sa.Integer(), nullable=False),
+    sa.Column('status', sa.Enum('ACTIVE', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED', name='gigjobstatus'), nullable=True),
+    sa.Column('author_id', sa.Integer(), nullable=False),
+    sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=True),
+    sa.Column('updated_at', sa.DateTime(timezone=True), nullable=True),
+    sa.ForeignKeyConstraint(['author_id'], ['users.id'], ),
+    sa.PrimaryKeyConstraint('id')
+    )
+    op.create_index(op.f('ix_gig_jobs_id'), 'gig_jobs', ['id'], unique=False)
+    op.create_index(op.f('ix_gig_jobs_title'), 'gig_jobs', ['title'], unique=False)
     op.create_table('projects',
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('user_id', sa.Integer(), nullable=False),
@@ -213,7 +238,7 @@ def upgrade() -> None:
     sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=True),
     sa.Column('updated_at', sa.DateTime(timezone=True), nullable=True),
     sa.Column('is_deleted', sa.Boolean(), nullable=True),
-    sa.ForeignKeyConstraint(['user_id'], ['users.id'], ),
+    sa.ForeignKeyConstraint(['user_id'], ['users.id'], ondelete='CASCADE'),
     sa.PrimaryKeyConstraint('id')
     )
     op.create_index(op.f('ix_projects_id'), 'projects', ['id'], unique=False)
@@ -245,15 +270,30 @@ def upgrade() -> None:
     sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=True),
     sa.Column('updated_at', sa.DateTime(timezone=True), nullable=True),
     sa.Column('is_deleted', sa.Boolean(), nullable=True),
-    sa.ForeignKeyConstraint(['project_id'], ['projects.id'], ),
+    sa.ForeignKeyConstraint(['project_id'], ['projects.id'], ondelete='CASCADE'),
     sa.PrimaryKeyConstraint('id')
     )
     op.create_index(op.f('ix_project_images_id'), 'project_images', ['id'], unique=False)
+    op.create_table('proposals',
+    sa.Column('id', sa.Integer(), nullable=False),
+    sa.Column('cover_letter', sa.Text(), nullable=False),
+    sa.Column('attachments', sa.Text(), nullable=True),
+    sa.Column('user_id', sa.Integer(), nullable=False),
+    sa.Column('gig_job_id', sa.Integer(), nullable=False),
+    sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=True),
+    sa.Column('updated_at', sa.DateTime(timezone=True), nullable=True),
+    sa.ForeignKeyConstraint(['gig_job_id'], ['gig_jobs.id'], ),
+    sa.ForeignKeyConstraint(['user_id'], ['users.id'], ),
+    sa.PrimaryKeyConstraint('id')
+    )
+    op.create_index(op.f('ix_proposals_id'), 'proposals', ['id'], unique=False)
     # ### end Alembic commands ###
 
 
 def downgrade() -> None:
     # ### commands auto generated by Alembic - please adjust! ###
+    op.drop_index(op.f('ix_proposals_id'), table_name='proposals')
+    op.drop_table('proposals')
     op.drop_index(op.f('ix_project_images_id'), table_name='project_images')
     op.drop_table('project_images')
     op.drop_index(op.f('ix_user_skills_id'), table_name='user_skills')
@@ -261,6 +301,9 @@ def downgrade() -> None:
     op.drop_table('user_roles')
     op.drop_index(op.f('ix_projects_id'), table_name='projects')
     op.drop_table('projects')
+    op.drop_index(op.f('ix_gig_jobs_title'), table_name='gig_jobs')
+    op.drop_index(op.f('ix_gig_jobs_id'), table_name='gig_jobs')
+    op.drop_table('gig_jobs')
     op.drop_index(op.f('ix_experiences_id'), table_name='experiences')
     op.drop_table('experiences')
     op.drop_index(op.f('ix_educations_id'), table_name='educations')

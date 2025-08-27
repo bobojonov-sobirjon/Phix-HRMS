@@ -26,6 +26,31 @@ import os
 
 router = APIRouter(prefix="/profile", tags=[])
 
+# Get user by ID
+@router.get("/user/{user_id}", response_model=SuccessResponse, tags=["User get by id"])
+def get_user_by_id(user_id: int, db: Session = Depends(get_db)):
+    """
+    Get user profile by ID (public endpoint)
+    
+    - **user_id**: ID of the user to retrieve
+    """
+    try:
+        repo = UserRepository(db)
+        user = repo.get_by_id(user_id)
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+        
+        # Convert SQLAlchemy model to Pydantic response model
+        user_response = UserFullResponse.model_validate(user)
+        return SuccessResponse(
+            msg="User retrieved successfully",
+            data=user_response
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 # Educations
 @router.get("/educations", response_model=SuccessResponse, tags=["Profile Education"])
 def get_my_educations(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):

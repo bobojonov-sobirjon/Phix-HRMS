@@ -2,7 +2,7 @@ from sqlalchemy.orm import Session
 from typing import Optional, List
 from ..models.user import User
 from ..models.otp import OTP
-from datetime import datetime
+from datetime import datetime, timezone
 from ..models.role import Role
 from sqlalchemy.orm import joinedload, selectinload, subqueryload
 from sqlalchemy import and_, or_
@@ -36,8 +36,19 @@ class UserRepository:
     def get_user_by_id(self, user_id: int) -> Optional[User]:
         """Get user by ID with optimized loading"""
         return self.db.query(User).options(
-            selectinload(User.roles)  # Eager load roles to avoid N+1
+            selectinload(User.roles),  # Eager load roles to avoid N+1
+            selectinload(User.skills),  # Eager load skills
+            selectinload(User.educations),  # Eager load educations
+            selectinload(User.experiences),  # Eager load experiences
+            selectinload(User.certifications),  # Eager load certifications
+            selectinload(User.projects),  # Eager load projects
+            selectinload(User.location),  # Eager load location
+            selectinload(User.language)  # Eager load language
         ).filter(User.id == user_id).first()
+    
+    def get_by_id(self, user_id: int) -> Optional[User]:
+        """Get user by ID with all related data (alias for get_user_by_id)"""
+        return self.get_user_by_id(user_id)
     
     def get_user_by_social_id(self, provider: str, social_id: str) -> Optional[User]:
         """Get user by social login ID with optimized loading"""
@@ -94,7 +105,7 @@ class UserRepository:
         """Update user's last login time with optimized query"""
         # Use direct update instead of loading user first
         self.db.query(User).filter(User.id == user_id).update({
-            User.last_login: datetime.utcnow()
+            User.last_login: datetime.now(timezone.utc)
         })
         self.db.commit()
     
@@ -222,7 +233,7 @@ class OTPRepository:
                 OTP.email == email,
                 OTP.otp_code == otp_code,
                 OTP.is_used == False,
-                OTP.expires_at > datetime.utcnow()  # Add expiration check
+                OTP.expires_at > datetime.now(timezone.utc)  # Add expiration check
             )
         ).first()
     
@@ -234,7 +245,7 @@ class OTPRepository:
                 OTP.otp_code == otp_code,
                 OTP.otp_type == otp_type,
                 OTP.is_used == False,
-                OTP.expires_at > datetime.utcnow()  # Add expiration check
+                OTP.expires_at > datetime.now(timezone.utc)  # Add expiration check
             )
         ).first()
     
@@ -249,12 +260,12 @@ class OTPRepository:
     def delete_expired_otps(self):
         """Delete expired OTPs with optimized query"""
         from datetime import datetime
-        self.db.query(OTP).filter(OTP.expires_at < datetime.utcnow()).delete()
+        self.db.query(OTP).filter(OTP.expires_at < datetime.now(timezone.utc)).delete()
         self.db.commit()
     
     def cleanup_old_otps(self, days_old: int = 7):
         """Clean up old OTPs to prevent database bloat"""
         from datetime import datetime, timedelta
-        cutoff_date = datetime.utcnow() - timedelta(days=days_old)
+        cutoff_date = datetime.now(timezone.utc) - timedelta(days=days_old)
         self.db.query(OTP).filter(OTP.created_at < cutoff_date).delete()
         self.db.commit() 

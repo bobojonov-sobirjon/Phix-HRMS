@@ -14,9 +14,13 @@ from .language import Language
 from .company import Company
 from .education_facility import EducationFacility
 from .certification_center import CertificationCenter
-from .job_post_type import JobPostType
-from .job import Job
-from .job_skill import JobSkill
+from .gig_job import GigJob
+from .gig_job_skill import GigJobSkill
+from .proposal import Proposal
+from .corporate_profile import CorporateProfile
+from .full_time_job import FullTimeJob
+from .full_time_job_skill import FullTimeJobSkill
+from .team_member import TeamMember
 
 __all__ = [
     "Certification",
@@ -35,7 +39,11 @@ __all__ = [
     "Company",
     "EducationFacility",
     "CertificationCenter",
-    "JobPostType",
-    "Job",
-    "JobSkill",
+    "GigJob",
+    "GigJobSkill",
+    "Proposal",
+    "CorporateProfile",
+    "FullTimeJob",
+    "FullTimeJobSkill",
+    "TeamMember",
 ] 

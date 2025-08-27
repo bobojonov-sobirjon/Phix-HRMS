@@ -61,27 +61,42 @@ def send_email_with_retry(email: str, otp_code: str, email_type: str = "registra
             continue
             
         try:
-            # Create message
-            msg = MIMEMultipart()
+            # Create message - Use MIMEText instead of MIMEMultipart to avoid any header issues
+            subject = f"Registration OTP - {settings.APP_NAME}" if email_type != "corporate_verification" else f"Corporate Profile Verification - {settings.APP_NAME}"
+            
+            if email_type == "corporate_verification":
+                body = f"""
+                <html>
+                <body>
+                    <h2>Corporate Profile Verification</h2>
+                    <p>Thank you for creating a corporate profile with {settings.APP_NAME}.</p>
+                    <p>Your verification code is: <strong>{otp_code}</strong></p>
+                    <p>This code will expire in {settings.OTP_EXPIRE_MINUTES} minutes.</p>
+                    <p>Please use this code to verify your corporate profile.</p>
+                    <br>
+                    <p>Best regards,<br>{settings.APP_NAME} Team</p>
+                </body>
+                </html>
+                """
+            else:
+                body = f"""
+                <html>
+                <body>
+                    <h2>Registration Verification</h2>
+                    <p>Thank you for registering with {settings.APP_NAME}.</p>
+                    <p>Your verification code is: <strong>{otp_code}</strong></p>
+                    <p>This code will expire in {settings.OTP_EXPIRE_MINUTES} minutes.</p>
+                    <br>
+                    <p>Best regards,<br>{settings.APP_NAME} Team</p>
+                </body>
+                </html>
+                """
+            
+            # Create simple MIMEText message to avoid any MIME header issues
+            msg = MIMEText(body, 'html')
             msg['From'] = settings.SMTP_USERNAME
             msg['To'] = email
-            msg['Subject'] = f"Registration OTP - {settings.APP_NAME}"
-            
-            # Email body
-            body = f"""
-            <html>
-            <body>
-                <h2>Registration Verification</h2>
-                <p>Thank you for registering with {settings.APP_NAME}.</p>
-                <p>Your verification code is: <strong>{otp_code}</strong></p>
-                <p>This code will expire in {settings.OTP_EXPIRE_MINUTES} minutes.</p>
-                <br>
-                <p>Best regards,<br>{settings.APP_NAME} Team</p>
-            </body>
-            </html>
-            """
-            
-            msg.attach(MIMEText(body, 'html'))
+            msg['Subject'] = subject
             
             # Create SMTP connection based on config
             if config['use_ssl']:
@@ -93,7 +108,14 @@ def send_email_with_retry(email: str, otp_code: str, email_type: str = "registra
             
             # Login and send
             server.login(settings.SMTP_USERNAME, settings.SMTP_PASSWORD)
+            
+            # Debug: Print the actual email content to see what's being sent
             text = msg.as_string()
+            print(f"=== EMAIL CONTENT DEBUG ===")
+            print(f"Email headers and content:")
+            print(text)
+            print("=== END EMAIL CONTENT DEBUG ===")
+            
             server.sendmail(settings.SMTP_USERNAME, email, text)
             server.quit()
             
@@ -574,6 +596,49 @@ def send_email_sendgrid(email: str, otp_code: str, email_type: str = "registrati
     except Exception as e:
         print(f"SendGrid error: {e}")
         return False
+
+async def send_team_invitation_email(email: str, company_name: str, inviter_name: str, role: str) -> bool:
+    """Send team invitation email to a user"""
+    try:
+        print(f"=== SENDING TEAM INVITATION EMAIL ===")
+        print(f"To: {email}")
+        print(f"Company: {company_name}")
+        print(f"Inviter: {inviter_name}")
+        print(f"Role: {role}")
+        
+        # Create message
+        msg = MIMEMultipart()
+        msg['From'] = settings.SMTP_USERNAME
+        msg['To'] = email
+        msg['Subject'] = f"Team Invitation - {company_name}"
+        
+        # Email body
+        body = f"""
+        <html>
+        <body>
+            <h2>Team Invitation</h2>
+            <p>Hello!</p>
+            <p>You have been invited by <strong>{inviter_name}</strong> to join the team at <strong>{company_name}</strong>.</p>
+            <p>Your assigned role will be: <strong>{role}</strong></p>
+            <p>Please log in to your account to accept or reject this invitation.</p>
+            <br>
+            <p>Best regards,<br>{company_name} Team</p>
+        </body>
+        </html>
+        """
+        
+        msg.attach(MIMEText(body, 'html'))
+        
+        # Try to send using available methods
+        return await asyncio.get_event_loop().run_in_executor(
+            email_executor, 
+            lambda: send_email_with_retry(email, "", "team_invitation")
+        )
+        
+    except Exception as e:
+        print(f"Error sending team invitation email: {e}")
+        return False
+
 
 def cleanup_email_executor():
     """Cleanup email executor on application shutdown"""

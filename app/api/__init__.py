@@ -8,6 +8,8 @@ from .faq import router as faq
 from .contact_us import router as contact_us
 from .languages import router as languages
 from .data_management import router as data_management
+from .gig_jobs import router as gig_jobs
+from .proposals import router as proposals
 
 __all__ = [
     "auth",
@@ -19,5 +21,7 @@ __all__ = [
     "faq",
     "contact_us",
     "languages",
-    "data_management"
+    "data_management",
+    "gig_jobs",
+    "proposals"
 ] 

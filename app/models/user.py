@@ -48,7 +48,10 @@ class User(Base):
     projects = relationship('Project', back_populates='user', cascade='all, delete-orphan')
     skills = relationship('Skill', secondary='user_skills', back_populates='users', viewonly=True)
     roles = relationship('Role', secondary='user_roles', back_populates='users')
-    jobs = relationship('Job', back_populates='user', cascade='all, delete-orphan')
+    gig_jobs = relationship('GigJob', back_populates='author', cascade='all, delete-orphan')
+    corporate_profile = relationship('CorporateProfile', back_populates='user', uselist=False, cascade='all, delete-orphan')
+    team_memberships = relationship('TeamMember', foreign_keys='TeamMember.user_id', back_populates='user')
+    proposals = relationship('Proposal', back_populates='user', cascade='all, delete-orphan')
     
     def set_password(self, password: str):
         """Hash password using bcrypt"""
