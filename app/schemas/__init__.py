@@ -11,6 +11,7 @@ from .proposal import *
 from .corporate_profile import *
 from .full_time_job import *
 from .team_member import *
+from .category import *
 
 __all__ = [
     # Auth schemas
@@ -48,6 +49,14 @@ __all__ = [
     # Location schemas
     "LocationCreate",
     "LocationResponse",
+    
+    # Category schemas
+    "CategoryCreate",
+    "CategoryUpdate",
+    "CategoryResponse",
+    "CategoryWithChildren",
+    "CategorySearch",
+    "CategoryBase",
     
     # Gig Job schemas
     "GigJobCreate",

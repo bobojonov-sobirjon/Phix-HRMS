@@ -1,7 +1,9 @@
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import and_
 from typing import List, Optional
 from app.models.proposal import Proposal
+from app.models.gig_job import GigJob
+from app.models.full_time_job import FullTimeJob
 from app.schemas.proposal import ProposalCreate, ProposalUpdate
 from app.pagination import PaginationParams
 
@@ -22,12 +24,30 @@ class ProposalRepository:
         return db_proposal
 
     def get_by_id(self, proposal_id: int) -> Optional[Proposal]:
-        """Get proposal by ID"""
-        return self.db.query(Proposal).filter(Proposal.id == proposal_id).first()
+        """Get proposal by ID with relationships"""
+        return self.db.query(Proposal).options(
+            joinedload(Proposal.user),
+            joinedload(Proposal.gig_job).joinedload(GigJob.category),
+            joinedload(Proposal.gig_job).joinedload(GigJob.subcategory),
+            joinedload(Proposal.gig_job).joinedload(GigJob.location),
+            joinedload(Proposal.gig_job).joinedload(GigJob.skills),
+            joinedload(Proposal.full_time_job).joinedload(FullTimeJob.category),
+            joinedload(Proposal.full_time_job).joinedload(FullTimeJob.subcategory),
+            joinedload(Proposal.full_time_job).joinedload(FullTimeJob.skills)
+        ).filter(Proposal.id == proposal_id).first()
 
     def get_user_proposals(self, user_id: int, pagination: PaginationParams) -> tuple[List[Proposal], int]:
-        """Get paginated proposals submitted by a specific user"""
-        query = self.db.query(Proposal).filter(Proposal.user_id == user_id)
+        """Get paginated proposals submitted by a specific user with relationships"""
+        query = self.db.query(Proposal).options(
+            joinedload(Proposal.user),
+            joinedload(Proposal.gig_job).joinedload(GigJob.category),
+            joinedload(Proposal.gig_job).joinedload(GigJob.subcategory),
+            joinedload(Proposal.gig_job).joinedload(GigJob.location),
+            joinedload(Proposal.gig_job).joinedload(GigJob.skills),
+            joinedload(Proposal.full_time_job).joinedload(FullTimeJob.category),
+            joinedload(Proposal.full_time_job).joinedload(FullTimeJob.subcategory),
+            joinedload(Proposal.full_time_job).joinedload(FullTimeJob.skills)
+        ).filter(Proposal.user_id == user_id)
         
         # Get total count
         total = query.count()
@@ -38,8 +58,38 @@ class ProposalRepository:
         return proposals, total
 
     def get_gig_job_proposals(self, gig_job_id: int, pagination: PaginationParams) -> tuple[List[Proposal], int]:
-        """Get paginated proposals for a specific gig job"""
-        query = self.db.query(Proposal).filter(Proposal.gig_job_id == gig_job_id)
+        """Get paginated proposals for a specific gig job with relationships"""
+        query = self.db.query(Proposal).options(
+            joinedload(Proposal.user),
+            joinedload(Proposal.gig_job).joinedload(GigJob.category),
+            joinedload(Proposal.gig_job).joinedload(GigJob.subcategory),
+            joinedload(Proposal.gig_job).joinedload(GigJob.location),
+            joinedload(Proposal.gig_job).joinedload(GigJob.skills),
+            joinedload(Proposal.full_time_job).joinedload(FullTimeJob.category),
+            joinedload(Proposal.full_time_job).joinedload(FullTimeJob.subcategory),
+            joinedload(Proposal.full_time_job).joinedload(FullTimeJob.skills)
+        ).filter(Proposal.gig_job_id == gig_job_id)
+        
+        # Get total count
+        total = query.count()
+        
+        # Apply pagination
+        proposals = query.offset(pagination.offset).limit(pagination.limit).all()
+        
+        return proposals, total
+
+    def get_full_time_job_proposals(self, full_time_job_id: int, pagination: PaginationParams) -> tuple[List[Proposal], int]:
+        """Get paginated proposals for a specific full-time job with relationships"""
+        query = self.db.query(Proposal).options(
+            joinedload(Proposal.user),
+            joinedload(Proposal.gig_job).joinedload(GigJob.category),
+            joinedload(Proposal.gig_job).joinedload(GigJob.subcategory),
+            joinedload(Proposal.gig_job).joinedload(GigJob.location),
+            joinedload(Proposal.gig_job).joinedload(GigJob.skills),
+            joinedload(Proposal.full_time_job).joinedload(FullTimeJob.category),
+            joinedload(Proposal.full_time_job).joinedload(FullTimeJob.subcategory),
+            joinedload(Proposal.full_time_job).joinedload(FullTimeJob.skills)
+        ).filter(Proposal.full_time_job_id == full_time_job_id)
         
         # Get total count
         total = query.count()
@@ -90,3 +140,19 @@ class ProposalRepository:
                 and_(Proposal.user_id == user_id, Proposal.full_time_job_id == job_id)
             ).first() is not None
         return False
+
+    def get_by_file_path(self, file_path: str) -> Optional[Proposal]:
+        """Get proposal by file path in attachments"""
+        import json
+        proposals = self.db.query(Proposal).filter(Proposal.attachments.isnot(None)).all()
+        
+        for proposal in proposals:
+            if proposal.attachments:
+                try:
+                    file_paths = json.loads(proposal.attachments)
+                    if file_path in file_paths:
+                        return proposal
+                except (json.JSONDecodeError, TypeError):
+                    continue
+        
+        return None

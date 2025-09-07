@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status, Header
 from sqlalchemy.orm import Session
 from typing import Optional
 from app.database import get_db
@@ -11,12 +11,39 @@ from app.schemas.gig_job import (
     GigJobResponse, 
     GigJobListResponse
 )
+from app.schemas.common import SuccessResponse
 from app.pagination import PaginationParams, create_pagination_response
 
 router = APIRouter(prefix="/gig-jobs", tags=["Gig Jobs"])
 
 
-@router.post("/gig-job", response_model=GigJobResponse, status_code=status.HTTP_201_CREATED)
+def get_current_user_optional(authorization: Optional[str] = Header(None)) -> Optional[User]:
+    """Get current user if authorization header is provided, otherwise return None"""
+    if not authorization or not authorization.startswith("Bearer "):
+        return None
+    
+    try:
+        token = authorization.split(" ")[1]
+        # Import here to avoid circular imports
+        from app.utils.auth import verify_token
+        from app.repositories.user_repository import UserRepository
+        from app.database import get_db
+        
+        # Get database session
+        db = next(get_db())
+        user_repo = UserRepository(db)
+        
+        # Verify token and get user
+        user_id = verify_token(token)
+        if user_id:
+            user = user_repo.get_by_id(user_id)
+            return user
+        return None
+    except Exception:
+        return None
+
+
+@router.post("/gig-job", response_model=SuccessResponse, status_code=status.HTTP_201_CREATED)
 async def create_gig_job(
     gig_job_data: GigJobCreate,
     db: Session = Depends(get_db),
@@ -27,12 +54,17 @@ async def create_gig_job(
     
     - **title**: Job title (required)
     - **description**: Detailed job description (required)
-    - **location**: Job location (required)
+    - **location_id**: Location ID (optional)
     - **experience_level**: Required experience level (entry_level, mid_level, junior, director)
     - **skill_names**: List of required skill names (e.g., ["Python", "JavaScript", "React"])
     - **min_salary**: Minimum salary (required)
     - **max_salary**: Maximum salary (required)
     - **deadline_days**: Deadline in days (required)
+    - **job_type**: Job type (required)
+    - **work_mode**: Work mode (required)
+    - **remote_only**: Remote only (required)
+    - **category_id**: Category id (required)
+    - **subcategory_id**: Subcategory id (required)
     """
     repository = GigJobRepository(db)
     
@@ -43,8 +75,10 @@ async def create_gig_job(
             detail="Minimum salary must be less than maximum salary"
         )
     
-    gig_job_data = repository.create(gig_job_data, current_user.id)
-    return gig_job_data
+    gig_job = repository.create(gig_job_data, current_user.id)
+    return SuccessResponse(
+        msg="Gig job successfully added"
+    )
 
 
 @router.get("/", response_model=GigJobListResponse)
@@ -58,11 +92,18 @@ async def get_all_gig_jobs(
     remote_only: Optional[bool] = Query(None, description="Filter by remote only"),
     min_salary: Optional[float] = Query(None, description="Filter by minimum salary"),
     max_salary: Optional[float] = Query(None, description="Filter by maximum salary"),
-    location: Optional[str] = Query(None, description="Filter by location"),
-    db: Session = Depends(get_db)
+    location_id: Optional[int] = Query(None, description="Filter by location ID"),
+    category_id: Optional[int] = Query(None, description="Filter by category ID"),
+    subcategory_id: Optional[int] = Query(None, description="Filter by subcategory ID"),
+    project_length: Optional[str] = Query(None, description="Filter by project length (less_than_one_month, one_to_three_months, three_to_six_months, more_than_six_months)"),
+    date_posted: Optional[str] = Query(None, description="Filter by date posted (any_time, past_24_hours, past_week, past_month)"),
+    sort_by: Optional[str] = Query("most_recent", description="Sort by (most_recent, most_relevant)"),
+    db: Session = Depends(get_db),
+    current_user: Optional[User] = Depends(get_current_user_optional)
 ):
     """
     Get all gig jobs with advanced filtering and pagination.
+    Authentication is optional - if Authorization header is provided, it will be validated.
     
     - **page**: Page number (default: 1)
     - **size**: Page size (default: 10, max: 100)
@@ -73,7 +114,13 @@ async def get_all_gig_jobs(
     - **remote_only**: Filter by remote only option
     - **min_salary**: Filter by minimum salary
     - **max_salary**: Filter by maximum salary
-    - **location**: Filter by location (partial match)
+    - **location_id**: Filter by location ID
+    - **category_id**: Filter by category ID
+    - **subcategory_id**: Filter by subcategory ID
+    - **project_length**: Filter by project length (less_than_one_month, one_to_three_months, three_to_six_months, more_than_six_months)
+    - **date_posted**: Filter by date posted (any_time, past_24_hours, past_week, past_month)
+    - **sort_by**: Sort by (most_recent, most_relevant)
+    - **Authorization**: Optional Bearer token for authentication
     """
     repository = GigJobRepository(db)
     pagination = PaginationParams(page=page, size=size)
@@ -87,7 +134,12 @@ async def get_all_gig_jobs(
         remote_only=remote_only,
         min_salary=min_salary,
         max_salary=max_salary,
-        location=location
+        location_id=location_id,
+        category_id=category_id,
+        subcategory_id=subcategory_id,
+        project_length=project_length,
+        date_posted=date_posted,
+        sort_by=sort_by
     )
     
     return create_pagination_response(
@@ -108,7 +160,12 @@ async def get_my_gig_jobs(
     remote_only: Optional[bool] = Query(None, description="Filter by remote only"),
     min_salary: Optional[float] = Query(None, description="Filter by minimum salary"),
     max_salary: Optional[float] = Query(None, description="Filter by maximum salary"),
-    location: Optional[str] = Query(None, description="Filter by location"),
+    location_id: Optional[int] = Query(None, description="Filter by location ID"),
+    category_id: Optional[int] = Query(None, description="Filter by category ID"),
+    subcategory_id: Optional[int] = Query(None, description="Filter by subcategory ID"),
+    project_length: Optional[str] = Query(None, description="Filter by project length (less_than_one_month, one_to_three_months, three_to_six_months, more_than_six_months)"),
+    date_posted: Optional[str] = Query(None, description="Filter by date posted (any_time, past_24_hours, past_week, past_month)"),
+    sort_by: Optional[str] = Query("most_recent", description="Sort by (most_recent, most_relevant)"),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
@@ -124,7 +181,12 @@ async def get_my_gig_jobs(
     - **remote_only**: Filter by remote only option
     - **min_salary**: Filter by minimum salary
     - **max_salary**: Filter by maximum salary
-    - **location**: Filter by location (partial match)
+    - **location_id**: Filter by location ID
+    - **category_id**: Filter by category ID
+    - **subcategory_id**: Filter by subcategory ID
+    - **project_length**: Filter by project length (less_than_one_month, one_to_three_months, three_to_six_months, more_than_six_months)
+    - **date_posted**: Filter by date posted (any_time, past_24_hours, past_week, past_month)
+    - **sort_by**: Sort by (most_recent, most_relevant)
     """
     repository = GigJobRepository(db)
     pagination = PaginationParams(page=page, size=size)
@@ -139,7 +201,12 @@ async def get_my_gig_jobs(
         remote_only=remote_only,
         min_salary=min_salary,
         max_salary=max_salary,
-        location=location
+        location_id=location_id,
+        category_id=category_id,
+        subcategory_id=subcategory_id,
+        project_length=project_length,
+        date_posted=date_posted,
+        sort_by=sort_by
     )
     
     return create_pagination_response(
@@ -171,7 +238,7 @@ async def get_gig_job_by_id(
     return gig_job
 
 
-@router.put("/{gig_job_id}", response_model=GigJobResponse)
+@router.put("/{gig_job_id}", response_model=SuccessResponse)
 async def update_gig_job(
     gig_job_id: int,
     gig_job_data: GigJobUpdate,
@@ -201,10 +268,12 @@ async def update_gig_job(
             detail="Gig job not found or you don't have permission to update it"
         )
     
-    return updated_gig_job
+    return SuccessResponse(
+        msg="Gig job successfully updated"
+    )
 
 
-@router.delete("/{gig_job_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/{gig_job_id}", response_model=SuccessResponse)
 async def delete_gig_job(
     gig_job_id: int,
     db: Session = Depends(get_db),
@@ -224,6 +293,10 @@ async def delete_gig_job(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Gig job not found or you don't have permission to delete it"
         )
+    
+    return SuccessResponse(
+        msg="Gig job successfully deleted"
+    )
 
 
 @router.get("/filter/search", response_model=GigJobListResponse)

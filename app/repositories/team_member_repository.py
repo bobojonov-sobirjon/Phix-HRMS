@@ -103,14 +103,9 @@ class TeamMemberRepository:
         self.db.commit()
         return True
 
-    def search_users(self, query: str, corporate_profile_id: int, skip: int = 0, limit: int = 20) -> List[User]:
-        """Search users by name or email, excluding existing team members"""
-        # Get existing team member user IDs
-        existing_member_ids = self.db.query(TeamMember.user_id).filter(
-            TeamMember.corporate_profile_id == corporate_profile_id
-        ).subquery()
-        
-        # Search users
+    def search_users(self, query: str, skip: int = 0, limit: int = 20) -> List[User]:
+        """Search users by name or email"""
+        # Simple user search
         users = self.db.query(User).filter(
             and_(
                 or_(
@@ -118,8 +113,7 @@ class TeamMemberRepository:
                     User.email.ilike(f"%{query}%")
                 ),
                 User.is_active == True,
-                User.is_deleted == False,
-                ~User.id.in_(existing_member_ids)
+                User.is_deleted == False
             )
         ).offset(skip).limit(limit).all()
         
@@ -138,4 +132,37 @@ class TeamMemberRepository:
                 TeamMember.user_id == user_id,
                 TeamMember.status == TeamMemberStatus.PENDING
             )
+        ).all()
+
+    def create_admin_member(self, corporate_profile_id: int, user_id: int) -> TeamMember:
+        """Create admin team member for corporate profile creator"""
+        from app.models.team_member import TeamMemberRole
+        
+        # Create admin team member
+        db_team_member = TeamMember(
+            corporate_profile_id=corporate_profile_id,
+            user_id=user_id,
+            invited_by_user_id=user_id,  # Self-invited as admin
+            role=TeamMemberRole.ADMIN,
+            status=TeamMemberStatus.ACCEPTED  # Auto-accepted for creator
+        )
+        
+        self.db.add(db_team_member)
+        self.db.commit()
+        self.db.refresh(db_team_member)
+        return db_team_member
+
+    def get_user_team_memberships(self, user_id: int) -> List[TeamMember]:
+        """Get all team memberships for a user (accepted invitations)"""
+        return self.db.query(TeamMember).filter(
+            and_(
+                TeamMember.user_id == user_id,
+                TeamMember.status == TeamMemberStatus.ACCEPTED
+            )
+        ).all()
+
+    def get_user_team_memberships_all_statuses(self, user_id: int) -> List[TeamMember]:
+        """Get all team memberships for a user (all statuses)"""
+        return self.db.query(TeamMember).filter(
+            TeamMember.user_id == user_id
         ).all()

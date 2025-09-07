@@ -45,6 +45,8 @@ class FullTimeJobBase(BaseModel):
     min_salary: float
     max_salary: float
     status: JobStatus = JobStatus.ACTIVE
+    category_id: int = Field(..., description="Main category ID")
+    subcategory_id: Optional[int] = Field(None, description="Subcategory ID")
 
 
 # Create schema
@@ -65,6 +67,8 @@ class FullTimeJobUpdate(BaseModel):
     min_salary: Optional[float] = None
     max_salary: Optional[float] = None
     status: Optional[JobStatus] = None
+    category_id: Optional[int] = None
+    subcategory_id: Optional[int] = None
 
 
 # Response schema
@@ -82,6 +86,10 @@ class FullTimeJobResponse(BaseModel):
     status: JobStatus = JobStatus.ACTIVE
     company_id: int
     company_name: str
+    category_id: int
+    category_name: str
+    subcategory_id: Optional[int] = None
+    subcategory_name: Optional[str] = None
     created_at: datetime
     updated_at: Optional[datetime] = None
     skills: List[dict] = Field(default_factory=list, description="List of skills with details")

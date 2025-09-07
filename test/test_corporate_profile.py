@@ -30,10 +30,27 @@ client = TestClient(app)
 @pytest.fixture
 def test_user():
     """Create a test user"""
+    import uuid
+    from app.models.location import Location
+    
     db = TestingSessionLocal()
+    
+    # Create a test location if it doesn't exist
+    location = db.query(Location).filter(Location.id == 1).first()
+    if not location:
+        location = Location(
+            id=1,
+            name="Test Location",
+            code="TL",
+            is_deleted=False
+        )
+        db.add(location)
+        db.commit()
+    
+    unique_email = f"test_{uuid.uuid4().hex[:8]}@example.com"
     user = User(
         name="Test User",
-        email="test@example.com",
+        email=unique_email,
         is_active=True,
         is_verified=True
     )
@@ -47,23 +64,23 @@ def test_user():
 @pytest.fixture
 def auth_headers(test_user):
     """Create authentication headers"""
-    access_token = create_access_token(data={"sub": test_user.email, "id": test_user.id})
+    access_token = create_access_token(data={"sub": str(test_user.id), "id": test_user.id})
     return {"Authorization": f"Bearer {access_token}"}
 
 def test_create_corporate_profile(auth_headers, test_user):
-    """Test creating a corporate profile"""
+    """Test creating a corporate profile with form data"""
     profile_data = {
         "company_name": "Test Company",
         "industry": "Technology",
         "phone_number": "1234567890",
         "country_code": "+1",
-        "location": "New York",
+        "location_id": 1,  # Assuming location with ID 1 exists
         "overview": "A test company for testing purposes",
         "website_url": "https://testcompany.com",
         "company_size": "10-50"
     }
     
-    response = client.post("/api/v1/corporate-profile/", json=profile_data, headers=auth_headers)
+    response = client.post("/api/v1/corporate-profile/", data=profile_data, headers=auth_headers)
     assert response.status_code == 200
     data = response.json()
     assert data["status"] == "success"
@@ -76,17 +93,17 @@ def test_create_duplicate_corporate_profile(auth_headers, test_user):
         "industry": "Technology",
         "phone_number": "0987654321",
         "country_code": "+1",
-        "location": "Los Angeles",
+        "location_id": 1,
         "overview": "Another test company",
         "company_size": "50-200"
     }
     
     # First profile should succeed
-    response = client.post("/api/v1/corporate-profile/", json=profile_data, headers=auth_headers)
+    response = client.post("/api/v1/corporate-profile/", data=profile_data, headers=auth_headers)
     assert response.status_code == 200
     
     # Second profile should fail
-    response = client.post("/api/v1/corporate-profile/", json=profile_data, headers=auth_headers)
+    response = client.post("/api/v1/corporate-profile/", data=profile_data, headers=auth_headers)
     assert response.status_code == 400
     assert "already has a corporate profile" in response.json()["detail"]
 
@@ -115,12 +132,12 @@ def test_get_corporate_profile_by_id(auth_headers, test_user):
         "industry": "Finance",
         "phone_number": "5555555555",
         "country_code": "+1",
-        "location": "Chicago",
+        "location_id": 1,
         "overview": "A finance company",
         "company_size": "200-1000"
     }
     
-    create_response = client.post("/api/v1/corporate-profile/", json=profile_data, headers=auth_headers)
+    create_response = client.post("/api/v1/corporate-profile/", data=profile_data, headers=auth_headers)
     profile_id = create_response.json()["data"]["profile_id"]
     
     # Then get it by ID
@@ -143,12 +160,12 @@ def test_update_corporate_profile(auth_headers, test_user):
         "industry": "Healthcare",
         "phone_number": "1111111111",
         "country_code": "+1",
-        "location": "Boston",
+        "location_id": 1,
         "overview": "A healthcare company",
         "company_size": "1000+"
     }
     
-    create_response = client.post("/api/v1/corporate-profile/", json=profile_data, headers=auth_headers)
+    create_response = client.post("/api/v1/corporate-profile/", data=profile_data, headers=auth_headers)
     profile_id = create_response.json()["data"]["profile_id"]
     
     # Update the profile
@@ -157,7 +174,7 @@ def test_update_corporate_profile(auth_headers, test_user):
         "industry": "Updated Industry"
     }
     
-    response = client.put(f"/api/v1/corporate-profile/{profile_id}", json=update_data, headers=auth_headers)
+    response = client.put(f"/api/v1/corporate-profile/{profile_id}", data=update_data, headers=auth_headers)
     assert response.status_code == 200
     data = response.json()
     assert data["company_name"] == "Updated Company Name"
@@ -171,12 +188,12 @@ def test_delete_corporate_profile(auth_headers, test_user):
         "industry": "Education",
         "phone_number": "2222222222",
         "country_code": "+1",
-        "location": "San Francisco",
+        "location_id": 1,
         "overview": "An education company",
         "company_size": "1-10"
     }
     
-    create_response = client.post("/api/v1/corporate-profile/", json=profile_data, headers=auth_headers)
+    create_response = client.post("/api/v1/corporate-profile/", data=profile_data, headers=auth_headers)
     profile_id = create_response.json()["data"]["profile_id"]
     
     # Delete the profile

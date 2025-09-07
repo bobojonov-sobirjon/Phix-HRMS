@@ -109,6 +109,10 @@ class FullTimeJobRepository:
         if job:
             return self._prepare_full_time_job_response(job)
         return None
+
+    def get_object_by_id(self, job_id: int) -> Optional[FullTimeJob]:
+        """Get full-time job object by ID (for internal use)"""
+        return self.db.query(FullTimeJob).filter(FullTimeJob.id == job_id).first()
     
     def get_by_company_id(self, company_id: int, skip: int = 0, limit: int = 100) -> List[dict]:
         """Get all jobs by company ID"""

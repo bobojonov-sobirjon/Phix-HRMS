@@ -15,5 +15,6 @@ class Location(Base):
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
     is_deleted = Column(Boolean, default=False)
     
-    # Relationship
-    users = relationship('User', back_populates='location') 
+    # Relationships
+    users = relationship('User', back_populates='location')
+    corporate_profiles = relationship('CorporateProfile', back_populates='location') 

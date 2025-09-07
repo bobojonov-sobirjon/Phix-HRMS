@@ -23,7 +23,7 @@ class CorporateProfile(Base):
     industry = Column(String(100), nullable=False)
     phone_number = Column(String(20), nullable=False)
     country_code = Column(String(10), nullable=False, default="+1")
-    location = Column(String(100), nullable=False)
+    location_id = Column(Integer, ForeignKey("locations.id"), nullable=False)
     overview = Column(Text, nullable=False)
     website_url = Column(String(255), nullable=True)
     company_size = Column(Enum(CompanySize), nullable=False)
@@ -42,6 +42,7 @@ class CorporateProfile(Base):
     
     # Relationships
     user = relationship("User", back_populates="corporate_profile")
+    location = relationship("Location", back_populates="corporate_profiles")
     full_time_jobs = relationship("FullTimeJob", back_populates="company", cascade="all, delete-orphan")
     team_members = relationship("TeamMember", back_populates="corporate_profile", cascade="all, delete-orphan")
     

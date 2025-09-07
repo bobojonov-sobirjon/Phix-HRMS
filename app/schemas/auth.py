@@ -12,7 +12,7 @@ class UserBase(BaseModel):
 # User Registration Schema
 class UserRegister(UserBase):
     password: str
-    phone: Optional[str] = None
+    phone: str
     
     @validator('password')
     def validate_password(cls, v):
@@ -93,6 +93,17 @@ class Token(BaseModel):
     token_type: str = "bearer"
     expires_in: int
 
+# Refresh Token Schema
+class RefreshTokenRequest(BaseModel):
+    refresh_token: str
+
+# Refresh Token Response Schema
+class RefreshTokenResponse(BaseModel):
+    access_token: str
+    refresh_token: str
+    token_type: str = "bearer"
+    expires_in: int
+
 # User Response Schema
 class UserResponse(BaseModel):
     id: int
@@ -122,8 +133,8 @@ class UserResponse(BaseModel):
 
 # Login Response Schema
 class LoginResponse(BaseModel):
-    user: UserResponse
     token: Token
+    refresh_token: Optional[str] = None
 
 # OTP Response Schema
 class OTPResponse(BaseModel):

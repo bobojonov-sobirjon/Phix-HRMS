@@ -24,6 +24,64 @@ def test_smtp_connection(server: str, port: int, timeout: int = 5) -> bool:
     except Exception:
         return False
 
+def send_corporate_verification_email_sync(email: str, otp_code: str) -> bool:
+    """Send corporate profile verification OTP code via email (synchronous version)"""
+    try:
+        print("=== CORPORATE VERIFICATION EMAIL DEBUG ===")
+        print(f"Starting corporate verification email send to: {email}")
+        print(f"OTP Code: {otp_code}")
+        
+        # First try Brevo if configured (free service - 300 emails/day)
+        if settings.BREVO_API_KEY and settings.BREVO_FROM_EMAIL:
+            print("Trying Brevo first...")
+            from .brevo_email import send_email_brevo_sync
+            if send_email_brevo_sync(email, otp_code, "corporate_verification"):
+                return True
+            print("Brevo failed, trying SMTP...")
+        
+        # Fallback to SMTP
+        print(f"SMTP Settings:")
+        print(f"  Server: {settings.SMTP_SERVER}")
+        print(f"  Port: {settings.SMTP_PORT}")
+        print(f"  Username: {settings.SMTP_USERNAME}")
+        print(f"  Password: {'*' * len(settings.SMTP_PASSWORD) if settings.SMTP_PASSWORD else 'NOT SET'}")
+        
+        # Check if email settings are configured
+        if not settings.SMTP_USERNAME or not settings.SMTP_PASSWORD:
+            print("ERROR: SMTP_USERNAME or SMTP_PASSWORD not configured!")
+            return False
+        
+        # Use the new retry mechanism with multiple SMTP configurations
+        return send_email_with_retry(email, otp_code, "corporate_verification")
+        
+    except Exception as e:
+        print(f"General Exception during corporate verification email sending: {e}")
+        print(f"Exception type: {type(e)}")
+        import traceback
+        print(f"Traceback: {traceback.format_exc()}")
+        return False
+
+async def send_corporate_verification_email(email: str, otp_code: str) -> bool:
+    """Send corporate profile verification OTP code via email (async version)"""
+    try:
+        print(f"Starting async corporate verification email send to: {email}")
+        # Run email sending in thread pool to avoid blocking
+        loop = asyncio.get_event_loop()
+        result = await loop.run_in_executor(
+            email_executor, 
+            send_corporate_verification_email_sync, 
+            email, 
+            otp_code
+        )
+        print(f"Async corporate verification email send completed with result: {result}")
+        return result
+    except Exception as e:
+        print(f"Exception in async corporate verification email send: {e}")
+        print(f"Exception type: {type(e)}")
+        import traceback
+        print(f"Async traceback: {traceback.format_exc()}")
+        return False
+
 def send_email_with_retry(email: str, otp_code: str, email_type: str = "registration") -> bool:
     """Send email with multiple fallback methods"""
     
@@ -154,6 +212,7 @@ def send_otp_email_sync(email: str, otp_code: str) -> bool:
         msg = MIMEMultipart()
         msg['From'] = settings.SMTP_USERNAME
         msg['To'] = email
+        
         msg['Subject'] = f"Password Reset OTP - {settings.APP_NAME}"
         
         # Email body
@@ -638,6 +697,218 @@ async def send_team_invitation_email(email: str, company_name: str, inviter_name
     except Exception as e:
         print(f"Error sending team invitation email: {e}")
         return False
+
+
+def send_team_invitation_email_sync(email: str, company_name: str, inviter_name: str, role: str):
+    """Send team invitation email (sync version)"""
+    try:
+        subject = f"Team Invitation from {company_name}"
+        
+        # Create HTML content
+        html_content = f"""
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="utf-8">
+            <title>Team Invitation</title>
+            <style>
+                body {{ font-family: Arial, sans-serif; line-height: 1.6; color: #333; }}
+                .container {{ max-width: 600px; margin: 0 auto; padding: 20px; }}
+                .header {{ background-color: #4CAF50; color: white; padding: 20px; text-align: center; }}
+                .content {{ padding: 20px; background-color: #f9f9f9; }}
+                .button {{ display: inline-block; padding: 12px 24px; background-color: #4CAF50; color: white; text-decoration: none; border-radius: 5px; margin: 20px 0; }}
+                .footer {{ text-align: center; padding: 20px; color: #666; font-size: 12px; }}
+            </style>
+        </head>
+        <body>
+            <div class="container">
+                <div class="header">
+                    <h1>Team Invitation</h1>
+                </div>
+                <div class="content">
+                    <h2>Hello!</h2>
+                    <p><strong>{inviter_name}</strong> has invited you to join <strong>{company_name}</strong> as a <strong>{role}</strong>.</p>
+                    <p>Please log in to your account to accept or decline this invitation.</p>
+                    <p>If you have any questions, please contact the person who invited you.</p>
+                </div>
+                <div class="footer">
+                    <p>This is an automated message from Phix HRMS.</p>
+                </div>
+            </div>
+        </body>
+        </html>
+        """
+        
+        # Send email
+        send_email_with_retry(
+            email=email,
+            subject=subject,
+            html_content=html_content,
+            email_type="team_invitation"
+        )
+        
+        print(f"Team invitation email sent successfully to {email}")
+        
+    except Exception as e:
+        print(f"Error sending team invitation email to {email}: {e}")
+        raise e
+
+
+async def send_team_invitation_email(email: str, company_name: str, inviter_name: str, role: str):
+    """Send team invitation email"""
+    try:
+        # Run the sync function in a thread pool
+        loop = asyncio.get_event_loop()
+        with ThreadPoolExecutor() as executor:
+            await loop.run_in_executor(
+                executor, 
+                send_team_invitation_email_sync, 
+                email, 
+                company_name, 
+                inviter_name, 
+                role
+            )
+    except Exception as e:
+        print(f"Error sending team invitation email: {e}")
+        raise e
+
+
+def send_team_invitation_email_direct(email: str, company_name: str, inviter_name: str, role: str) -> bool:
+    """Send team invitation email directly using SMTP"""
+    try:
+        subject = f"Job Invitation - {company_name}"
+        
+        # Create HTML content in English
+        html_content = f"""
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="utf-8">
+            <title>Job Invitation</title>
+            <style>
+                body {{ font-family: Arial, sans-serif; line-height: 1.6; color: #333; }}
+                .container {{ max-width: 600px; margin: 0 auto; padding: 20px; }}
+                .header {{ background-color: #4CAF50; color: white; padding: 20px; text-align: center; }}
+                .content {{ padding: 20px; background-color: #f9f9f9; }}
+                .button {{ display: inline-block; padding: 12px 24px; background-color: #4CAF50; color: white; text-decoration: none; border-radius: 5px; margin: 20px 0; }}
+                .footer {{ text-align: center; padding: 20px; color: #666; font-size: 12px; }}
+            </style>
+        </head>
+        <body>
+            <div class="container">
+                <div class="header">
+                    <h1>Job Invitation</h1>
+                </div>
+                <div class="content">
+                    <h2>Hello!</h2>
+                    <p><strong>{inviter_name}</strong> has invited you to join <strong>{company_name}</strong> as a <strong>{role}</strong>.</p>
+                    <p>Please log in to your account to accept or decline this invitation.</p>
+                    <p>If you have any questions, please contact the person who invited you.</p>
+                </div>
+                <div class="footer">
+                    <p>This message was sent automatically by Phix HRMS system.</p>
+                </div>
+            </div>
+        </body>
+        </html>
+        """
+        
+        # Use existing SMTP configurations
+        smtp_configs = [
+            {
+                "name": "Gmail SSL (465)",
+                "server": "smtp.gmail.com",
+                "port": 465,
+                "use_ssl": True,
+                "username": settings.SMTP_USERNAME,
+                "password": settings.SMTP_PASSWORD
+            },
+            {
+                "name": "Gmail TLS (587)",
+                "server": "smtp.gmail.com",
+                "port": 587,
+                "use_ssl": False,
+                "username": settings.SMTP_USERNAME,
+                "password": settings.SMTP_PASSWORD
+            },
+            {
+                "name": "Outlook",
+                "server": settings.SMTP_OUTLOOK_SERVER,
+                "port": settings.SMTP_OUTLOOK_PORT,
+                "use_ssl": False,
+                "username": settings.SMTP_OUTLOOK_USERNAME,
+                "password": settings.SMTP_OUTLOOK_PASSWORD
+            },
+            {
+                "name": "Yahoo",
+                "server": settings.SMTP_YAHOO_SERVER,
+                "port": settings.SMTP_YAHOO_PORT,
+                "use_ssl": False,
+                "username": settings.SMTP_YAHOO_USERNAME,
+                "password": settings.SMTP_YAHOO_PASSWORD
+            }
+        ]
+        
+        # Try each SMTP configuration
+        for config in smtp_configs:
+            if not config["username"] or not config["password"]:
+                continue
+                
+            try:
+                print(f"Trying {config['name']}...")
+                
+                # Create message
+                msg = MIMEMultipart()
+                msg['From'] = config["username"]
+                msg['To'] = email
+                msg['Subject'] = subject
+                
+                msg.attach(MIMEText(html_content, 'html'))
+                
+                # Connect and send
+                if config["use_ssl"]:
+                    server = smtplib.SMTP_SSL(config["server"], config["port"])
+                else:
+                    server = smtplib.SMTP(config["server"], config["port"])
+                    server.starttls()
+                
+                server.login(config["username"], config["password"])
+                text = msg.as_string()
+                server.sendmail(config["username"], email, text)
+                server.quit()
+                
+                print(f"Team invitation email sent successfully to {email} using {config['name']}")
+                return True
+                
+            except Exception as e:
+                print(f"Failed with {config['name']}: {e}")
+                continue
+        
+        print(f"All SMTP methods failed for team invitation email to {email}")
+        return False
+        
+    except Exception as e:
+        print(f"Error sending team invitation email to {email}: {e}")
+        return False
+
+
+async def send_team_invitation_email_new(email: str, company_name: str, inviter_name: str, role: str):
+    """Send team invitation email (new async version)"""
+    try:
+        # Run the direct function in a thread pool
+        loop = asyncio.get_event_loop()
+        with ThreadPoolExecutor() as executor:
+            await loop.run_in_executor(
+                executor, 
+                send_team_invitation_email_direct, 
+                email, 
+                company_name, 
+                inviter_name, 
+                role
+            )
+    except Exception as e:
+        print(f"Error sending team invitation email: {e}")
+        raise e
 
 
 def cleanup_email_executor():

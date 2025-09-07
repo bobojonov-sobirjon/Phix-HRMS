@@ -6,10 +6,10 @@ import enum
 
 
 class ExperienceLevel(str, enum.Enum):
-    ENTRY_LEVEL = "entry_level"
-    MID_LEVEL = "mid_level"
-    JUNIOR = "junior"
-    DIRECTOR = "director"
+    ENTRY_LEVEL = "ENTRY_LEVEL"
+    MID_LEVEL = "MID_LEVEL"
+    JUNIOR = "JUNIOR"
+    DIRECTOR = "DIRECTOR"
 
 
 class GigJobStatus(str, enum.Enum):
@@ -20,17 +20,17 @@ class GigJobStatus(str, enum.Enum):
 
 
 class JobType(str, enum.Enum):
-    FULL_TIME = "full_time"
-    PART_TIME = "part_time"
-    FREELANCE = "freelance"
-    INTERNSHIP = "internship"
+    FULL_TIME = "FULL_TIME"
+    PART_TIME = "PART_TIME"
+    FREELANCE = "FREELANCE"
+    INTERNSHIP = "INTERNSHIP"
 
 
 class WorkMode(str, enum.Enum):
-    ON_SITE = "on_site"
-    REMOTE = "remote"
-    HYBRID = "hybrid"
-    FLEXIBLE_HOURS = "flexible_hours"
+    ON_SITE = "ON_SITE"
+    REMOTE = "REMOTE"
+    HYBRID = "HYBRID"
+    FLEXIBLE_HOURS = "FLEXIBLE_HOURS"
 
 
 class GigJob(Base):
@@ -39,7 +39,7 @@ class GigJob(Base):
     id = Column(Integer, primary_key=True, index=True)
     title = Column(String(255), nullable=False, index=True)
     description = Column(Text, nullable=False)
-    location = Column(String(100), nullable=False, default="Worldwide")
+    location_id = Column(Integer, ForeignKey("locations.id"), nullable=True)
     experience_level = Column(Enum(ExperienceLevel), nullable=False)
     job_type = Column(Enum(JobType), nullable=False, default=JobType.FREELANCE)
     work_mode = Column(Enum(WorkMode), nullable=False, default=WorkMode.REMOTE)
@@ -51,6 +51,8 @@ class GigJob(Base):
     
     # Foreign keys
     author_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    category_id = Column(Integer, ForeignKey("categories.id"), nullable=False)
+    subcategory_id = Column(Integer, ForeignKey("categories.id"), nullable=True)
     
     # Timestamps
     created_at = Column(DateTime(timezone=True), server_default=func.now())
@@ -58,6 +60,9 @@ class GigJob(Base):
     
     # Relationships
     author = relationship("User", back_populates="gig_jobs")
+    category = relationship("Category", foreign_keys=[category_id], back_populates="gig_jobs")
+    subcategory = relationship("Category", foreign_keys=[subcategory_id])
+    location = relationship("Location")
     proposals = relationship("Proposal", back_populates="gig_job", cascade="all, delete-orphan")
     skills = relationship("Skill", secondary="gig_job_skills", back_populates="gig_jobs")
     

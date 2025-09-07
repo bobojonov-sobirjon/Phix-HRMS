@@ -52,6 +52,8 @@ class FullTimeJob(Base):
     
     # Foreign keys
     company_id = Column(Integer, ForeignKey("corporate_profiles.id"), nullable=False)
+    category_id = Column(Integer, ForeignKey("categories.id"), nullable=False)
+    subcategory_id = Column(Integer, ForeignKey("categories.id"), nullable=True)
     
     # Timestamps
     created_at = Column(DateTime(timezone=True), server_default=func.now())
@@ -59,6 +61,8 @@ class FullTimeJob(Base):
     
     # Relationships
     company = relationship("CorporateProfile", back_populates="full_time_jobs")
+    category = relationship("Category", foreign_keys=[category_id], back_populates="full_time_jobs")
+    subcategory = relationship("Category", foreign_keys=[subcategory_id])
     proposals = relationship("Proposal", back_populates="full_time_job", cascade="all, delete-orphan")
     skills = relationship("Skill", secondary="full_time_job_skills", back_populates="full_time_jobs")
     

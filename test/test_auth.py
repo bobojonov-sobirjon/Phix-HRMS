@@ -11,14 +11,14 @@ def test_register_user():
         json={
             "name": "Test User",
             "email": "test@example.com",
-            "password": "password123"
+            "password": "password123",
+            "phone": "+998901234567"
         }
     )
     assert response.status_code == 200
     data = response.json()
-    assert "token" in data
-    assert "user" in data
-    assert data["user"]["email"] == "test@example.com"
+    assert "msg" in data
+    assert data["msg"] == "Registration OTP code sent to your email"
 
 def test_login_user():
     """Test user login"""
@@ -65,10 +65,23 @@ def test_duplicate_registration():
         json={
             "name": "Test User",
             "email": "test@example.com",
-            "password": "password123"
+            "password": "password123",
+            "phone": "+998901234567"
         }
     )
     assert response.status_code == 400
+
+def test_register_without_phone():
+    """Test user registration without phone should fail"""
+    response = client.post(
+        "/api/v1/auth/register",
+        json={
+            "name": "Test User",
+            "email": "test2@example.com",
+            "password": "password123"
+        }
+    )
+    assert response.status_code == 422  # Validation error
 
 if __name__ == "__main__":
     pytest.main([__file__]) 

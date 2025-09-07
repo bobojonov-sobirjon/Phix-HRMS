@@ -19,7 +19,8 @@ class Settings:
     # JWT Configuration
     SECRET_KEY: str = os.getenv("SECRET_KEY", "your-secret-key-here")
     ALGORITHM: str = "HS256"
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "30"))
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "1440"))  # 1 kun = 1440 daqiqa
+    REFRESH_TOKEN_EXPIRE_DAYS: int = int(os.getenv("REFRESH_TOKEN_EXPIRE_DAYS", "7"))
     
     # Email Configuration for OTP
     SMTP_SERVER: str = os.getenv("SMTP_SERVER", "smtp.gmail.com")
@@ -68,6 +69,6 @@ class Settings:
     # App Configuration
     APP_NAME: str = os.getenv("APP_NAME", "Phix HRMS")
     APP_VERSION: str = os.getenv("APP_VERSION", "1.0.0")
-    BASE_URL: str = os.getenv("BASE_URL", "http://localhost:8000")
+    BASE_URL: str = os.getenv("BASE_URL", "http://127.0.0.1:8000")
 
 settings = Settings()

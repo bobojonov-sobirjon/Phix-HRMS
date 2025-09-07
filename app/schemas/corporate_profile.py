@@ -18,7 +18,7 @@ class CorporateProfileBase(BaseModel):
     industry: str
     phone_number: str
     country_code: str = "+1"
-    location: str
+    location_id: int
     overview: str
     website_url: Optional[str] = None
     company_size: CompanySize
@@ -36,12 +36,61 @@ class CorporateProfileUpdate(BaseModel):
     industry: Optional[str] = None
     phone_number: Optional[str] = None
     country_code: Optional[str] = None
-    location: Optional[str] = None
+    location_id: Optional[int] = None
     overview: Optional[str] = None
     website_url: Optional[str] = None
     company_size: Optional[CompanySize] = None
     logo_url: Optional[str] = None
 
+
+# Location schema for response
+class LocationResponse(BaseModel):
+    id: int
+    name: str
+    code: Optional[str] = None
+    flag_image: Optional[str] = None
+    
+    class Config:
+        from_attributes = True
+
+
+# User schema for response
+class UserResponse(BaseModel):
+    id: int
+    name: str
+    email: str
+    is_active: bool
+    is_verified: bool
+    is_social_user: bool
+    created_at: datetime
+    last_login: Optional[datetime] = None
+    phone: Optional[str] = None
+    avatar_url: Optional[str] = None
+    about_me: Optional[str] = None
+    current_position: Optional[str] = None
+    location_id: Optional[int] = None
+    
+    class Config:
+        from_attributes = True
+
+
+# Team member schema for response
+class TeamMemberResponse(BaseModel):
+    id: int
+    user_id: int
+    user_name: str
+    user_email: str
+    user_avatar: Optional[str] = None
+    role: str
+    status: str
+    invited_by_user_id: int
+    invited_by_name: str
+    created_at: datetime
+    accepted_at: Optional[datetime] = None
+    rejected_at: Optional[datetime] = None
+    
+    class Config:
+        from_attributes = True
 
 # Response schema
 class CorporateProfileResponse(CorporateProfileBase):
@@ -51,6 +100,9 @@ class CorporateProfileResponse(CorporateProfileBase):
     is_verified: bool
     created_at: datetime
     updated_at: Optional[datetime] = None
+    location: Optional[LocationResponse] = None
+    user: Optional[UserResponse] = None
+    team_members: List[TeamMemberResponse] = []
     
     class Config:
         from_attributes = True

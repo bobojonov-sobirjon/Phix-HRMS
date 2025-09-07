@@ -66,6 +66,9 @@ class UserRepository:
     
     def create_user(self, name: str, email: str, password: str = None, phone: str = None) -> User:
         """Create new user with optimized transaction"""
+        # Phone is required for regular user registration
+
+            
         user = User(
             name=name,
             email=email,

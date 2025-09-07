@@ -85,6 +85,57 @@ def send_email_brevo_sync(email: str, otp_code: str, email_type: str = "registra
             </body>
             </html>
             """
+        elif email_type == "corporate_verification":
+            subject = f"Corporate Profile Verification - {settings.APP_NAME}"
+            html_content = f"""
+            <html>
+            <body style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+                <div style="background-color: #f8f9fa; padding: 20px; border-radius: 10px;">
+                    <h2 style="color: #333; text-align: center;">Corporate Profile Verification</h2>
+                    <p>Thank you for creating a corporate profile with <strong>{settings.APP_NAME}</strong>!</p>
+                    <p>Please verify your corporate profile by entering the following verification code:</p>
+                    <div style="text-align: center; margin: 30px 0;">
+                        <div style="background-color: #6f42c1; color: white; padding: 15px; border-radius: 8px; display: inline-block; font-size: 24px; font-weight: bold;">
+                            {otp_code}
+                        </div>
+                    </div>
+                    <p><strong>This code will expire in {settings.OTP_EXPIRE_MINUTES} minutes.</strong></p>
+                    <p style="color: #666; font-size: 14px;">Please use this code to verify your corporate profile and activate it.</p>
+                    <hr style="margin: 30px 0; border: none; border-top: 1px solid #ddd;">
+                    <p style="text-align: center; color: #666;">Best regards,<br><strong>{settings.APP_NAME} Team</strong></p>
+                </div>
+            </body>
+            </html>
+            """
+        elif email_type == "team_invitation":
+            # Extract data from html_content for team invitation
+            import re
+            company_match = re.search(r'<strong>([^<]+)</strong> has invited you to join <strong>([^<]+)</strong> as a <strong>([^<]+)</strong>', html_content)
+            if company_match:
+                inviter_name = company_match.group(1)
+                company_name = company_match.group(2)
+                role = company_match.group(3)
+            else:
+                inviter_name = "Team Member"
+                company_name = "Company"
+                role = "Member"
+            
+            subject = f"Team Invitation from {company_name}"
+            html_content = f"""
+            <html>
+            <body style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+                <div style="background-color: #f8f9fa; padding: 20px; border-radius: 10px;">
+                    <h2 style="color: #333; text-align: center;">Team Invitation</h2>
+                    <p>Hello!</p>
+                    <p><strong>{inviter_name}</strong> has invited you to join <strong>{company_name}</strong> as a <strong>{role}</strong>.</p>
+                    <p>Please log in to your account to accept or decline this invitation.</p>
+                    <p>If you have any questions, please contact the person who invited you.</p>
+                    <hr style="margin: 30px 0; border: none; border-top: 1px solid #ddd;">
+                    <p style="text-align: center; color: #666;">Best regards,<br><strong>{settings.APP_NAME} Team</strong></p>
+                </div>
+            </body>
+            </html>
+            """
         else:
             subject = f"Verification Code - {settings.APP_NAME}"
             html_content = f"""

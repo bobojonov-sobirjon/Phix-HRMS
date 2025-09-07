@@ -1,8 +1,9 @@
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import and_, or_
 from typing import List, Optional
 from ..models.corporate_profile import CorporateProfile
 from ..models.user import User
+from ..models.team_member import TeamMember
 from ..schemas.corporate_profile import CorporateProfileCreate, CorporateProfileUpdate
 
 
@@ -23,23 +24,43 @@ class CorporateProfileRepository:
     
     def get_by_id(self, profile_id: int) -> Optional[CorporateProfile]:
         """Get corporate profile by ID"""
-        return self.db.query(CorporateProfile).filter(
+        return self.db.query(CorporateProfile).options(
+            joinedload(CorporateProfile.location),
+            joinedload(CorporateProfile.user),
+            joinedload(CorporateProfile.team_members).joinedload(TeamMember.user),
+            joinedload(CorporateProfile.team_members).joinedload(TeamMember.invited_by)
+        ).filter(
             CorporateProfile.id == profile_id
         ).first()
     
     def get_by_user_id(self, user_id: int) -> Optional[CorporateProfile]:
         """Get corporate profile by user ID"""
-        return self.db.query(CorporateProfile).filter(
+        return self.db.query(CorporateProfile).options(
+            joinedload(CorporateProfile.location),
+            joinedload(CorporateProfile.user),
+            joinedload(CorporateProfile.team_members).joinedload(TeamMember.user),
+            joinedload(CorporateProfile.team_members).joinedload(TeamMember.invited_by)
+        ).filter(
             CorporateProfile.user_id == user_id
         ).first()
     
     def get_all(self, skip: int = 0, limit: int = 100) -> List[CorporateProfile]:
         """Get all corporate profiles with pagination"""
-        return self.db.query(CorporateProfile).offset(skip).limit(limit).all()
+        return self.db.query(CorporateProfile).options(
+            joinedload(CorporateProfile.location),
+            joinedload(CorporateProfile.user),
+            joinedload(CorporateProfile.team_members).joinedload(TeamMember.user),
+            joinedload(CorporateProfile.team_members).joinedload(TeamMember.invited_by)
+        ).offset(skip).limit(limit).all()
     
     def get_active_profiles(self, skip: int = 0, limit: int = 100) -> List[CorporateProfile]:
         """Get only active corporate profiles"""
-        return self.db.query(CorporateProfile).filter(
+        return self.db.query(CorporateProfile).options(
+            joinedload(CorporateProfile.location),
+            joinedload(CorporateProfile.user),
+            joinedload(CorporateProfile.team_members).joinedload(TeamMember.user),
+            joinedload(CorporateProfile.team_members).joinedload(TeamMember.invited_by)
+        ).filter(
             CorporateProfile.is_active == True
         ).offset(skip).limit(limit).all()
     

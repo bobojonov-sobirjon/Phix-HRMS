@@ -13,10 +13,11 @@ from app.schemas.team_member import (
     InvitationResponse,
     StatusUpdateRequest
 )
+from app.schemas.common import SuccessResponse
 from app.utils.auth import get_current_user
 from app.models.user import User
 from app.models.team_member import TeamMemberStatus
-from app.utils.email import send_team_invitation_email
+from app.utils.email import send_team_invitation_email_new
 from app.models.corporate_profile import CorporateProfile
 
 router = APIRouter(prefix="/team-members", tags=["Team Members"])
@@ -25,25 +26,26 @@ router = APIRouter(prefix="/team-members", tags=["Team Members"])
 @router.get("/search-users", response_model=List[UserSearchResponse])
 async def search_users(
     query: str = Query(..., min_length=1, description="Search by name or email"),
-    corporate_profile_id: int = Query(..., description="Corporate profile ID"),
     skip: int = Query(0, ge=0),
     limit: int = Query(20, ge=1, le=100),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """Search users by name or email for team member invitation"""
-    # Verify user has access to this corporate profile
-    corporate_profile_repo = CorporateProfileRepository(db)
-    corporate_profile = corporate_profile_repo.get_corporate_profile_by_id(corporate_profile_id)
+    """Search users by name or email"""
+    from sqlalchemy import and_, or_
     
-    if not corporate_profile:
-        raise HTTPException(status_code=404, detail="Corporate profile not found")
-    
-    if corporate_profile.user_id != current_user.id:
-        raise HTTPException(status_code=403, detail="Access denied")
-    
-    team_member_repo = TeamMemberRepository(db)
-    users = team_member_repo.search_users(query, corporate_profile_id, skip, limit)
+    # Simple user search without corporate profile filtering
+    users = db.query(User).filter(
+        and_(
+            or_(
+                User.name.ilike(f"%{query}%"),
+                User.email.ilike(f"%{query}%")
+            ),
+            User.is_active == True,
+            User.is_deleted == False,
+            User.id != current_user.id  # Exclude current user
+        )
+    ).offset(skip).limit(limit).all()
     
     return [
         UserSearchResponse(
@@ -57,7 +59,7 @@ async def search_users(
     ]
 
 
-@router.post("/invite", response_model=InvitationResponse)
+@router.post("/invite", response_model=SuccessResponse)
 async def invite_team_member(
     team_member: TeamMemberCreate,
     corporate_profile_id: int = Query(..., description="Corporate profile ID"),
@@ -67,7 +69,7 @@ async def invite_team_member(
     """Invite a new team member to the company"""
     # Verify user has access to this corporate profile
     corporate_profile_repo = CorporateProfileRepository(db)
-    corporate_profile = corporate_profile_repo.get_corporate_profile_by_id(corporate_profile_id)
+    corporate_profile = corporate_profile_repo.get_by_id(corporate_profile_id)
     
     if not corporate_profile:
         raise HTTPException(status_code=404, detail="Corporate profile not found")
@@ -83,16 +85,15 @@ async def invite_team_member(
         )
         
         # Send invitation email
-        await send_team_invitation_email(
+        await send_team_invitation_email_new(
             email=team_member.email,
             company_name=corporate_profile.company_name,
             inviter_name=current_user.name,
             role=team_member.role.value
         )
         
-        return InvitationResponse(
-            message="Invitation sent successfully",
-            team_member_id=new_team_member.id
+        return SuccessResponse(
+            msg="Invitation sent successfully"
         )
         
     except ValueError as e:
@@ -110,7 +111,7 @@ async def get_team_members(
     """Get all team members for a corporate profile"""
     # Verify user has access to this corporate profile
     corporate_profile_repo = CorporateProfileRepository(db)
-    corporate_profile = corporate_profile_repo.get_corporate_profile_by_id(corporate_profile_id)
+    corporate_profile = corporate_profile_repo.get_by_id(corporate_profile_id)
     
     if not corporate_profile:
         raise HTTPException(status_code=404, detail="Corporate profile not found")
@@ -164,7 +165,7 @@ async def update_team_member_role(
     """Update team member role"""
     # Verify user has access to this corporate profile
     corporate_profile_repo = CorporateProfileRepository(db)
-    corporate_profile = corporate_profile_repo.get_corporate_profile_by_id(corporate_profile_id)
+    corporate_profile = corporate_profile_repo.get_by_id(corporate_profile_id)
     
     if not corporate_profile:
         raise HTTPException(status_code=404, detail="Corporate profile not found")
@@ -227,7 +228,9 @@ async def update_invitation_status(
         raise HTTPException(status_code=500, detail="Error updating invitation status")
     
     status_text = "accepted" if status_update.status else "rejected"
-    return {"message": f"Invitation {status_text} successfully"}
+    return SuccessResponse(
+        msg=f"Invitation {status_text} successfully"
+    )
 
 
 @router.delete("/{team_member_id}")
@@ -240,7 +243,7 @@ async def remove_team_member(
     """Remove team member from company"""
     # Verify user has access to this corporate profile
     corporate_profile_repo = CorporateProfileRepository(db)
-    corporate_profile = corporate_profile_repo.get_corporate_profile_by_id(corporate_profile_id)
+    corporate_profile = corporate_profile_repo.get_by_id(corporate_profile_id)
     
     if not corporate_profile:
         raise HTTPException(status_code=404, detail="Corporate profile not found")
@@ -254,7 +257,9 @@ async def remove_team_member(
     if not success:
         raise HTTPException(status_code=404, detail="Team member not found")
     
-    return {"message": "Team member removed successfully"}
+    return SuccessResponse(
+        msg="Team member removed successfully"
+    )
 
 
 @router.get("/pending-invitations", response_model=List[TeamMemberResponse])

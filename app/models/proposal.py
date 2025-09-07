@@ -10,6 +10,8 @@ class Proposal(Base):
     id = Column(Integer, primary_key=True, index=True)
     cover_letter = Column(Text, nullable=False)
     attachments = Column(Text, nullable=True)  # JSON string for file paths
+    delivery_time = Column(Integer, nullable=True)  # Delivery time in days
+    offer_amount = Column(Float, nullable=True)  # Offer amount in currency
     
     # Foreign keys - one of these must be set
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
