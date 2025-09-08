@@ -117,10 +117,10 @@ def batch_insert_certification_centers(db: Session, certifications_data: List[Di
     """Batch insert certification centers for better performance"""
     certifications_imported = 0
     
-    # Group by unique combinations
+    # Group by unique combinations (name, icon). CertificationCenter model has no 'country' field
     unique_certifications = {}
     for cert_data in certifications_data:
-        key = (cert_data.get("name"), cert_data.get("country"), cert_data.get("icon"))
+        key = (cert_data.get("name"), cert_data.get("icon"))
         if key not in unique_certifications:
             unique_certifications[key] = cert_data
     
@@ -131,17 +131,17 @@ def batch_insert_certification_centers(db: Session, certifications_data: List[Di
         )
     ).all()
     
-    existing_keys = {(c.name, c.country, c.icon) for c in existing_certifications}
+    # CertificationCenter model has no 'country' column
+    existing_keys = {(c.name, c.icon) for c in existing_certifications}
     
     # Prepare new certifications for batch insert
     new_certifications = []
     for cert_data in unique_certifications.values():
-        cert_key = (cert_data.get("name"), cert_data.get("country"), cert_data.get("icon"))
+        cert_key = (cert_data.get("name"), cert_data.get("icon"))
         if cert_key not in existing_keys:
             certification_center = CertificationCenter(
                 name=cert_data.get("name"),
-                icon=cert_data.get("icon"),
-                country=cert_data.get("country")
+                icon=cert_data.get("icon")
             )
             new_certifications.append(certification_center)
             certifications_imported += 1
