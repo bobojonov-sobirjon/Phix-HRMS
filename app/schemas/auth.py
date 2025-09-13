@@ -75,10 +75,21 @@ class RegisterResponse(BaseModel):
     email: EmailStr
     otp_code: Optional[str] = None  # For development/testing
 
-# Password Reset Schema
+# Password Reset Schema (with OTP)
 class PasswordReset(BaseModel):
     email: EmailStr
     otp_code: str
+    new_password: str
+    
+    @validator('new_password')
+    def validate_password(cls, v):
+        if len(v) < 6:
+            raise ValueError('Password must be at least 6 characters long')
+        return v
+
+# Password Reset Schema (without OTP - after verify-otp)
+class PasswordResetVerified(BaseModel):
+    email: EmailStr
     new_password: str
     
     @validator('new_password')

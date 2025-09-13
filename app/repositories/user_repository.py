@@ -25,13 +25,13 @@ class UserRepository:
         """Get user by email with optimized loading"""
         return self.db.query(User).options(
             selectinload(User.roles)  # Eager load roles to avoid N+1
-        ).filter(User.email == email).first()
+        ).filter(and_(User.email == email, User.is_deleted == False)).first()
     
     def get_user_by_phone(self, phone: str) -> Optional[User]:
         """Get user by phone with optimized loading"""
         return self.db.query(User).options(
             selectinload(User.roles)  # Eager load roles to avoid N+1
-        ).filter(User.phone == phone).first()
+        ).filter(and_(User.phone == phone, User.is_deleted == False)).first()
     
     def get_user_by_id(self, user_id: int) -> Optional[User]:
         """Get user by ID with optimized loading"""
@@ -44,7 +44,7 @@ class UserRepository:
             selectinload(User.projects),  # Eager load projects
             selectinload(User.location),  # Eager load location
             selectinload(User.language)  # Eager load language
-        ).filter(User.id == user_id).first()
+        ).filter(and_(User.id == user_id, User.is_deleted == False)).first()
     
     def get_by_id(self, user_id: int) -> Optional[User]:
         """Get user by ID with all related data (alias for get_user_by_id)"""
@@ -54,7 +54,7 @@ class UserRepository:
         """Get user by social login ID with optimized loading"""
         query = self.db.query(User).options(
             selectinload(User.roles)  # Eager load roles to avoid N+1
-        )
+        ).filter(User.is_deleted == False)
         
         if provider == "google":
             return query.filter(User.google_id == social_id).first()
@@ -184,20 +184,20 @@ class UserRepository:
             selectinload(User.certifications).selectinload(Certification.certification_center),
             selectinload(User.projects).selectinload(Project.images),
             selectinload(User.skills)
-        ).filter(User.id == user_id).first()
+        ).filter(and_(User.id == user_id, User.is_deleted == False)).first()
     
     def get_users_batch(self, user_ids: List[int]) -> List[User]:
         """Get multiple users in batch to avoid N+1 queries"""
         return self.db.query(User).options(
             selectinload(User.roles),
             selectinload(User.location)
-        ).filter(User.id.in_(user_ids)).all()
+        ).filter(and_(User.id.in_(user_ids), User.is_deleted == False)).all()
     
     def get_users_by_emails(self, emails: List[str]) -> List[User]:
         """Get multiple users by emails in batch"""
         return self.db.query(User).options(
             selectinload(User.roles)
-        ).filter(User.email.in_(emails)).all()
+        ).filter(and_(User.email.in_(emails), User.is_deleted == False)).all()
 
 class OTPRepository:
     """Repository for OTP database operations with optimized queries"""

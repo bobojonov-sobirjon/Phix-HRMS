@@ -4,7 +4,7 @@ from typing import Optional
 from ..database import get_db
 from ..schemas.auth import (
     UserRegister, UserLogin, SocialLogin, OTPRequest, 
-    OTPVerify, PasswordReset, LoginResponse, UserResponse, 
+    OTPVerify, PasswordResetVerified, LoginResponse, UserResponse, 
     Token, OTPResponse, UserUpdate, RegisterOTPRequest, 
     RegisterOTPVerify, RegisterResponse, RefreshTokenRequest, 
     RefreshTokenResponse
@@ -20,6 +20,7 @@ from ..utils.email import generate_otp, send_otp_email, send_registration_otp_em
 from ..utils.social_auth import verify_social_token
 from ..models.user import User
 from ..models.role import Role
+from ..models.otp import OTP
 from datetime import timedelta
 from ..config import settings
 import os
@@ -71,7 +72,7 @@ def get_current_user(
     if not user:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="User not found"
+            detail="User does not exist"
         )
     
     return user
@@ -83,22 +84,34 @@ async def register(user_data: RegisterOTPRequest, db: Session = Depends(get_db))
         user_repo = UserRepository(db)
         otp_repo = OTPRepository(db)
         
-        # Check if user already exists
-        existing_user = user_repo.get_user_by_email(user_data.email)
+        # Check if user already exists (including deleted users)
+        existing_user = user_repo.db.query(User).filter(User.email == user_data.email).first()
         if existing_user:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="User with this email already exists"
-            )
+            if existing_user.is_deleted:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="User with this email was deleted and cannot be registered again"
+                )
+            else:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="User with this email already exists"
+                )
         
         # Check if phone already exists (only if phone is provided)
         if user_data.phone:
-            existing_phone_user = user_repo.get_user_by_phone(user_data.phone)
+            existing_phone_user = user_repo.db.query(User).filter(User.phone == user_data.phone).first()
             if existing_phone_user:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="User with this phone number already exists"
-                )
+                if existing_phone_user.is_deleted:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail="User with this phone number was deleted and cannot be registered again"
+                    )
+                else:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail="User with this phone number already exists"
+                    )
         
         # Generate OTP for registration
         otp_code = generate_otp(settings.OTP_LENGTH)
@@ -162,12 +175,18 @@ async def verify_registration_otp(otp_verify: RegisterOTPVerify, db: Session = D
             )
         
         # Check if user already exists (double check)
-        existing_user = user_repo.get_user_by_email(otp_verify.email)
+        existing_user = user_repo.db.query(User).filter(User.email == otp_verify.email).first()
         if existing_user:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="User with this email already exists"
-            )
+            if existing_user.is_deleted:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="User with this email was deleted and cannot be registered again"
+                )
+            else:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="User with this email already exists"
+                )
         
         # Get user data from OTP
         registration_data = otp.get_data()
@@ -179,12 +198,18 @@ async def verify_registration_otp(otp_verify: RegisterOTPVerify, db: Session = D
         
         # Check if phone already exists (only if phone is provided)
         if registration_data["phone"]:
-            existing_phone_user = user_repo.get_user_by_phone(registration_data["phone"])
+            existing_phone_user = user_repo.db.query(User).filter(User.phone == registration_data["phone"]).first()
             if existing_phone_user:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="User with this phone number already exists"
-                )
+                if existing_phone_user.is_deleted:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail="User with this phone number was deleted and cannot be registered again"
+                    )
+                else:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail="User with this phone number already exists"
+                    )
         
         # Create new user with stored data
         user = user_repo.create_user(
@@ -234,12 +259,12 @@ async def login(user_data: UserLogin, db: Session = Depends(get_db)):
     try:
         user_repo = UserRepository(db)
         
-        # Get user by email
+        # Get user by email (this now excludes deleted users)
         user = user_repo.get_user_by_email(user_data.email)
         if not user:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid email or password"
+                detail="User does not exist"
             )
         
         # Check if user is active
@@ -302,10 +327,15 @@ async def social_login(social_data: SocialLogin, db: Session = Depends(get_db)):
         user = user_repo.get_user_by_social_id(social_data.provider, social_user_info["id"])
         
         if not user:
-            # Check if user exists by email
-            user = user_repo.get_user_by_email(social_user_info["email"])
+            # Check if user exists by email (including deleted users)
+            user = user_repo.db.query(User).filter(User.email == social_user_info["email"]).first()
             
             if user:
+                if user.is_deleted:
+                    raise HTTPException(
+                        status_code=status.HTTP_401_UNAUTHORIZED,
+                        detail="User with this email was deleted and cannot login"
+                    )
                 # Link social account to existing user
                 if social_data.provider == "google":
                     user.google_id = social_user_info["id"]
@@ -430,19 +460,10 @@ async def verify_otp(otp_verify: OTPVerify, db: Session = Depends(get_db)):
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/reset-password", response_model=SuccessResponse)
-async def reset_password(password_reset: PasswordReset, db: Session = Depends(get_db)):
-    """Reset password using OTP verification"""
+async def reset_password(password_reset: PasswordResetVerified, db: Session = Depends(get_db)):
+    """Reset password after OTP verification (no OTP required in request)"""
     try:
         user_repo = UserRepository(db)
-        otp_repo = OTPRepository(db)
-        
-        # Verify OTP
-        otp = otp_repo.get_valid_otp(password_reset.email, password_reset.otp_code)
-        if not otp:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Invalid or expired OTP code"
-            )
         
         # Get user
         user = user_repo.get_user_by_email(password_reset.email)
@@ -452,11 +473,21 @@ async def reset_password(password_reset: PasswordReset, db: Session = Depends(ge
                 detail="User not found"
             )
         
+        # Check if there's a verified OTP for password reset
+        verified_otp = db.query(OTP).filter(
+            OTP.email == password_reset.email,
+            OTP.otp_type == "password_reset",
+            OTP.is_used == True
+        ).order_by(OTP.created_at.desc()).first()
+        
+        if not verified_otp:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="No verified OTP found. Please verify OTP first using /verify-otp endpoint"
+            )
+        
         # Update password
         user_repo.update_user_password(user.id, password_reset.new_password)
-        
-        # Mark OTP as used
-        otp_repo.mark_otp_used(otp.id)
         
         return SuccessResponse(msg="Password reset successfully")
     except HTTPException:
@@ -599,12 +630,12 @@ async def refresh_token(refresh_data: RefreshTokenRequest, db: Session = Depends
                 detail="Invalid refresh token"
             )
         
-        # Get user
+        # Get user (this now excludes deleted users)
         user = user_repo.get_user_by_id(int(user_id))
         if not user:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="User not found"
+                detail="User does not exist"
             )
         
         # Check if user is active
