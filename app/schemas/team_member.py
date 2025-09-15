@@ -5,6 +5,7 @@ from enum import Enum
 
 
 class TeamMemberRole(str, Enum):
+    OWNER = "Owner"
     ADMIN = "Admin"
     HR_MANAGER = "HR Manager"
     RECRUITER = "Recruiter"

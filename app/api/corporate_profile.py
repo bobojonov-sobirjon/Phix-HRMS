@@ -159,17 +159,17 @@ async def create_corporate_profile(
     db.add(otp)
     db.commit()
     
-    # Create admin team member for the creator
+    # Create owner team member for the creator
     try:
         from ..repositories.team_member_repository import TeamMemberRepository
         team_repo = TeamMemberRepository(db)
-        team_repo.create_admin_member(
+        team_repo.create_owner_member(
             corporate_profile_id=db_profile.id,
             user_id=current_user.id
         )
     except Exception as e:
         # Log error but don't fail the request
-        print(f"Failed to create admin team member: {e}")
+        print(f"Failed to create owner team member: {e}")
     
     # Send verification email using dedicated corporate verification function
     try:
