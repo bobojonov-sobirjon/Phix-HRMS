@@ -6,6 +6,7 @@ import enum
 
 
 class TeamMemberRole(str, enum.Enum):
+    OWNER = "Owner"
     ADMIN = "Admin"
     HR_MANAGER = "HR Manager"
     RECRUITER = "Recruiter"

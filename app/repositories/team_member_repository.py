@@ -134,16 +134,16 @@ class TeamMemberRepository:
             )
         ).all()
 
-    def create_admin_member(self, corporate_profile_id: int, user_id: int) -> TeamMember:
-        """Create admin team member for corporate profile creator"""
+    def create_owner_member(self, corporate_profile_id: int, user_id: int) -> TeamMember:
+        """Create owner team member for corporate profile creator"""
         from app.models.team_member import TeamMemberRole
         
-        # Create admin team member
+        # Create owner team member
         db_team_member = TeamMember(
             corporate_profile_id=corporate_profile_id,
             user_id=user_id,
-            invited_by_user_id=user_id,  # Self-invited as admin
-            role=TeamMemberRole.ADMIN,
+            invited_by_user_id=user_id,  # Self-invited as owner
+            role=TeamMemberRole.OWNER,
             status=TeamMemberStatus.ACCEPTED  # Auto-accepted for creator
         )
         
