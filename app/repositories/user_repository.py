@@ -35,16 +35,35 @@ class UserRepository:
     
     def get_user_by_id(self, user_id: int) -> Optional[User]:
         """Get user by ID with optimized loading"""
-        return self.db.query(User).options(
+        user = self.db.query(User).options(
             selectinload(User.roles),  # Eager load roles to avoid N+1
             selectinload(User.skills),  # Eager load skills
-            selectinload(User.educations),  # Eager load educations
-            selectinload(User.experiences),  # Eager load experiences
-            selectinload(User.certifications),  # Eager load certifications
-            selectinload(User.projects),  # Eager load projects
             selectinload(User.location),  # Eager load location
             selectinload(User.language)  # Eager load language
         ).filter(and_(User.id == user_id, User.is_deleted == False)).first()
+        
+        if user:
+            # Load non-deleted educations
+            user.educations = self.db.query(Education).options(
+                selectinload(Education.education_facility)
+            ).filter(Education.user_id == user_id, Education.is_deleted == False).all()
+            
+            # Load non-deleted experiences
+            user.experiences = self.db.query(Experience).options(
+                selectinload(Experience.company_ref)
+            ).filter(Experience.user_id == user_id, Experience.is_deleted == False).all()
+            
+            # Load non-deleted certifications
+            user.certifications = self.db.query(Certification).options(
+                selectinload(Certification.certification_center)
+            ).filter(Certification.user_id == user_id, Certification.is_deleted == False).all()
+            
+            # Load non-deleted projects
+            user.projects = self.db.query(Project).options(
+                selectinload(Project.images)
+            ).filter(Project.user_id == user_id, Project.is_deleted == False).all()
+        
+        return user
     
     def get_by_id(self, user_id: int) -> Optional[User]:
         """Get user by ID with all related data (alias for get_user_by_id)"""
@@ -175,16 +194,35 @@ class UserRepository:
 
     def get_user_full_profile(self, user_id: int) -> Optional[User]:
         """Get user full profile with optimized eager loading to prevent N+1 queries"""
-        return self.db.query(User).options(
+        user = self.db.query(User).options(
             # Use selectinload for better performance than joinedload
             selectinload(User.location),
             selectinload(User.roles),
-            selectinload(User.educations).selectinload(Education.education_facility),
-            selectinload(User.experiences).selectinload(Experience.company_ref),
-            selectinload(User.certifications).selectinload(Certification.certification_center),
-            selectinload(User.projects).selectinload(Project.images),
             selectinload(User.skills)
         ).filter(and_(User.id == user_id, User.is_deleted == False)).first()
+        
+        if user:
+            # Load non-deleted educations
+            user.educations = self.db.query(Education).options(
+                selectinload(Education.education_facility)
+            ).filter(Education.user_id == user_id, Education.is_deleted == False).all()
+            
+            # Load non-deleted experiences
+            user.experiences = self.db.query(Experience).options(
+                selectinload(Experience.company_ref)
+            ).filter(Experience.user_id == user_id, Experience.is_deleted == False).all()
+            
+            # Load non-deleted certifications
+            user.certifications = self.db.query(Certification).options(
+                selectinload(Certification.certification_center)
+            ).filter(Certification.user_id == user_id, Certification.is_deleted == False).all()
+            
+            # Load non-deleted projects
+            user.projects = self.db.query(Project).options(
+                selectinload(Project.images)
+            ).filter(Project.user_id == user_id, Project.is_deleted == False).all()
+        
+        return user
     
     def get_users_batch(self, user_ids: List[int]) -> List[User]:
         """Get multiple users in batch to avoid N+1 queries"""
