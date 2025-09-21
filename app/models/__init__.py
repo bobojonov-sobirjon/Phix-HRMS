@@ -22,6 +22,7 @@ from .full_time_job import FullTimeJob
 from .full_time_job_skill import FullTimeJobSkill
 from .team_member import TeamMember
 from .category import Category
+from .chat import ChatRoom, ChatMessage, ChatParticipant, UserPresence
 
 __all__ = [
     "Certification",
@@ -48,4 +49,8 @@ __all__ = [
     "FullTimeJobSkill",
     "TeamMember",
     "Category",
+    "ChatRoom",
+    "ChatMessage",
+    "ChatParticipant",
+    "UserPresence",
 ] 

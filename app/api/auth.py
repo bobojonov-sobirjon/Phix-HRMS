@@ -715,193 +715,79 @@ async def get_user_profiles(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """Get user's corporate profile and team member roles"""
+    """Get all user profiles (personal + owned corporate + team memberships)"""
     from ..config import settings
     from ..models.corporate_profile import CorporateProfile
+    from ..repositories.team_member_repository import TeamMemberRepository
+    from ..repositories.corporate_profile_repository import CorporateProfileRepository
+    from ..utils.permissions import get_role_permissions
+    from ..models.team_member import TeamMemberRole
     
-    # Get user's own corporate profile (if exists)
+    profiles = []
+    
+    # 1. Personal Profile (har doim birinchi)
+    personal_profile = {
+        "id": f"personal_{current_user.id}",
+        "type": "personal",
+        "name": current_user.name,
+        "role": "Personal Account",
+        "avatar": f"{settings.BASE_URL}{current_user.avatar_url}" if current_user.avatar_url else None,
+        "is_active": current_user.is_active,
+        "is_owner": True,
+        "can_create_jobs": False,  # Personal profile job yarata olmaydi
+        "permissions": []
+    }
+    profiles.append(personal_profile)
+    
+    # 2. Owned Corporate Profile
     corporate_profile_repo = CorporateProfileRepository(db)
     user_corporate_profile = corporate_profile_repo.get_by_user_id(current_user.id)
     
-    corporate_profile_data = None
     if user_corporate_profile:
-        # Add base URL to profile data
-        if user_corporate_profile.logo_url:
-            user_corporate_profile.logo_url = f"{settings.BASE_URL}{user_corporate_profile.logo_url}"
-        
-        if user_corporate_profile.location and user_corporate_profile.location.flag_image:
-            user_corporate_profile.location.flag_image = f"{settings.BASE_URL}{user_corporate_profile.location.flag_image}"
-        
-        if user_corporate_profile.user and user_corporate_profile.user.avatar_url:
-            user_corporate_profile.user.avatar_url = f"{settings.BASE_URL}{user_corporate_profile.user.avatar_url}"
-        
-        # Prepare team members data
-        team_members_data = []
-        if hasattr(user_corporate_profile, 'team_members') and user_corporate_profile.team_members:
-            for team_member in user_corporate_profile.team_members:
-                if team_member.user and team_member.user.avatar_url:
-                    team_member.user.avatar_url = f"{settings.BASE_URL}{team_member.user.avatar_url}"
-                
-                team_member_data = {
-                    "id": team_member.id,
-                    "user_id": team_member.user_id,
-                    "user_name": team_member.user.name if team_member.user else "",
-                    "user_email": team_member.user.email if team_member.user else "",
-                    "user_avatar": team_member.user.avatar_url if team_member.user else None,
-                    "role": team_member.role.value,
-                    "status": team_member.status.value,
-                    "invited_by_user_id": team_member.invited_by_user_id,
-                    "invited_by_name": team_member.invited_by.name if team_member.invited_by else "",
-                    "created_at": team_member.created_at,
-                    "accepted_at": team_member.accepted_at,
-                    "rejected_at": team_member.rejected_at
-                }
-                team_members_data.append(team_member_data)
-        
-        # Get user's role in their own corporate profile
-        user_role_in_own_company = None
-        if user_corporate_profile.team_members:
-            for team_member in user_corporate_profile.team_members:
-                if team_member.user_id == current_user.id:
-                    user_role_in_own_company = {
-                        "id": team_member.id,
-                        "role": team_member.role.value,
-                        "status": team_member.status.value,
-                        "created_at": team_member.created_at,
-                        "accepted_at": team_member.accepted_at,
-                        "rejected_at": team_member.rejected_at
-                    }
-                    break
-        
-        corporate_profile_data = {
-            "id": user_corporate_profile.id,
-            "company_name": user_corporate_profile.company_name,
-            "industry": user_corporate_profile.industry,
-            "phone_number": user_corporate_profile.phone_number,
-            "country_code": user_corporate_profile.country_code,
-            "location_id": user_corporate_profile.location_id,
-            "overview": user_corporate_profile.overview,
-            "website_url": user_corporate_profile.website_url,
-            "company_size": user_corporate_profile.company_size.value,
-            "logo_url": user_corporate_profile.logo_url,
-            "user_id": user_corporate_profile.user_id,
-            "is_active": user_corporate_profile.is_active,
-            "is_verified": user_corporate_profile.is_verified,
-            "created_at": user_corporate_profile.created_at,
-            "updated_at": user_corporate_profile.updated_at,
-            "location": {
-                "id": user_corporate_profile.location.id,
-                "name": user_corporate_profile.location.name,
-                "code": user_corporate_profile.location.code,
-                "flag_image": user_corporate_profile.location.flag_image
-            } if user_corporate_profile.location else None,
-            "user": {
-                "id": user_corporate_profile.user.id,
-                "name": user_corporate_profile.user.name,
-                "email": user_corporate_profile.user.email,
-                "is_active": user_corporate_profile.user.is_active,
-                "is_verified": user_corporate_profile.user.is_verified,
-                "is_social_user": user_corporate_profile.user.is_social_user,
-                "created_at": user_corporate_profile.user.created_at,
-                "last_login": user_corporate_profile.user.last_login,
-                "phone": user_corporate_profile.user.phone,
-                "avatar_url": user_corporate_profile.user.avatar_url,
-                "about_me": user_corporate_profile.user.about_me,
-                "current_position": user_corporate_profile.user.current_position,
-                "location_id": user_corporate_profile.user.location_id
-            } if user_corporate_profile.user else None,
-            "user_role": user_role_in_own_company,
-            "team_members": team_members_data
+        owned_profile = {
+            "id": f"corporate_{user_corporate_profile.id}",
+            "type": "corporate",
+            "name": user_corporate_profile.company_name,
+            "role": "Owner",
+            "avatar": f"{settings.BASE_URL}{user_corporate_profile.logo_url}" if user_corporate_profile.logo_url else None,
+            "is_active": user_corporate_profile.is_active and user_corporate_profile.is_verified,
+            "is_owner": True,
+            "can_create_jobs": user_corporate_profile.is_active and user_corporate_profile.is_verified,
+            "corporate_profile_id": user_corporate_profile.id,
+            "permissions": [p.value for p in get_role_permissions(TeamMemberRole.OWNER)]
         }
+        profiles.append(owned_profile)
     
-    # Get user's team memberships in other companies (all statuses)
+    # 3. Team Memberships (boshqa kompaniyalarda)
     team_member_repo = TeamMemberRepository(db)
-    user_team_memberships = team_member_repo.get_user_team_memberships_all_statuses(current_user.id)
+    user_team_memberships = team_member_repo.get_user_team_memberships_accepted(current_user.id)
     
-    another_role_list = []
     for membership in user_team_memberships:
-        # Get corporate profile details
         corporate_profile = db.query(CorporateProfile).filter(
             CorporateProfile.id == membership.corporate_profile_id
         ).first()
         
-        if corporate_profile:
-            # Add base URL to corporate profile logo
-            logo_url = corporate_profile.logo_url
-            if logo_url:
-                logo_url = f"{settings.BASE_URL}{logo_url}"
+        if corporate_profile and corporate_profile.is_active and corporate_profile.is_verified:
+            # Role-based permissions
+            permissions = [p.value for p in get_role_permissions(membership.role)]
             
-            # Add base URL to location flag
-            flag_image = None
-            if corporate_profile.location and corporate_profile.location.flag_image:
-                flag_image = f"{settings.BASE_URL}{corporate_profile.location.flag_image}"
-            
-            # Add base URL to user avatar
-            user_avatar = current_user.avatar_url
-            if user_avatar:
-                user_avatar = f"{settings.BASE_URL}{user_avatar}"
-            
-            # Get corporate profile owner details
-            corporate_profile_owner = None
-            if corporate_profile.user:
-                corporate_profile_owner = {
-                    "id": corporate_profile.user.id,
-                    "name": corporate_profile.user.name,
-                    "email": corporate_profile.user.email,
-                    "avatar_url": f"{settings.BASE_URL}{corporate_profile.user.avatar_url}" if corporate_profile.user.avatar_url else None,
-                    "is_active": corporate_profile.user.is_active,
-                    "is_verified": corporate_profile.user.is_verified,
-                    "current_position": corporate_profile.user.current_position
-                }
-            
-            another_role_list.append({
-                "id": membership.id,
-                "corporate_profile_id": membership.corporate_profile_id,
-                "corporate_profile": {
-                    "id": corporate_profile.id,
-                    "company_name": corporate_profile.company_name,
-                    "company_logo": logo_url,
-                    "industry": corporate_profile.industry,
-                    "overview": corporate_profile.overview,
-                    "website_url": corporate_profile.website_url,
-                    "company_size": corporate_profile.company_size.value,
-                    "is_active": corporate_profile.is_active,
-                    "is_verified": corporate_profile.is_verified,
-                    "created_at": corporate_profile.created_at,
-                    "location": {
-                        "id": corporate_profile.location.id if corporate_profile.location else None,
-                        "name": corporate_profile.location.name if corporate_profile.location else None,
-                        "code": corporate_profile.location.code if corporate_profile.location else None,
-                        "flag_image": flag_image
-                    } if corporate_profile.location else None,
-                    "owner": corporate_profile_owner
-                },
-                "user": {
-                    "id": current_user.id,
-                    "name": current_user.name,
-                    "email": current_user.email,
-                    "avatar_url": user_avatar,
-                    "is_active": current_user.is_active,
-                    "is_verified": current_user.is_verified,
-                    "current_position": current_user.current_position
-                },
-                "role": {
-                    "id": membership.id,
-                    "role": membership.role.value,
-                    "status": membership.status.value,
-                    "created_at": membership.created_at,
-                    "accepted_at": membership.accepted_at,
-                    "rejected_at": membership.rejected_at
-                }
-            })
-    
-    response_data = {
-        "corporate_profile": corporate_profile_data,
-        "another_role_list": another_role_list
-    }
+            team_profile = {
+                "id": f"team_{membership.id}",
+                "type": "team_member",
+                "name": corporate_profile.company_name,
+                "role": membership.role.value,
+                "avatar": f"{settings.BASE_URL}{corporate_profile.logo_url}" if corporate_profile.logo_url else None,
+                "is_active": True,
+                "is_owner": False,
+                "can_create_jobs": "create_job" in permissions,
+                "corporate_profile_id": corporate_profile.id,
+                "team_member_id": membership.id,
+                "permissions": permissions
+            }
+            profiles.append(team_profile)
     
     return SuccessResponse(
         status="success",
         msg="User profiles retrieved successfully",
-        data=response_data
+        data={"profiles": profiles}
     ) 

@@ -3,6 +3,7 @@ from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from app.database import Base
 import enum
+from .team_member import TeamMemberRole
 
 
 class JobType(str, enum.Enum):
@@ -55,6 +56,10 @@ class FullTimeJob(Base):
     category_id = Column(Integer, ForeignKey("categories.id"), nullable=False)
     subcategory_id = Column(Integer, ForeignKey("categories.id"), nullable=True)
     
+    # Job creation context
+    created_by_user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    created_by_role = Column(Enum(TeamMemberRole), nullable=False)
+    
     # Timestamps
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
@@ -65,6 +70,7 @@ class FullTimeJob(Base):
     subcategory = relationship("Category", foreign_keys=[subcategory_id])
     proposals = relationship("Proposal", back_populates="full_time_job", cascade="all, delete-orphan")
     skills = relationship("Skill", secondary="full_time_job_skills", back_populates="full_time_jobs")
+    created_by_user = relationship("User", foreign_keys=[created_by_user_id])
     
     def __repr__(self):
         return f"<FullTimeJob(id={self.id}, title='{self.title}', company_id={self.company_id})>"

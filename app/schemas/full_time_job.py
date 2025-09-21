@@ -90,6 +90,9 @@ class FullTimeJobResponse(BaseModel):
     category_name: str
     subcategory_id: Optional[int] = None
     subcategory_name: Optional[str] = None
+    created_by_user_id: int
+    created_by_user_name: str
+    created_by_role: str
     created_at: datetime
     updated_at: Optional[datetime] = None
     skills: List[dict] = Field(default_factory=list, description="List of skills with details")

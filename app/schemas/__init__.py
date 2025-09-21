@@ -65,8 +65,7 @@ __all__ = [
     "GigJobListResponse",
     "ExperienceLevel",
     "GigJobStatus",
-    "JobType",
-    "WorkMode",
+    "ProjectLength",
     
     # Proposal schemas
     "ProposalCreate",

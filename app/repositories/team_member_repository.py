@@ -166,3 +166,21 @@ class TeamMemberRepository:
         return self.db.query(TeamMember).filter(
             TeamMember.user_id == user_id
         ).all()
+
+    def get_by_user_and_corporate_profile(self, user_id: int, corporate_profile_id: int) -> Optional[TeamMember]:
+        """Get team member by user ID and corporate profile ID"""
+        return self.db.query(TeamMember).filter(
+            and_(
+                TeamMember.user_id == user_id,
+                TeamMember.corporate_profile_id == corporate_profile_id
+            )
+        ).first()
+
+    def get_user_team_memberships_accepted(self, user_id: int) -> List[TeamMember]:
+        """Get accepted team memberships for a user"""
+        return self.db.query(TeamMember).filter(
+            and_(
+                TeamMember.user_id == user_id,
+                TeamMember.status == TeamMemberStatus.ACCEPTED
+            )
+        ).all()

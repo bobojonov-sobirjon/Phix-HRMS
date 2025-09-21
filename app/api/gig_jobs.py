@@ -56,13 +56,10 @@ async def create_gig_job(
     - **description**: Detailed job description (required)
     - **location_id**: Location ID (optional)
     - **experience_level**: Required experience level (entry_level, mid_level, junior, director)
+    - **project_length**: Project length (LESS_THAN_ONE_MONTH, ONE_TO_THREE_MONTHS, THREE_TO_SIX_MONTHS, MORE_THAN_SIX_MONTHS)
     - **skill_names**: List of required skill names (e.g., ["Python", "JavaScript", "React"])
     - **min_salary**: Minimum salary (required)
     - **max_salary**: Maximum salary (required)
-    - **deadline_days**: Deadline in days (required)
-    - **job_type**: Job type (required)
-    - **work_mode**: Work mode (required)
-    - **remote_only**: Remote only (required)
     - **category_id**: Category id (required)
     - **subcategory_id**: Subcategory id (required)
     """
@@ -86,16 +83,13 @@ async def get_all_gig_jobs(
     page: int = Query(1, ge=1, description="Page number"),
     size: int = Query(10, ge=1, le=100, description="Page size"),
     status_filter: Optional[str] = Query(None, description="Filter by status"),
-    job_type: Optional[str] = Query(None, description="Filter by job type"),
     experience_level: Optional[str] = Query(None, description="Filter by experience level"),
-    work_mode: Optional[str] = Query(None, description="Filter by work mode"),
-    remote_only: Optional[bool] = Query(None, description="Filter by remote only"),
+    project_length: Optional[str] = Query(None, description="Filter by project length (LESS_THAN_ONE_MONTH, ONE_TO_THREE_MONTHS, THREE_TO_SIX_MONTHS, MORE_THAN_SIX_MONTHS)"),
     min_salary: Optional[float] = Query(None, description="Filter by minimum salary"),
     max_salary: Optional[float] = Query(None, description="Filter by maximum salary"),
     location_id: Optional[int] = Query(None, description="Filter by location ID"),
     category_id: Optional[int] = Query(None, description="Filter by category ID"),
     subcategory_id: Optional[int] = Query(None, description="Filter by subcategory ID"),
-    project_length: Optional[str] = Query(None, description="Filter by project length (less_than_one_month, one_to_three_months, three_to_six_months, more_than_six_months)"),
     date_posted: Optional[str] = Query(None, description="Filter by date posted (any_time, past_24_hours, past_week, past_month)"),
     sort_by: Optional[str] = Query("most_recent", description="Sort by (most_recent, most_relevant)"),
     db: Session = Depends(get_db),
@@ -108,16 +102,13 @@ async def get_all_gig_jobs(
     - **page**: Page number (default: 1)
     - **size**: Page size (default: 10, max: 100)
     - **status_filter**: Optional status filter
-    - **job_type**: Filter by job type (full_time, part_time, freelance, internship)
     - **experience_level**: Filter by experience level (entry_level, mid_level, junior, director)
-    - **work_mode**: Filter by work mode (on_site, remote, hybrid, flexible_hours)
-    - **remote_only**: Filter by remote only option
+    - **project_length**: Filter by project length (LESS_THAN_ONE_MONTH, ONE_TO_THREE_MONTHS, THREE_TO_SIX_MONTHS, MORE_THAN_SIX_MONTHS)
     - **min_salary**: Filter by minimum salary
     - **max_salary**: Filter by maximum salary
     - **location_id**: Filter by location ID
     - **category_id**: Filter by category ID
     - **subcategory_id**: Filter by subcategory ID
-    - **project_length**: Filter by project length (less_than_one_month, one_to_three_months, three_to_six_months, more_than_six_months)
     - **date_posted**: Filter by date posted (any_time, past_24_hours, past_week, past_month)
     - **sort_by**: Sort by (most_recent, most_relevant)
     - **Authorization**: Optional Bearer token for authentication
@@ -128,16 +119,13 @@ async def get_all_gig_jobs(
     gig_jobs, total = repository.get_all_gig_jobs(
         pagination=pagination,
         status=status_filter,
-        job_type=job_type,
         experience_level=experience_level,
-        work_mode=work_mode,
-        remote_only=remote_only,
+        project_length=project_length,
         min_salary=min_salary,
         max_salary=max_salary,
         location_id=location_id,
         category_id=category_id,
         subcategory_id=subcategory_id,
-        project_length=project_length,
         date_posted=date_posted,
         sort_by=sort_by
     )
@@ -154,16 +142,13 @@ async def get_my_gig_jobs(
     page: int = Query(1, ge=1, description="Page number"),
     size: int = Query(10, ge=1, le=100, description="Page size"),
     status_filter: Optional[str] = Query(None, description="Filter by status"),
-    job_type: Optional[str] = Query(None, description="Filter by job type"),
     experience_level: Optional[str] = Query(None, description="Filter by experience level"),
-    work_mode: Optional[str] = Query(None, description="Filter by work mode"),
-    remote_only: Optional[bool] = Query(None, description="Filter by remote only"),
+    project_length: Optional[str] = Query(None, description="Filter by project length (LESS_THAN_ONE_MONTH, ONE_TO_THREE_MONTHS, THREE_TO_SIX_MONTHS, MORE_THAN_SIX_MONTHS)"),
     min_salary: Optional[float] = Query(None, description="Filter by minimum salary"),
     max_salary: Optional[float] = Query(None, description="Filter by maximum salary"),
     location_id: Optional[int] = Query(None, description="Filter by location ID"),
     category_id: Optional[int] = Query(None, description="Filter by category ID"),
     subcategory_id: Optional[int] = Query(None, description="Filter by subcategory ID"),
-    project_length: Optional[str] = Query(None, description="Filter by project length (less_than_one_month, one_to_three_months, three_to_six_months, more_than_six_months)"),
     date_posted: Optional[str] = Query(None, description="Filter by date posted (any_time, past_24_hours, past_week, past_month)"),
     sort_by: Optional[str] = Query("most_recent", description="Sort by (most_recent, most_relevant)"),
     db: Session = Depends(get_db),
@@ -175,16 +160,13 @@ async def get_my_gig_jobs(
     - **page**: Page number (default: 1)
     - **size**: Page size (default: 10, max: 100)
     - **status_filter**: Optional status filter
-    - **job_type**: Filter by job type (full_time, part_time, freelance, internship)
     - **experience_level**: Filter by experience level (entry_level, mid_level, junior, director)
-    - **work_mode**: Filter by work mode (on_site, remote, hybrid, flexible_hours)
-    - **remote_only**: Filter by remote only option
+    - **project_length**: Filter by project length (LESS_THAN_ONE_MONTH, ONE_TO_THREE_MONTHS, THREE_TO_SIX_MONTHS, MORE_THAN_SIX_MONTHS)
     - **min_salary**: Filter by minimum salary
     - **max_salary**: Filter by maximum salary
     - **location_id**: Filter by location ID
     - **category_id**: Filter by category ID
     - **subcategory_id**: Filter by subcategory ID
-    - **project_length**: Filter by project length (less_than_one_month, one_to_three_months, three_to_six_months, more_than_six_months)
     - **date_posted**: Filter by date posted (any_time, past_24_hours, past_week, past_month)
     - **sort_by**: Sort by (most_recent, most_relevant)
     """
@@ -195,16 +177,13 @@ async def get_my_gig_jobs(
         user_id=current_user.id,
         pagination=pagination,
         status=status_filter,
-        job_type=job_type,
         experience_level=experience_level,
-        work_mode=work_mode,
-        remote_only=remote_only,
+        project_length=project_length,
         min_salary=min_salary,
         max_salary=max_salary,
         location_id=location_id,
         category_id=category_id,
         subcategory_id=subcategory_id,
-        project_length=project_length,
         date_posted=date_posted,
         sort_by=sort_by
     )

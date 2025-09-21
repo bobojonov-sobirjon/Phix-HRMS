@@ -19,18 +19,11 @@ class GigJobStatus(str, enum.Enum):
     CANCELLED = "cancelled"
 
 
-class JobType(str, enum.Enum):
-    FULL_TIME = "FULL_TIME"
-    PART_TIME = "PART_TIME"
-    FREELANCE = "FREELANCE"
-    INTERNSHIP = "INTERNSHIP"
-
-
-class WorkMode(str, enum.Enum):
-    ON_SITE = "ON_SITE"
-    REMOTE = "REMOTE"
-    HYBRID = "HYBRID"
-    FLEXIBLE_HOURS = "FLEXIBLE_HOURS"
+class ProjectLength(str, enum.Enum):
+    LESS_THAN_ONE_MONTH = "LESS_THAN_ONE_MONTH"
+    ONE_TO_THREE_MONTHS = "ONE_TO_THREE_MONTHS"
+    THREE_TO_SIX_MONTHS = "THREE_TO_SIX_MONTHS"
+    MORE_THAN_SIX_MONTHS = "MORE_THAN_SIX_MONTHS"
 
 
 class GigJob(Base):
@@ -41,12 +34,9 @@ class GigJob(Base):
     description = Column(Text, nullable=False)
     location_id = Column(Integer, ForeignKey("locations.id"), nullable=True)
     experience_level = Column(Enum(ExperienceLevel), nullable=False)
-    job_type = Column(Enum(JobType), nullable=False, default=JobType.FREELANCE)
-    work_mode = Column(Enum(WorkMode), nullable=False, default=WorkMode.REMOTE)
-    remote_only = Column(Boolean, default=False)
+    project_length = Column(Enum(ProjectLength), nullable=False, default=ProjectLength.LESS_THAN_ONE_MONTH)
     min_salary = Column(Float, nullable=False)
     max_salary = Column(Float, nullable=False)
-    deadline_days = Column(Integer, nullable=False, default=7)
     status = Column(Enum(GigJobStatus), default=GigJobStatus.ACTIVE)
     
     # Foreign keys

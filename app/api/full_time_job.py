@@ -20,32 +20,62 @@ router = APIRouter(prefix="/full-time-jobs", tags=["Full Time Job"])
 @router.post("/", response_model=FullTimeJobResponse, tags=["Full Time Job"])
 async def create_full_time_job(
     full_time_job: FullTimeJobCreate,
+    corporate_profile_id: int,
     current_user: dict = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Create a new full-time job"""
+    """Create a new full-time job for a specific corporate profile"""
+    from ..repositories.team_member_repository import TeamMemberRepository
+    from ..models.team_member import TeamMemberRole
+    from ..utils.permissions import has_permission, Permission
+    
     corporate_repo = CorporateProfileRepository(db)
     job_repo = FullTimeJobRepository(db)
+    team_repo = TeamMemberRepository(db)
     
-    # Check if user has a verified corporate profile
-    profile = corporate_repo.get_by_user_id(current_user.id)
+    # 1. Check if corporate profile exists and is active
+    profile = corporate_repo.get_by_id(corporate_profile_id)
     if not profile:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Corporate profile required to create full-time jobs"
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Corporate profile not found"
         )
     
-    if not profile.is_verified or not profile.is_active:
+    if not profile.is_active or not profile.is_verified:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Corporate profile must be verified and active to create jobs"
         )
     
-    # Create the job
-    db_job = job_repo.create(full_time_job, profile.id)
+    # 2. Check user permissions for this corporate profile
+    user_role = None
+    can_create_jobs = False
     
-    # Add company name to response
-    db_job["company_name"] = profile.company_name
+    # Check if user is the owner
+    if profile.user_id == current_user.id:
+        user_role = TeamMemberRole.OWNER
+        can_create_jobs = True
+    else:
+        # Check if user is a team member with create_job permission
+        team_member = team_repo.get_by_user_and_corporate_profile(current_user.id, corporate_profile_id)
+        if team_member and team_member.status == "accepted":
+            user_role = team_member.role
+            # Check if role has create_job permission
+            can_create_jobs = has_permission(current_user.id, corporate_profile_id, Permission.CREATE_JOB, db)
+    
+    if not can_create_jobs:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You don't have permission to create jobs for this company"
+        )
+    
+    # 3. Create the job with context
+    db_job = job_repo.create_with_context(
+        full_time_job, 
+        corporate_profile_id, 
+        current_user.id, 
+        user_role
+    )
     
     return db_job
 
