@@ -66,6 +66,49 @@ class FullTimeJobRepository:
         }
         
         return response_data
+
+    def _format_job_response(self, job: FullTimeJob) -> dict:
+        """Format job response with all related data including context"""
+        # Convert skills to dict format
+        skills_data = []
+        
+        for skill in job.skills:
+            skills_data.append({
+                "id": skill.id,
+                "name": skill.name,
+                "created_at": skill.created_at,
+                "updated_at": skill.updated_at,
+                "is_deleted": skill.is_deleted
+            })
+        
+        # Create response data
+        response_data = {
+            "id": job.id,
+            "title": job.title,
+            "description": job.description,
+            "responsibilities": job.responsibilities,
+            "location": job.location,
+            "job_type": job.job_type.value,
+            "work_mode": job.work_mode.value,
+            "experience_level": job.experience_level.value,
+            "min_salary": job.min_salary,
+            "max_salary": job.max_salary,
+            "status": job.status.value,
+            "company_id": job.company_id,
+            "company_name": job.company.company_name if job.company else "",
+            "category_id": job.category_id,
+            "category_name": job.category.name if job.category else "",
+            "subcategory_id": job.subcategory_id,
+            "subcategory_name": job.subcategory.name if job.subcategory else None,
+            "created_by_user_id": job.created_by_user_id,
+            "created_by_user_name": job.created_by_user.name if job.created_by_user else "",
+            "created_by_role": job.created_by_role.value,
+            "created_at": job.created_at,
+            "updated_at": job.updated_at,
+            "skills": skills_data
+        }
+        
+        return response_data
     
     def create(self, full_time_job: FullTimeJobCreate, company_id: int) -> dict:
         """Create a new full-time job with skills"""
@@ -96,6 +139,45 @@ class FullTimeJobRepository:
         
         # Return prepared response data
         return self._prepare_full_time_job_response(db_job)
+
+    def create_with_context(self, job_data, corporate_profile_id, created_by_user_id, created_by_role):
+        """Create job with context about who created it"""
+        from ..models.team_member import TeamMemberRole
+        
+        # Extract skill_names from the data
+        skill_names = job_data.skill_names if hasattr(job_data, 'skill_names') else []
+        job_dict = job_data.dict() if hasattr(job_data, 'dict') else job_data.model_dump()
+        
+        # Remove skill_names from job_dict
+        job_dict.pop('skill_names', None)
+        
+        # Add context fields
+        job_dict.update({
+            "company_id": corporate_profile_id,
+            "created_by_user_id": created_by_user_id,
+            "created_by_role": created_by_role
+        })
+        
+        # Create the job
+        db_job = FullTimeJob(**job_dict)
+        self.db.add(db_job)
+        self.db.flush()  # Flush to get the ID
+        
+        # Get or create skills and add them to the job
+        if skill_names:
+            skills = self._get_or_create_skills(skill_names)
+            db_job.skills = skills
+        
+        self.db.commit()
+        self.db.refresh(db_job)
+        
+        # Load company relationship for response
+        db_job.company = self.db.query(CorporateProfile).filter(
+            CorporateProfile.id == corporate_profile_id
+        ).first()
+        
+        # Return prepared response data
+        return self._format_job_response(db_job)
     
     def get_by_id(self, job_id: int) -> Optional[dict]:
         """Get full-time job by ID with skills"""

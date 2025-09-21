@@ -65,12 +65,9 @@ class GigJobRepository:
                 "is_deleted": gig_job.location.is_deleted
             } if gig_job.location else None,
             "experience_level": gig_job.experience_level.value if hasattr(gig_job.experience_level, 'value') else str(gig_job.experience_level),
-            "job_type": gig_job.job_type.value if hasattr(gig_job.job_type, 'value') else str(gig_job.job_type),
-            "work_mode": gig_job.work_mode.value if hasattr(gig_job.work_mode, 'value') else str(gig_job.work_mode),
-            "remote_only": gig_job.remote_only,
+            "project_length": gig_job.project_length.value if hasattr(gig_job.project_length, 'value') else str(gig_job.project_length),
             "min_salary": gig_job.min_salary,
             "max_salary": gig_job.max_salary,
-            "deadline_days": gig_job.deadline_days,
             "status": gig_job.status.value if hasattr(gig_job.status, 'value') else str(gig_job.status),
             "author_id": gig_job.author_id,
             "category_id": gig_job.category_id,
@@ -175,16 +172,13 @@ class GigJobRepository:
         user_id: int, 
         pagination: PaginationParams, 
         status: Optional[str] = None,
-        job_type: Optional[str] = None,
         experience_level: Optional[str] = None,
-        work_mode: Optional[str] = None,
-        remote_only: Optional[bool] = None,
+        project_length: Optional[str] = None,
         min_salary: Optional[float] = None,
         max_salary: Optional[float] = None,
         location_id: Optional[int] = None,
         category_id: Optional[int] = None,
         subcategory_id: Optional[int] = None,
-        project_length: Optional[str] = None,
         date_posted: Optional[str] = None,
         sort_by: Optional[str] = None
     ) -> tuple[List[dict], int]:
@@ -199,18 +193,12 @@ class GigJobRepository:
         
         if status:
             query = query.filter(GigJob.status == status)
-        
-        if job_type:
-            query = query.filter(GigJob.job_type == job_type)
             
         if experience_level:
             query = query.filter(GigJob.experience_level == experience_level)
             
-        if work_mode:
-            query = query.filter(GigJob.work_mode == work_mode)
-            
-        if remote_only is not None:
-            query = query.filter(GigJob.remote_only == remote_only)
+        if project_length:
+            query = query.filter(GigJob.project_length == project_length)
             
         if min_salary is not None:
             query = query.filter(GigJob.min_salary >= min_salary)
@@ -226,16 +214,6 @@ class GigJobRepository:
             
         if subcategory_id:
             query = query.filter(GigJob.subcategory_id == subcategory_id)
-            
-        if project_length:
-            if project_length == "less_than_one_month":
-                query = query.filter(GigJob.deadline_days <= 30)
-            elif project_length == "one_to_three_months":
-                query = query.filter(GigJob.deadline_days.between(31, 90))
-            elif project_length == "three_to_six_months":
-                query = query.filter(GigJob.deadline_days.between(91, 180))
-            elif project_length == "more_than_six_months":
-                query = query.filter(GigJob.deadline_days > 180)
                 
         if date_posted and date_posted != "any_time":
             from datetime import datetime, timedelta
@@ -274,16 +252,13 @@ class GigJobRepository:
         self, 
         pagination: PaginationParams, 
         status: Optional[str] = None,
-        job_type: Optional[str] = None,
         experience_level: Optional[str] = None,
-        work_mode: Optional[str] = None,
-        remote_only: Optional[bool] = None,
+        project_length: Optional[str] = None,
         min_salary: Optional[float] = None,
         max_salary: Optional[float] = None,
         location_id: Optional[int] = None,
         category_id: Optional[int] = None,
         subcategory_id: Optional[int] = None,
-        project_length: Optional[str] = None,
         date_posted: Optional[str] = None,
         sort_by: Optional[str] = None
     ) -> tuple[List[dict], int]:
@@ -298,18 +273,12 @@ class GigJobRepository:
         
         if status:
             query = query.filter(GigJob.status == status)
-        
-        if job_type:
-            query = query.filter(GigJob.job_type == job_type)
             
         if experience_level:
             query = query.filter(GigJob.experience_level == experience_level)
             
-        if work_mode:
-            query = query.filter(GigJob.work_mode == work_mode)
-            
-        if remote_only is not None:
-            query = query.filter(GigJob.remote_only == remote_only)
+        if project_length:
+            query = query.filter(GigJob.project_length == project_length)
             
         if min_salary is not None:
             query = query.filter(GigJob.min_salary >= min_salary)
@@ -325,16 +294,6 @@ class GigJobRepository:
             
         if subcategory_id:
             query = query.filter(GigJob.subcategory_id == subcategory_id)
-            
-        if project_length:
-            if project_length == "less_than_one_month":
-                query = query.filter(GigJob.deadline_days <= 30)
-            elif project_length == "one_to_three_months":
-                query = query.filter(GigJob.deadline_days.between(31, 90))
-            elif project_length == "three_to_six_months":
-                query = query.filter(GigJob.deadline_days.between(91, 180))
-            elif project_length == "more_than_six_months":
-                query = query.filter(GigJob.deadline_days > 180)
                 
         if date_posted and date_posted != "any_time":
             from datetime import datetime, timedelta

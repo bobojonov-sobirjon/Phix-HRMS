@@ -19,25 +19,11 @@ class GigJobStatus(str, Enum):
     CANCELLED = "cancelled"
 
 
-class JobType(str, Enum):
-    FULL_TIME = "FULL_TIME"
-    PART_TIME = "PART_TIME"
-    FREELANCE = "FREELANCE"
-    INTERNSHIP = "INTERNSHIP"
-
-
-class WorkMode(str, Enum):
-    ON_SITE = "ON_SITE"
-    REMOTE = "REMOTE"
-    HYBRID = "HYBRID"
-    FLEXIBLE_HOURS = "FLEXIBLE_HOURS"
-
-
 class ProjectLength(str, Enum):
-    LESS_THAN_ONE_MONTH = "less_than_one_month"
-    ONE_TO_THREE_MONTHS = "one_to_three_months"
-    THREE_TO_SIX_MONTHS = "three_to_six_months"
-    MORE_THAN_SIX_MONTHS = "more_than_six_months"
+    LESS_THAN_ONE_MONTH = "LESS_THAN_ONE_MONTH"
+    ONE_TO_THREE_MONTHS = "ONE_TO_THREE_MONTHS"
+    THREE_TO_SIX_MONTHS = "THREE_TO_SIX_MONTHS"
+    MORE_THAN_SIX_MONTHS = "MORE_THAN_SIX_MONTHS"
 
 
 class DatePosted(str, Enum):
@@ -58,13 +44,10 @@ class GigJobBase(BaseModel):
     description: str = Field(..., min_length=10, description="Detailed job description")
     location_id: Optional[int] = Field(None, description="Location ID")
     experience_level: ExperienceLevel = Field(..., description="Required experience level")
-    job_type: JobType = Field(..., description="Job type (full-time, part-time, freelance, internship)")
-    work_mode: WorkMode = Field(..., description="Work mode (on-site, remote, hybrid, flexible hours)")
-    remote_only: bool = Field(False, description="Remote only option")
+    project_length: ProjectLength = Field(..., description="Project length (LESS_THAN_ONE_MONTH, ONE_TO_THREE_MONTHS, THREE_TO_SIX_MONTHS, MORE_THAN_SIX_MONTHS)")
     skill_names: List[str] = Field(..., description="List of required skill names")
     min_salary: float = Field(..., gt=0, description="Minimum salary")
     max_salary: float = Field(..., gt=0, description="Maximum salary")
-    deadline_days: int = Field(..., gt=0, le=365, description="Deadline in days")
     category_id: int = Field(..., description="Main category ID")
     subcategory_id: Optional[int] = Field(None, description="Subcategory ID")
 
@@ -80,13 +63,10 @@ class GigJobUpdate(BaseModel):
     description: Optional[str] = Field(None, min_length=10)
     location_id: Optional[int] = None
     experience_level: Optional[ExperienceLevel] = None
-    job_type: Optional[JobType] = None
-    work_mode: Optional[WorkMode] = None
-    remote_only: Optional[bool] = None
+    project_length: Optional[ProjectLength] = None
     skill_names: Optional[List[str]] = None
     min_salary: Optional[float] = Field(None, gt=0)
     max_salary: Optional[float] = Field(None, gt=0)
-    deadline_days: Optional[int] = Field(None, gt=0, le=365)
     status: Optional[GigJobStatus] = None
     category_id: Optional[int] = None
     subcategory_id: Optional[int] = None
@@ -100,12 +80,9 @@ class GigJobResponse(BaseModel):
     location_id: Optional[int] = None
     location: Optional[Location] = None
     experience_level: ExperienceLevel = Field(..., description="Required experience level")
-    job_type: JobType = Field(..., description="Job type (full-time, part-time, freelance, internship)")
-    work_mode: WorkMode = Field(..., description="Work mode (on-site, remote, hybrid, flexible hours)")
-    remote_only: bool = Field(False, description="Remote only option")
+    project_length: ProjectLength = Field(..., description="Project length (LESS_THAN_ONE_MONTH, ONE_TO_THREE_MONTHS, THREE_TO_SIX_MONTHS, MORE_THAN_SIX_MONTHS)")
     min_salary: float = Field(..., gt=0, description="Minimum salary")
     max_salary: float = Field(..., gt=0, description="Maximum salary")
-    deadline_days: int = Field(..., gt=0, le=365, description="Deadline in days")
     status: GigJobStatus
     author_id: int
     category_id: int
@@ -127,16 +104,13 @@ class GigJobResponse(BaseModel):
 # Filter schema for API requests
 class GigJobFilter(BaseModel):
     status_filter: Optional[str] = None
-    job_type: Optional[JobType] = None
     experience_level: Optional[ExperienceLevel] = None
-    work_mode: Optional[WorkMode] = None
-    remote_only: Optional[bool] = None
+    project_length: Optional[ProjectLength] = None
     min_salary: Optional[float] = Field(None, gt=0)
     max_salary: Optional[float] = Field(None, gt=0)
     location_id: Optional[int] = None
     category_id: Optional[int] = None
     subcategory_id: Optional[int] = None
-    project_length: Optional[ProjectLength] = None
     date_posted: Optional[DatePosted] = None
     sort_by: Optional[SortBy] = SortBy.MOST_RECENT
 

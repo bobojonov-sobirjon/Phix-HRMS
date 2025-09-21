@@ -105,7 +105,7 @@ def test_create_duplicate_corporate_profile(auth_headers, test_user):
     # Second profile should fail
     response = client.post("/api/v1/corporate-profile/", data=profile_data, headers=auth_headers)
     assert response.status_code == 400
-    assert "already has a corporate profile" in response.json()["detail"]
+    assert "already has a corporate profile" in response.json()["msg"]
 
 def test_get_corporate_profiles():
     """Test getting all corporate profiles"""

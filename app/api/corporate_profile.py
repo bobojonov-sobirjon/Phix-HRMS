@@ -71,6 +71,74 @@ def add_base_url_to_profile(profile):
     return profile
 
 
+def convert_profile_to_response(profile_with_urls):
+    """Convert CorporateProfile model to CorporateProfileResponse format"""
+    from ..schemas.corporate_profile import CorporateProfileResponse, TeamMemberResponse
+    
+    # Prepare team members data
+    team_members_data = []
+    if hasattr(profile_with_urls, 'team_members') and profile_with_urls.team_members:
+        for team_member in profile_with_urls.team_members:
+            team_member_data = {
+                "id": team_member.id,
+                "user_id": team_member.user_id,
+                "user_name": team_member.user.name if team_member.user else "",
+                "user_email": team_member.user.email if team_member.user else "",
+                "user_avatar": team_member.user.avatar_url if team_member.user else None,
+                "role": team_member.role.value,
+                "status": team_member.status.value,
+                "invited_by_user_id": team_member.invited_by_user_id,
+                "invited_by_name": team_member.invited_by.name if team_member.invited_by else "",
+                "created_at": team_member.created_at,
+                "accepted_at": team_member.accepted_at,
+                "rejected_at": team_member.rejected_at
+            }
+            team_members_data.append(team_member_data)
+    
+    # Create profile data with team members
+    profile_dict = {
+        "id": profile_with_urls.id,
+        "company_name": profile_with_urls.company_name,
+        "industry": profile_with_urls.industry,
+        "phone_number": profile_with_urls.phone_number,
+        "country_code": profile_with_urls.country_code,
+        "location_id": profile_with_urls.location_id,
+        "overview": profile_with_urls.overview,
+        "website_url": profile_with_urls.website_url,
+        "company_size": profile_with_urls.company_size.value,
+        "logo_url": profile_with_urls.logo_url,
+        "user_id": profile_with_urls.user_id,
+        "is_active": profile_with_urls.is_active,
+        "is_verified": profile_with_urls.is_verified,
+        "created_at": profile_with_urls.created_at,
+        "updated_at": profile_with_urls.updated_at,
+        "location": {
+            "id": profile_with_urls.location.id,
+            "name": profile_with_urls.location.name,
+            "code": profile_with_urls.location.code,
+            "flag_image": profile_with_urls.location.flag_image
+        } if profile_with_urls.location else None,
+        "user": {
+            "id": profile_with_urls.user.id,
+            "name": profile_with_urls.user.name,
+            "email": profile_with_urls.user.email,
+            "is_active": profile_with_urls.user.is_active,
+            "is_verified": profile_with_urls.user.is_verified,
+            "is_social_user": profile_with_urls.user.is_social_user,
+            "created_at": profile_with_urls.user.created_at,
+            "last_login": profile_with_urls.user.last_login,
+            "phone": profile_with_urls.user.phone,
+            "avatar_url": profile_with_urls.user.avatar_url,
+            "about_me": profile_with_urls.user.about_me,
+            "current_position": profile_with_urls.user.current_position,
+            "location_id": profile_with_urls.user.location_id
+        } if profile_with_urls.user else None,
+        "team_members": team_members_data
+    }
+    
+    return CorporateProfileResponse(**profile_dict)
+
+
 @router.post("/", response_model=SuccessResponse, tags=["Corporate Profile"])
 async def create_corporate_profile(
     company_name: str = Form(...),
@@ -182,7 +250,8 @@ async def create_corporate_profile(
         print(f"Failed to send corporate verification email: {e}")
     
     return SuccessResponse(
-        msg="Corporate profile created successfully. Please check your email for verification code."
+        msg="Corporate profile created successfully. Please check your email for verification code.",
+        data={"profile_id": db_profile.id}
     )
 
 
@@ -197,15 +266,16 @@ async def get_corporate_profiles(
     """Get all corporate profiles with pagination"""
     corporate_repo = CorporateProfileRepository(db)
     skip = (page - 1) * size
-    
+
     profiles = corporate_repo.get_all(skip=skip, limit=size)
     total = corporate_repo.count_total()
-    
-    # Add base URL to all profiles
+
+    # Add base URL to all profiles and convert to response format
     profiles_with_urls = [add_base_url_to_profile(profile) for profile in profiles]
-    
+    profiles_response = [convert_profile_to_response(profile) for profile in profiles_with_urls]
+
     return CorporateProfileListResponse(
-        corporate_profiles=profiles_with_urls,
+        corporate_profiles=profiles_response,
         total=total,
         page=page,
         size=size
@@ -221,22 +291,23 @@ async def get_active_corporate_profiles(
     """Get only active corporate profiles"""
     corporate_repo = CorporateProfileRepository(db)
     skip = (page - 1) * size
-    
+
     profiles = corporate_repo.get_active_profiles(skip=skip, limit=size)
     total = corporate_repo.count_active()
-    
-    # Add base URL to all profiles
+
+    # Add base URL to all profiles and convert to response format
     profiles_with_urls = [add_base_url_to_profile(profile) for profile in profiles]
-    
+    profiles_response = [convert_profile_to_response(profile) for profile in profiles_with_urls]
+
     return CorporateProfileListResponse(
-        corporate_profiles=profiles_with_urls,
+        corporate_profiles=profiles_response,
         total=total,
         page=page,
         size=size
     )
 
 
-@router.get("/{profile_id}", response_model=SuccessResponse, tags=["Corporate Profile"])
+@router.get("/{profile_id}", response_model=CorporateProfileResponse, tags=["Corporate Profile"])
 async def get_corporate_profile(
     profile_id: int,
     db: Session = Depends(get_db)
@@ -252,75 +323,7 @@ async def get_corporate_profile(
         )
     
     profile_with_urls = add_base_url_to_profile(profile)
-    
-    # Convert to Pydantic model for serialization
-    from ..schemas.corporate_profile import CorporateProfileResponse, TeamMemberResponse
-    
-    # Prepare team members data
-    team_members_data = []
-    if hasattr(profile_with_urls, 'team_members') and profile_with_urls.team_members:
-        for team_member in profile_with_urls.team_members:
-            team_member_data = {
-                "id": team_member.id,
-                "user_id": team_member.user_id,
-                "user_name": team_member.user.name if team_member.user else "",
-                "user_email": team_member.user.email if team_member.user else "",
-                "user_avatar": team_member.user.avatar_url if team_member.user else None,
-                "role": team_member.role.value,
-                "status": team_member.status.value,
-                "invited_by_user_id": team_member.invited_by_user_id,
-                "invited_by_name": team_member.invited_by.name if team_member.invited_by else "",
-                "created_at": team_member.created_at,
-                "accepted_at": team_member.accepted_at,
-                "rejected_at": team_member.rejected_at
-            }
-            team_members_data.append(team_member_data)
-    
-    # Create profile data with team members
-    profile_dict = {
-        "id": profile_with_urls.id,
-        "company_name": profile_with_urls.company_name,
-        "industry": profile_with_urls.industry,
-        "phone_number": profile_with_urls.phone_number,
-        "country_code": profile_with_urls.country_code,
-        "location_id": profile_with_urls.location_id,
-        "overview": profile_with_urls.overview,
-        "website_url": profile_with_urls.website_url,
-        "company_size": profile_with_urls.company_size.value,
-        "logo_url": profile_with_urls.logo_url,
-        "user_id": profile_with_urls.user_id,
-        "is_active": profile_with_urls.is_active,
-        "is_verified": profile_with_urls.is_verified,
-        "created_at": profile_with_urls.created_at,
-        "updated_at": profile_with_urls.updated_at,
-        "location": {
-            "id": profile_with_urls.location.id,
-            "name": profile_with_urls.location.name,
-            "code": profile_with_urls.location.code,
-            "flag_image": profile_with_urls.location.flag_image
-        } if profile_with_urls.location else None,
-        "user": {
-            "id": profile_with_urls.user.id,
-            "name": profile_with_urls.user.name,
-            "email": profile_with_urls.user.email,
-            "is_active": profile_with_urls.user.is_active,
-            "is_verified": profile_with_urls.user.is_verified,
-            "is_social_user": profile_with_urls.user.is_social_user,
-            "created_at": profile_with_urls.user.created_at,
-            "last_login": profile_with_urls.user.last_login,
-            "phone": profile_with_urls.user.phone,
-            "avatar_url": profile_with_urls.user.avatar_url,
-            "about_me": profile_with_urls.user.about_me,
-            "current_position": profile_with_urls.user.current_position,
-            "location_id": profile_with_urls.user.location_id
-        } if profile_with_urls.user else None,
-        "team_members": team_members_data
-    }
-    
-    return SuccessResponse(
-        msg="Corporate profile retrieved successfully",
-        data=profile_dict
-    )
+    return convert_profile_to_response(profile_with_urls)
 
 
 @router.get("/user/me", response_model=CorporateProfileResponse, tags=["Corporate Profile"])
@@ -338,10 +341,11 @@ async def get_my_corporate_profile(
             detail="Corporate profile not found"
         )
     
-    return add_base_url_to_profile(profile)
+    profile_with_urls = add_base_url_to_profile(profile)
+    return convert_profile_to_response(profile_with_urls)
 
 
-@router.put("/{profile_id}", response_model=SuccessResponse, tags=["Corporate Profile"])
+@router.put("/{profile_id}", response_model=CorporateProfileResponse, tags=["Corporate Profile"])
 async def update_corporate_profile(
     profile_id: int,
     company_name: Optional[str] = Form(None),
@@ -432,9 +436,11 @@ async def update_corporate_profile(
                 detail=f"Failed to upload logo: {str(e)}"
             )
     
-    return SuccessResponse(
-        msg="Corporate profile updated successfully"
-    )
+    # Get the updated profile with relationships
+    updated_profile_with_relations = corporate_repo.get_by_id(profile_id)
+    profile_with_urls = add_base_url_to_profile(updated_profile_with_relations)
+    
+    return convert_profile_to_response(profile_with_urls)
 
 
 @router.delete("/{profile_id}", response_model=MessageResponse, tags=["Corporate Profile"])
