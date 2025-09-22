@@ -9,7 +9,8 @@ from app.schemas.gig_job import (
     GigJobCreate, 
     GigJobUpdate, 
     GigJobResponse, 
-    GigJobListResponse
+    GigJobListResponse,
+    GigJobSkillRemove
 )
 from app.schemas.common import SuccessResponse
 from app.pagination import PaginationParams, create_pagination_response
@@ -57,7 +58,7 @@ async def create_gig_job(
     - **location_id**: Location ID (optional)
     - **experience_level**: Required experience level (entry_level, mid_level, junior, director)
     - **project_length**: Project length (LESS_THAN_ONE_MONTH, ONE_TO_THREE_MONTHS, THREE_TO_SIX_MONTHS, MORE_THAN_SIX_MONTHS)
-    - **skill_names**: List of required skill names (e.g., ["Python", "JavaScript", "React"])
+    - **skill_ids**: List of required skill IDs (e.g., [1, 2, 3])
     - **min_salary**: Minimum salary (required)
     - **max_salary**: Maximum salary (required)
     - **category_id**: Category id (required)
@@ -225,9 +226,10 @@ async def update_gig_job(
     current_user: User = Depends(get_current_user)
 ):
     """
-    Update a gig job (only by the author).
+    Update a gig job (only by the author). New skills will be added to existing ones.
     
     - **gig_job_id**: ID of the gig job to update
+    - **skill_ids**: List of skill IDs to add (will not remove existing skills)
     """
     repository = GigJobRepository(db)
     
@@ -276,6 +278,54 @@ async def delete_gig_job(
     return SuccessResponse(
         msg="Gig job successfully deleted"
     )
+
+
+@router.delete("/{gig_job_id}/skills", response_model=SuccessResponse)
+async def remove_gig_job_skill(
+    gig_job_id: int,
+    skill_data: GigJobSkillRemove,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Remove a GigJobSkill relationship from a gig job (only by the author).
+    
+    - **gig_job_id**: ID of the gig job (from URL)
+    - **gig_job_skill_id**: GigJobSkill ID to remove (from body)
+    
+    Example request body:
+    {
+        "gig_job_skill_id": 48
+    }
+    """
+    repository = GigJobRepository(db)
+    
+    try:
+        result = repository.remove_gig_job_skill(
+            gig_job_id=gig_job_id,
+            gig_job_skill_id=skill_data.gig_job_skill_id,
+            user_id=current_user.id
+        )
+        
+        return SuccessResponse(
+            msg=result["message"],
+            data={
+                "gig_job": result["gig_job"],
+                "removed_skill": result["removed_skill"],
+                "removed_gig_job_skill_id": result["removed_gig_job_skill_id"]
+            }
+        )
+        
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"An error occurred while removing gig job skill: {str(e)}"
+        )
 
 
 @router.get("/filter/search", response_model=GigJobListResponse)

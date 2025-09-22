@@ -261,11 +261,23 @@ class UserSkillCreateWithoutUser(BaseModel):
 class UserSkillCreateBySkillName(BaseModel):
     skill_names: List[str]
 
+class UserSkillCreateBySkillId(BaseModel):
+    skill_ids: List[int]
+
 class UserSkillCreate(UserSkillBase):
     pass
 
 class UserSkillResponse(UserSkillBase):
     id: int
+    created_at: datetime
+    updated_at: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
+
+class UserSkillWithDetailsResponse(BaseModel):
+    id: int
+    skill_details: SkillResponse
     created_at: datetime
     updated_at: Optional[datetime] = None
 
