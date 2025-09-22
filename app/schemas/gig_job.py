@@ -42,10 +42,9 @@ class SortBy(str, Enum):
 class GigJobBase(BaseModel):
     title: str = Field(..., min_length=1, max_length=255, description="Job title")
     description: str = Field(..., min_length=10, description="Detailed job description")
-    location_id: Optional[int] = Field(None, description="Location ID")
     experience_level: ExperienceLevel = Field(..., description="Required experience level")
     project_length: ProjectLength = Field(..., description="Project length (LESS_THAN_ONE_MONTH, ONE_TO_THREE_MONTHS, THREE_TO_SIX_MONTHS, MORE_THAN_SIX_MONTHS)")
-    skill_names: List[str] = Field(..., description="List of required skill names")
+    skill_ids: List[int] = Field(..., description="List of required skill IDs")
     min_salary: float = Field(..., gt=0, description="Minimum salary")
     max_salary: float = Field(..., gt=0, description="Maximum salary")
     category_id: int = Field(..., description="Main category ID")
@@ -61,10 +60,9 @@ class GigJobCreate(GigJobBase):
 class GigJobUpdate(BaseModel):
     title: Optional[str] = Field(None, min_length=1, max_length=255)
     description: Optional[str] = Field(None, min_length=10)
-    location_id: Optional[int] = None
     experience_level: Optional[ExperienceLevel] = None
     project_length: Optional[ProjectLength] = None
-    skill_names: Optional[List[str]] = None
+    skill_ids: Optional[List[int]] = None
     min_salary: Optional[float] = Field(None, gt=0)
     max_salary: Optional[float] = Field(None, gt=0)
     status: Optional[GigJobStatus] = None
@@ -77,19 +75,14 @@ class GigJobResponse(BaseModel):
     id: int
     title: str = Field(..., min_length=1, max_length=255, description="Job title")
     description: str = Field(..., min_length=10, description="Detailed job description")
-    location_id: Optional[int] = None
     location: Optional[Location] = None
     experience_level: ExperienceLevel = Field(..., description="Required experience level")
     project_length: ProjectLength = Field(..., description="Project length (LESS_THAN_ONE_MONTH, ONE_TO_THREE_MONTHS, THREE_TO_SIX_MONTHS, MORE_THAN_SIX_MONTHS)")
     min_salary: float = Field(..., gt=0, description="Minimum salary")
     max_salary: float = Field(..., gt=0, description="Maximum salary")
     status: GigJobStatus
-    author_id: int
-    category_id: int
-    category_name: str
+    author: Optional[dict] = None
     man_category: Optional[dict] = None
-    subcategory_id: Optional[int] = None
-    subcategory_name: Optional[str] = None
     sub_category: Optional[dict] = None
     created_at: datetime
     updated_at: Optional[datetime] = None
@@ -108,12 +101,15 @@ class GigJobFilter(BaseModel):
     project_length: Optional[ProjectLength] = None
     min_salary: Optional[float] = Field(None, gt=0)
     max_salary: Optional[float] = Field(None, gt=0)
-    location_id: Optional[int] = None
     category_id: Optional[int] = None
     subcategory_id: Optional[int] = None
     date_posted: Optional[DatePosted] = None
     sort_by: Optional[SortBy] = SortBy.MOST_RECENT
 
+
+# GigJobSkill removal schema
+class GigJobSkillRemove(BaseModel):
+    gig_job_skill_id: int = Field(..., description="GigJobSkill ID to remove from the gig job")
 
 # List response schema
 class GigJobListResponse(BaseModel):

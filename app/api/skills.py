@@ -73,17 +73,3 @@ def delete_skill(skill_id: int, current_user: User = Depends(get_current_user), 
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-
-@router.get("/user/{user_id}", response_model=SuccessResponse, tags=["Skills"])
-def get_user_skills(user_id: int, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    try:
-        repo = SkillRepository(db)
-        skills = repo.get_user_skills(user_id)
-        # Convert SQLAlchemy models to Pydantic response models
-        skill_responses = [SkillResponse.model_validate(skill) for skill in skills]
-        return SuccessResponse(
-            msg="User skills retrieved successfully",
-            data=skill_responses
-        )
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e)) 
