@@ -49,6 +49,7 @@ class GigJobBase(BaseModel):
     max_salary: float = Field(..., gt=0, description="Maximum salary")
     category_id: int = Field(..., description="Main category ID")
     subcategory_id: Optional[int] = Field(None, description="Subcategory ID")
+    location_id: Optional[int] = Field(None, description="Location ID")
 
 
 # Create schema
@@ -68,6 +69,7 @@ class GigJobUpdate(BaseModel):
     status: Optional[GigJobStatus] = None
     category_id: Optional[int] = None
     subcategory_id: Optional[int] = None
+    location_id: Optional[int] = None
 
 
 # Response schema

@@ -17,4 +17,5 @@ class Location(Base):
     
     # Relationships
     users = relationship('User', back_populates='location')
-    corporate_profiles = relationship('CorporateProfile', back_populates='location') 
+    corporate_profiles = relationship('CorporateProfile', back_populates='location')
+    gig_jobs = relationship('GigJob', back_populates='location') 
