@@ -40,6 +40,17 @@ class ChatRoomResponse(BaseModel):
 class ChatRoomCreate(BaseModel):
     receiver_id: int = Field(..., description="ID of the user to chat with")
 
+# Sender Details Schema
+class SenderDetails(BaseModel):
+    id: int
+    name: str
+    email: str
+    avatar_url: Optional[str] = None
+    is_online: bool = False
+    
+    class Config:
+        from_attributes = True
+
 # Message Schemas
 class ChatMessageResponse(BaseModel):
     id: int
@@ -52,6 +63,7 @@ class ChatMessageResponse(BaseModel):
     is_read: bool
     is_deleted: bool
     is_sender: bool  # Frontend uchun: true = o'ng tomonda, false = chap tomonda
+    sender_details: Optional[SenderDetails] = None
     
     class Config:
         from_attributes = True

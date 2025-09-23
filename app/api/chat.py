@@ -227,6 +227,18 @@ async def get_room(
             clean_path = message.file_path.replace("\\", "/")
             file_url = f"{settings.BASE_URL}/{clean_path}"
         
+        # Get sender details
+        sender_details = None
+        if message.sender:
+            is_online = chat_repo.is_user_online(message.sender.id)
+            sender_details = {
+                "id": message.sender.id,
+                "name": message.sender.name,
+                "email": message.sender.email,
+                "avatar_url": message.sender.avatar_url,
+                "is_online": is_online
+            }
+        
         message_responses.append({
             "id": message.id,
             "content": message.content,
@@ -237,7 +249,8 @@ async def get_room(
             "created_at": message.created_at.isoformat(),
             "is_read": message.is_read,
             "is_deleted": message.is_deleted,
-            "is_sender": is_sender  # Frontend uchun: true = o'ng tomonda, false = chap tomonda
+            "is_sender": is_sender,  # Frontend uchun: true = o'ng tomonda, false = chap tomonda
+            "sender_details": sender_details
         })
     
     return {
@@ -290,6 +303,18 @@ async def get_room_messages(
             clean_path = message.file_path.replace("\\", "/")
             file_url = f"{settings.BASE_URL}/{clean_path}"
         
+        # Get sender details
+        sender_details = None
+        if message.sender:
+            is_online = chat_repo.is_user_online(message.sender.id)
+            sender_details = {
+                "id": message.sender.id,
+                "name": message.sender.name,
+                "email": message.sender.email,
+                "avatar_url": message.sender.avatar_url,
+                "is_online": is_online
+            }
+        
         message_responses.append(ChatMessageResponse(
             id=message.id,
             content=message.content,
@@ -300,7 +325,8 @@ async def get_room_messages(
             created_at=message.created_at,
             is_read=message.is_read,
             is_deleted=message.is_deleted,
-            is_sender=is_sender
+            is_sender=is_sender,
+            sender_details=sender_details
         ))
     
     return MessageListResponse(
@@ -368,6 +394,18 @@ async def update_message(
         clean_path = updated_message.file_path.replace("\\", "/")
         file_url = f"{settings.BASE_URL}/{clean_path}"
     
+    # Get sender details
+    sender_details = None
+    if updated_message.sender:
+        is_online = chat_repo.is_user_online(updated_message.sender.id)
+        sender_details = {
+            "id": updated_message.sender.id,
+            "name": updated_message.sender.name,
+            "email": updated_message.sender.email,
+            "avatar_url": updated_message.sender.avatar_url,
+            "is_online": is_online
+        }
+    
     # Create response
     message_response = {
         "id": updated_message.id,
@@ -379,7 +417,8 @@ async def update_message(
         "created_at": updated_message.created_at.isoformat(),
         "is_read": updated_message.is_read,
         "is_deleted": updated_message.is_deleted,
-        "is_sender": True  # Bu message yuboruvchi uchun
+        "is_sender": True,  # Bu message yuboruvchi uchun
+        "sender_details": sender_details
     }
     
     # Broadcast updated message to all users in the room
@@ -674,6 +713,18 @@ async def websocket_endpoint(websocket: WebSocket, token: str = None, room_id: i
                     clean_path = message.file_path.replace("\\", "/")
                     file_url = f"{settings.BASE_URL}/{clean_path}"
                 
+                # Get sender details
+                sender_details = None
+                if message.sender:
+                    is_online = chat_repo.is_user_online(message.sender.id)
+                    sender_details = {
+                        "id": message.sender.id,
+                        "name": message.sender.name,
+                        "email": message.sender.email,
+                        "avatar_url": message.sender.avatar_url,
+                        "is_online": is_online
+                    }
+                
                 # Create response
                 message_response = {
                     "id": message.id,
@@ -684,7 +735,8 @@ async def websocket_endpoint(websocket: WebSocket, token: str = None, room_id: i
                     "file_size": message.file_size,
                     "created_at": message.created_at.isoformat(),
                     "is_read": message.is_read,
-                    "is_deleted": message.is_deleted
+                    "is_deleted": message.is_deleted,
+                    "sender_details": sender_details
                 }
                 
                 # Broadcast message to all users in the room

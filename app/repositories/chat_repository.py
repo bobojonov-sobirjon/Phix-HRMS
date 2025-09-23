@@ -133,6 +133,9 @@ class ChatRepository:
         
         self.db.commit()
         self.db.refresh(message)
+        
+        # Load sender relationship for immediate use
+        self.db.refresh(message, ['sender'])
         return message
 
     def get_room_messages(self, room_id: int, user_id: int, page: int = 1, per_page: int = 50) -> List[ChatMessage]:
@@ -142,7 +145,9 @@ class ChatRepository:
             return []
         
         offset = (page - 1) * per_page
-        return self.db.query(ChatMessage).filter(
+        return self.db.query(ChatMessage).options(
+            joinedload(ChatMessage.sender)
+        ).filter(
             and_(
                 ChatMessage.room_id == room_id,
                 ChatMessage.is_deleted == False
