@@ -16,6 +16,8 @@
     .row-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
     label { display:block; font-size: 12px; color: var(--muted); margin-bottom: 6px; }
     input, select { width: 100%; padding: 10px 12px; border-radius: 10px; border: 1px solid #374151; background: #0b1220; color: #e5e7eb; outline: none; }
+    input#token { border: 2px solid #06b6d4; background: #0f172a; }
+    input#token:focus { border-color: #0891b2; box-shadow: 0 0 0 3px rgba(6, 182, 212, 0.1); }
     input::placeholder { color: #6b7280; }
     .actions { display:flex; gap: 10px; margin-top: 12px; }
     button { padding: 10px 14px; border: 1px solid #1f2937; border-radius: 10px; background: #0b1220; color: #e5e7eb; cursor: pointer; }
@@ -35,17 +37,17 @@
       <div class="row">
         <div>
           <label>App ID</label>
-          <input id="appId" placeholder="7073e4de58144a0183aabdf87ad14d44" />
+          <input id="appId" placeholder="e406a7515b244f6b968ab0520532609a" />
         </div>
         <div>
           <label>Channel</label>
-          <input id="channel" placeholder="demo" />
+          <input id="channel" placeholder="2" />
         </div>
       </div>
       <div class="row">
         <div>
-          <label>Token</label>
-          <input id="token" placeholder="Paste token here" />
+          <label>Token (Required)</label>
+          <input id="token" placeholder="Paste your Agora token here" />
         </div>
         <div>
           <label>UID (0 = auto)</label>
@@ -54,10 +56,9 @@
       </div>
       <div class="row-3">
         <div>
-          <label>Role</label>
+          <label>Role (RTC Mode)</label>
           <select id="role">
-            <option value="host" selected>publisher (host)</option>
-            <option value="audience">subscriber (audience)</option>
+            <option value="host" selected>Publisher (All users in RTC mode)</option>
           </select>
         </div>
         <div>
@@ -81,7 +82,13 @@
         <button id="toggle-audio">Mute Audio</button>
         <button id="toggle-video">Mute Video</button>
       </div>
-      <div class="note">Generate a token in your terminal, then paste it here. Both ends must use the same Channel. If one side uses UID 0 (auto), the other can pick any number.</div>
+         <div class="note">
+           <strong>Instructions:</strong><br>
+           1. Fresh token will be automatically generated from backend (006 format)<br>
+           2. Both users must use the same Channel name<br>
+           3. Click "Join" to start video call<br>
+           4. No manual token entry needed - backend handles everything
+         </div>
     </div>
 
     <div class="videos">
@@ -106,9 +113,9 @@
 
     // Hard-coded defaults (edit here)
     const DEFAULTS = {
-      appId: '7073e4de58144a0183aabdf87ad14d44',
-      channel: 'demo',
-      // NOTE: Token expires; regenerate and update here when needed
+      appId: 'e406a7515b244f6b968ab0520532609a',
+      channel: '2',
+      // NOTE: Token must be entered by user - no hardcoded token
       token: '',
       uid: 0,
       role: 'host', // 'host' or 'audience'
@@ -117,15 +124,22 @@
     };
 
     function getInputs() {
-      // Use hard-coded values except token which can be typed in the input
-      const tokenFromInput = (q('token').value || '').trim();
-      return { ...DEFAULTS, token: tokenFromInput || DEFAULTS.token };
+      // Get all values from inputs
+      return {
+        appId: q('appId').value.trim() || DEFAULTS.appId,
+        channel: q('channel').value.trim() || DEFAULTS.channel,
+        token: q('token').value.trim() || DEFAULTS.token,
+        uid: parseInt(q('uid').value) || DEFAULTS.uid,
+        role: q('role').value || DEFAULTS.role,
+        audio: q('audio').value === 'on',
+        video: q('video').value === 'on'
+      };
     }
 
     function ensureInputs({ appId, channel, token }) {
       if (!appId) throw new Error('App ID is required');
       if (!channel) throw new Error('Channel is required');
-      if (!token) throw new Error('Token is required');
+      if (!token) throw new Error('Token is required - Please enter your Agora token');
     }
 
     function onRemoteUserPublished(user, mediaType) {
@@ -161,37 +175,98 @@
         alert('Already connecting/connected');
         return;
       }
-      const { appId, channel, token, uid, role, audio, video } = getInputs();
-      ensureInputs({ appId, channel, token });
-
-      if (role === 'audience') {
-        client.setClientRole('audience');
-      } else {
-        client.setClientRole('host');
+      
+      const inputs = getInputs();
+      if (!inputs.appId || !inputs.channel) {
+        alert('App ID and Channel are required');
+        return;
       }
 
-      setUiState();
-      // Important: if uid is 0, pass 0 (do NOT coerce to null)
-      const joinUid = (uid === 0 ? 0 : (uid ?? null));
-      const actualUid = await client.join(appId, channel, token, joinUid);
-      joined = true;
-      setUiState();
-
-      if (audio) {
-        localAudioTrack = await AgoraRTC.createMicrophoneAudioTrack();
+      try {
+        console.log('Initializing Agora client...');
+        
+        // Initialize client
+        if (!client) {
+          client = AgoraRTC.createClient({ mode: 'rtc', codec: 'vp8' });
+        }
+        
+        // Get fresh token from backend
+        console.log('Getting fresh token from backend...');
+        const tokenResponse = await fetch('/api/v1/chat/video-call/token/test', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            channel_name: inputs.channel,
+            uid: inputs.uid,
+            user_account: null,
+            role: 'publisher',
+            expire_seconds: 3600
+          })
+        });
+        
+        if (!tokenResponse.ok) {
+          throw new Error(`Backend error: ${tokenResponse.status} ${tokenResponse.statusText}`);
+        }
+        
+        const tokenData = await tokenResponse.json();
+        const token = tokenData.token;
+        
+        console.log(`Got token from backend: ${token.substring(0, 50)}...`);
+        console.log(`Token format: ${token.startsWith('006') ? '006 (Backend Generated)' : token.startsWith('007') ? '007 (Agora Dashboard)' : 'Unknown'}`);
+        
+        // Update token field
+        document.getElementById('token').value = token;
+        
+        // Note: setClientRole is not available in RTC mode
+        // In RTC mode, all users are publishers by default
+        console.log(`Role: ${inputs.role} (RTC mode - all users are publishers)`);
+        
+        // Join channel
+        console.log(`Joining channel: ${inputs.channel}`);
+        const uid = await client.join(inputs.appId, inputs.channel, token, inputs.uid);
+        joined = true;
+        console.log(`Successfully joined with UID: ${uid}`);
+        
+        // Create and publish tracks
+        if (inputs.audio) {
+          localAudioTrack = await AgoraRTC.createMicrophoneAudioTrack();
+          await client.publish([localAudioTrack]);
+          console.log('Audio track published');
+        }
+        
+        if (inputs.video) {
+          localVideoTrack = await AgoraRTC.createCameraVideoTrack();
+          await client.publish([localVideoTrack]);
+          localVideoTrack.play('local-player');
+          console.log('Video track published and playing');
+        }
+        
+        // Set up event listeners
+        client.on('user-published', async (user, mediaType) => {
+          console.log(`Remote user ${user.uid} published ${mediaType}`);
+          await client.subscribe(user, mediaType);
+          
+          if (mediaType === 'video') {
+            user.videoTrack.play('remote-player');
+            console.log('Remote video playing');
+          }
+          if (mediaType === 'audio') {
+            user.audioTrack.play();
+            console.log('Remote audio playing');
+          }
+        });
+        
+        client.on('user-unpublished', (user, mediaType) => {
+          console.log(`Remote user ${user.uid} unpublished ${mediaType}`);
+        });
+        
+        setUiState();
+        console.log('Video call started successfully!');
+        
+      } catch (error) {
+        console.error(`Error: ${error.message}`);
+        alert(`Error: ${error.message}`);
       }
-      if (video) {
-        localVideoTrack = await AgoraRTC.createCameraVideoTrack();
-      }
-
-      if (localVideoTrack) {
-        localVideoTrack.play('local-player');
-      }
-
-      const tracks = [];
-      if (localAudioTrack) tracks.push(localAudioTrack);
-      if (localVideoTrack) tracks.push(localVideoTrack);
-      if (tracks.length) await client.publish(tracks);
     }
 
     async function leave() {
@@ -230,25 +305,28 @@
     q('toggle-audio').addEventListener('click', function() { toggleAudio.call(this); });
     q('toggle-video').addEventListener('click', function() { toggleVideo.call(this); });
 
-    // Initialize UI with hard-coded defaults and lock inputs
+    // Initialize UI with hard-coded defaults
     window.addEventListener('DOMContentLoaded', () => {
       q('appId').value = DEFAULTS.appId;
       q('channel').value = DEFAULTS.channel;
-      q('token').value = DEFAULTS.token;
+      q('token').value = ''; // Clear token field - will be generated automatically
       q('uid').value = DEFAULTS.uid;
       q('role').value = DEFAULTS.role === 'host' ? 'host' : 'audience';
       q('audio').value = DEFAULTS.audio ? 'on' : 'off';
       q('video').value = DEFAULTS.video ? 'on' : 'off';
 
-      // Disable editing to enforce hard-coded inputs
-      q('appId').disabled = true;
-      q('channel').disabled = true;
-      // Keep token input editable so you can paste a new token
-      // q('token').disabled = true;
-      q('uid').disabled = true;
-      q('role').disabled = true;
-      q('audio').disabled = true;
-      q('video').disabled = true;
+      // Keep all inputs editable for flexibility
+      q('appId').disabled = false;
+      q('channel').disabled = false;
+      q('token').disabled = false; // Allow manual token entry if needed
+      q('uid').disabled = false;
+      q('role').disabled = false;
+      q('audio').disabled = false;
+      q('video').disabled = false;
+
+      // Focus on channel input since token is auto-generated
+      q('channel').focus();
+      q('channel').select();
 
       setUiState();
     });

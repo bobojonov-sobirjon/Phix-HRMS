@@ -19,16 +19,26 @@ async def authenticate_websocket(websocket: WebSocket) -> Optional[User]:
         # Verify the token
         try:
             payload = verify_token(token)
-            user_id = payload.get("user_id")
+            if not payload:
+                await websocket.close(code=4001, reason="Invalid or expired token")
+                return None
+                
+            # Check token type
+            token_type = payload.get("type")
+            if token_type != "access":
+                await websocket.close(code=4001, reason="Invalid token type")
+                return None
+                
+            user_id = payload.get("sub") or payload.get("user_id")
             
             if not user_id:
-                await websocket.close(code=4001, reason="Invalid token payload")
+                await websocket.close(code=4001, reason="Invalid token payload - no user_id")
                 return None
             
             # Get user from database
             db = SessionLocal()
             try:
-                user = db.query(User).filter(User.id == user_id).first()
+                user = db.query(User).filter(User.id == int(user_id)).first()
                 if not user:
                     await websocket.close(code=4001, reason="User not found")
                     return None

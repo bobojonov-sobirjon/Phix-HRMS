@@ -7,6 +7,8 @@ class MessageType(str, Enum):
     TEXT = "text"
     IMAGE = "image"
     FILE = "file"
+    VOICE = "voice"
+    VIDEO_CALL = "video_call"
 
 # User Search
 class UserSearchResponse(BaseModel):
@@ -41,22 +43,15 @@ class ChatRoomCreate(BaseModel):
 # Message Schemas
 class ChatMessageResponse(BaseModel):
     id: int
-    room_id: int
-    sender_id: int
-    receiver_id: int
-    sender_name: str
-    receiver_name: str
-    sender_avatar: Optional[str] = None
-    receiver_avatar: Optional[str] = None
-    message_type: MessageType
     content: Optional[str] = None
+    message_type: MessageType
     file_name: Optional[str] = None
     file_path: Optional[str] = None
     file_size: Optional[int] = None
-    mime_type: Optional[str] = None
     created_at: datetime
     is_read: bool
     is_deleted: bool
+    is_sender: bool  # Frontend uchun: true = o'ng tomonda, false = chap tomonda
     
     class Config:
         from_attributes = True
@@ -107,3 +102,41 @@ class MessageListResponse(BaseModel):
 class UserSearchListResponse(BaseModel):
     users: List[UserSearchResponse]
     total: int
+
+# Video Calling Schemas
+class VideoCallTokenRequest(BaseModel):
+    channel_name: str = Field(..., description="Channel name for the video call")
+    uid: Optional[int] = Field(None, description="User ID (0 for auto-assign)")
+    user_account: Optional[str] = Field(None, description="String-based user account")
+    role: str = Field("publisher", description="Role: publisher or subscriber")
+    expire_seconds: int = Field(3600, ge=60, le=86400, description="Token expiry in seconds")
+
+class VideoCallTokenResponse(BaseModel):
+    app_id: str
+    channel: str
+    uid: Optional[int]
+    user_account: Optional[str]
+    role: str
+    expire_at: int
+    token: str
+
+class VideoCallRequest(BaseModel):
+    receiver_id: int = Field(..., description="ID of the user to call")
+    channel_name: str = Field(..., description="Channel name for the call")
+
+class VideoCallResponse(BaseModel):
+    call_id: str
+    channel_name: str
+    token: VideoCallTokenResponse
+    receiver_id: int
+    created_at: datetime
+
+class VideoCallStatus(BaseModel):
+    call_id: str
+    status: str  # calling, answered, rejected, ended
+    caller_id: int
+    receiver_id: int
+    channel_name: str
+    created_at: datetime
+    answered_at: Optional[datetime] = None
+    ended_at: Optional[datetime] = None
