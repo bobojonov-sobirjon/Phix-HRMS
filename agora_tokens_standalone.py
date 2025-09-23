@@ -3,28 +3,25 @@ from typing import Optional, Dict, Any
 
 
 try:
-    # Preferred newer API
-    from agora_token_builder import RtcTokenBuilder2, Role
-    _RTC = RtcTokenBuilder2
-    _ROLE_PUBLISHER = Role.PUBLISHER
-    _ROLE_SUBSCRIBER = Role.SUBSCRIBER
-except Exception:
-    # Fallback for older package versions
-    from agora_token_builder import RtcTokenBuilder as RtcTokenBuilder2  # type: ignore
-    _RTC = RtcTokenBuilder2  # type: ignore
-
-    class _Role:  # type: ignore
+    # Use RtcTokenBuilder for 007 format
+    from agora_token_builder import RtcTokenBuilder
+    _RTC = RtcTokenBuilder
+    
+    # Define roles manually since Role class doesn't exist
+    class _Role:
         PUBLISHER = 1
         SUBSCRIBER = 2
-
+    
     _ROLE_PUBLISHER = _Role.PUBLISHER
     _ROLE_SUBSCRIBER = _Role.SUBSCRIBER
+except Exception as e:
+    print(f"Error importing agora_token_builder: {e}")
+    raise
 
 
 # Default credentials (hard-coded as requested)
-_AGORA_APP_ID: Optional[str] = "7073e4de58144a0183aabdf87ad14d44"
-# _AGORA_APP_CERT: Optional[str] = "97f8c8a65bcb41f4987a98279b0d1a81"
-_AGORA_APP_CERT: Optional[str] = "557ba5d639d842068426c8bc55fe1ff0"
+_AGORA_APP_ID: Optional[str] = "e406a7515b244f6b968ab0520532609a"
+_AGORA_APP_CERT: Optional[str] = "87beeaa4750340c281e9d7abb79fa1de"
 
 
 
@@ -88,7 +85,7 @@ def generate_rtc_token(
         raise ValueError("expire_seconds must be between 60 and 86400")
 
     target_role = _resolve_role(role)
-    expire_at = int((datetime.utcnow() + timedelta(seconds=expire_seconds)).timestamp())
+    expire_at = int((datetime.now().timestamp() + expire_seconds))
 
     if user_account is not None and user_account != "":
         token = _RTC.buildTokenWithAccount(

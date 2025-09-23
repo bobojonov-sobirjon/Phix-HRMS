@@ -14,8 +14,7 @@ class ConnectionManager:
         self.typing_users: Dict[int, Set[int]] = {}
 
     async def connect(self, websocket: WebSocket, user_id: int):
-        """Accept a WebSocket connection and store it"""
-        await websocket.accept()
+        """Store a WebSocket connection (websocket should already be accepted)"""
         self.active_connections[user_id] = websocket
         print(f"User {user_id} connected")
 
@@ -117,12 +116,33 @@ class ConnectionManager:
 
     async def broadcast_new_message(self, message_data: dict, room_id: int, sender_id: int, receiver_id: int):
         """Broadcast new message to room participants"""
-        message = {
+        # Send to sender (is_sender: true - o'ng tomonda)
+        sender_message = {
             "type": "new_message",
-            "data": message_data
+            "data": {**message_data, "is_sender": True}
         }
         
-        await self.send_direct_message(message, sender_id, receiver_id)
+        # Send to receiver (is_sender: false - chap tomonda)
+        receiver_message = {
+            "type": "new_message", 
+            "data": {**message_data, "is_sender": False}
+        }
+        
+        # Send to sender
+        if sender_id in self.active_connections:
+            try:
+                await self.active_connections[sender_id].send_text(json.dumps(sender_message))
+            except Exception as e:
+                print(f"Error sending message to sender {sender_id}: {e}")
+                self.disconnect(sender_id)
+        
+        # Send to receiver
+        if receiver_id in self.active_connections:
+            try:
+                await self.active_connections[receiver_id].send_text(json.dumps(receiver_message))
+            except Exception as e:
+                print(f"Error sending message to receiver {receiver_id}: {e}")
+                self.disconnect(receiver_id)
 
     async def broadcast_message_read(self, room_id: int, user_id: int, user_name: str):
         """Broadcast message read status"""
@@ -167,6 +187,102 @@ class ConnectionManager:
         """Remove user from current room"""
         if user_id in self.user_rooms:
             del self.user_rooms[user_id]
+
+    # Video Calling Methods
+    async def broadcast_video_call(self, call_id: str, channel_name: str, caller_id: int, caller_name: str, receiver_id: int, room_id: int):
+        """Broadcast video call notification"""
+        call_message = {
+            "type": "video_call",
+            "data": {
+                "call_id": call_id,
+                "channel_name": channel_name,
+                "caller_id": caller_id,
+                "caller_name": caller_name,
+                "receiver_id": receiver_id,
+                "room_id": room_id,
+                "status": "calling",
+                "created_at": datetime.utcnow().isoformat()
+            }
+        }
+        
+        # Send to receiver
+        if receiver_id in self.active_connections:
+            try:
+                await self.active_connections[receiver_id].send_text(json.dumps(call_message))
+            except Exception as e:
+                print(f"Error sending video call to receiver {receiver_id}: {e}")
+                self.disconnect(receiver_id)
+        
+        # Send confirmation to caller
+        if caller_id in self.active_connections:
+            try:
+                await self.active_connections[caller_id].send_text(json.dumps(call_message))
+            except Exception as e:
+                print(f"Error sending video call confirmation to caller {caller_id}: {e}")
+                self.disconnect(caller_id)
+
+    async def broadcast_video_call_answer(self, call_id: str, receiver_id: int, receiver_name: str):
+        """Broadcast video call answered notification"""
+        answer_message = {
+            "type": "video_call_answered",
+            "data": {
+                "call_id": call_id,
+                "receiver_id": receiver_id,
+                "receiver_name": receiver_name,
+                "status": "answered",
+                "answered_at": datetime.utcnow().isoformat()
+            }
+        }
+        
+        # Send to all connected users (both caller and receiver will receive this)
+        for user_id, websocket in self.active_connections.items():
+            try:
+                await websocket.send_text(json.dumps(answer_message))
+            except Exception as e:
+                print(f"Error broadcasting video call answer to user {user_id}: {e}")
+                self.disconnect(user_id)
+
+    async def broadcast_video_call_reject(self, call_id: str, receiver_id: int, receiver_name: str):
+        """Broadcast video call rejected notification"""
+        reject_message = {
+            "type": "video_call_rejected",
+            "data": {
+                "call_id": call_id,
+                "receiver_id": receiver_id,
+                "receiver_name": receiver_name,
+                "status": "rejected",
+                "rejected_at": datetime.utcnow().isoformat()
+            }
+        }
+        
+        # Send to all connected users
+        for user_id, websocket in self.active_connections.items():
+            try:
+                await websocket.send_text(json.dumps(reject_message))
+            except Exception as e:
+                print(f"Error broadcasting video call rejection to user {user_id}: {e}")
+                self.disconnect(user_id)
+
+    async def broadcast_video_call_end(self, call_id: str, user_id: int, user_name: str):
+        """Broadcast video call ended notification"""
+        end_message = {
+            "type": "video_call_ended",
+            "data": {
+                "call_id": call_id,
+                "user_id": user_id,
+                "user_name": user_name,
+                "status": "ended",
+                "ended_at": datetime.utcnow().isoformat()
+            }
+        }
+        
+        # Send to all connected users
+        for uid, websocket in self.active_connections.items():
+            try:
+                await websocket.send_text(json.dumps(end_message))
+            except Exception as e:
+                print(f"Error broadcasting video call end to user {uid}: {e}")
+                self.disconnect(uid)
 
 # Global connection manager instance
 manager = ConnectionManager()

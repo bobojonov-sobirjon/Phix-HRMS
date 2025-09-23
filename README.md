@@ -14,6 +14,14 @@ A comprehensive Human Resource Management System API built with FastAPI.
 
 ## New Features (Latest Update)
 
+### Video Calling System 🎥
+- **Real-time Video Calls**: Agora.io integration for high-quality video calling
+- **WebSocket Support**: Real-time communication for call management
+- **Call Management**: Start, answer, reject, and end video calls
+- **Token Generation**: Secure Agora RTC token generation
+- **Multi-user Support**: Support for 1-on-1 video calls
+- **Call Notifications**: Real-time call status updates via WebSocket
+
 ### Corporate Profile System
 - **Create Corporate Profile**: Users can create company profiles
 - **Email Verification**: OTP-based verification system
@@ -59,6 +67,14 @@ A comprehensive Human Resource Management System API built with FastAPI.
 - `GET /api/v1/proposals/my-proposals` - Get user's proposals
 - `PUT /api/v1/proposals/{proposal_id}` - Update proposal
 - `DELETE /api/v1/proposals/{proposal_id}` - Delete proposal
+
+### Video Calling
+- `POST /api/chat/video-call/token` - Generate Agora RTC token
+- `POST /api/chat/video-call/start` - Start video call
+- `POST /api/chat/video-call/answer/{call_id}` - Answer video call
+- `POST /api/chat/video-call/reject/{call_id}` - Reject video call
+- `POST /api/chat/video-call/end/{call_id}` - End video call
+- `WS /api/chat/ws` - WebSocket for real-time communication
 
 ## Database Models
 
@@ -115,6 +131,13 @@ APP_NAME=Phix HRMS
 2. Single proposal system for all job types
 3. Prevents duplicate applications
 4. Full CRUD operations on proposals
+
+### Video Calling
+1. Users can start video calls with other users
+2. Real-time call notifications via WebSocket
+3. Agora.io integration for high-quality video
+4. Support for call management (answer, reject, end)
+5. Test client available at `static/video_call_client.html`
 
 ## Security Features
 

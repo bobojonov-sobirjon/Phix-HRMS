@@ -246,6 +246,8 @@ class ChatRepository:
     # Presence Methods
     def update_user_presence(self, user_id: int, is_online: bool) -> UserPresence:
         """Update user's online status"""
+        from datetime import timezone
+        
         presence = self.db.query(UserPresence).filter(UserPresence.user_id == user_id).first()
         
         if not presence:
@@ -253,7 +255,7 @@ class ChatRepository:
             self.db.add(presence)
         
         presence.is_online = is_online
-        presence.last_seen = datetime.utcnow()
+        presence.last_seen = datetime.now(timezone.utc)
         
         self.db.commit()
         self.db.refresh(presence)
@@ -265,10 +267,14 @@ class ChatRepository:
 
     def get_online_users(self) -> List[UserPresence]:
         """Get all currently online users"""
+        from datetime import timezone
+        now = datetime.now(timezone.utc)
+        five_minutes_ago = now - timedelta(minutes=5)
+        
         return self.db.query(UserPresence).filter(
             and_(
                 UserPresence.is_online == True,
-                UserPresence.last_seen > datetime.utcnow() - timedelta(minutes=5)
+                UserPresence.last_seen > five_minutes_ago
             )
         ).all()
 
@@ -279,4 +285,7 @@ class ChatRepository:
             return False
         
         # Consider user online if last seen within 5 minutes
-        return presence.is_online and presence.last_seen > datetime.utcnow() - timedelta(minutes=5)
+        from datetime import timezone
+        now = datetime.now(timezone.utc)
+        five_minutes_ago = now - timedelta(minutes=5)
+        return presence.is_online and presence.last_seen > five_minutes_ago

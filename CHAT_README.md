@@ -7,7 +7,7 @@ This implementation adds a complete real-time chat system to your HRMS applicati
 - **Direct Messaging**: 1-on-1 chat between users
 - **Real-time Communication**: WebSocket-based instant messaging
 - **File Sharing**: Send images and files (not URLs)
-- **Message Types**: Text, images, and files
+- **Message Types**: Text, images, files, and voice messages
 - **Online Status**: See who's online/offline
 - **Message Read Status**: Track read/unread messages
 
@@ -431,10 +431,14 @@ Authorization: Bearer {jwt_token}
 ```
 
 ### WebSocket
-- `WS /api/v1/chat/ws?token={jwt_token}` - Real-time chat connection (requires JWT token)
+- `WS /api/v1/chat/ws?token={jwt_token}&room_id={room_id}` - Real-time chat connection (requires JWT token and optional room_id)
 
 **Connection:**
 ```javascript
+// Connect to specific room
+const ws = new WebSocket('ws://localhost:8000/api/v1/chat/ws?token=your-jwt-token&room_id=1');
+
+// Or connect without room (join room later via message)
 const ws = new WebSocket('ws://localhost:8000/api/v1/chat/ws?token=your-jwt-token');
 ```
 
@@ -461,12 +465,25 @@ WS /api/v1/chat/ws?token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
 
 **Complete WebSocket Flow:**
 ```json
-// 1. Client connects
+// 1. Client connects with room_id in URL
+WS /api/v1/chat/ws?token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...&room_id=1
+
+// 2. Server accepts connection and automatically joins room (no response)
+
+// 3. Client sends a message (room_id is optional if provided in URL)
+{
+  "type": "send_message",
+  "data": {
+    "receiver_id": 2,
+    "message_type": "text",
+    "content": "Hello there!"
+  }
+}
+
+// Alternative: Connect without room_id and join room via message
 WS /api/v1/chat/ws?token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
 
-// 2. Server accepts connection (no response)
-
-// 3. Client joins a room
+// Then join room
 {
   "type": "join_room",
   "data": {
@@ -474,7 +491,7 @@ WS /api/v1/chat/ws?token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
   }
 }
 
-// 4. Client sends a message
+// Then send message
 {
   "type": "send_message",
   "data": {
@@ -558,9 +575,10 @@ Authorization: Bearer {jwt_token}
 ### Supported File Types
 **Images**: JPEG, JPG, PNG, GIF, WebP (max 10MB)
 **Files**: PDF, DOC, DOCX, XLS, XLSX, TXT, ZIP, RAR (max 50MB)
+**Voice**: MP3, WAV, M4A, AAC, OGG (max 20MB)
 
 ### File Storage
-- Files stored in `static/chat_files/images/` and `static/chat_files/files/`
+- Files stored in `static/chat_files/images/`, `static/chat_files/files/`, and `static/chat_files/voices/`
 - Unique filenames generated using UUID
 - Files accessible via `/static/chat_files/{type}/{filename}`
 
@@ -568,7 +586,17 @@ Authorization: Bearer {jwt_token}
 
 ### Client to Server Messages
 ```json
-// Send text message
+// Send text message (room_id optional if provided in URL)
+{
+  "type": "send_message",
+  "data": {
+    "receiver_id": 2,
+    "message_type": "text",
+    "content": "Hello there!"
+  }
+}
+
+// Or with room_id in message (if not provided in URL)
 {
   "type": "send_message",
   "data": {
@@ -604,6 +632,20 @@ Authorization: Bearer {jwt_token}
     "file_name": "document.pdf",
     "file_size": 1024000,
     "mime_type": "application/pdf"
+  }
+}
+
+// Send voice message
+{
+  "type": "send_message",
+  "data": {
+    "room_id": 1,
+    "receiver_id": 2,
+    "message_type": "voice",
+    "file_data": "base64_encoded_audio_data",
+    "file_name": "voice_message.mp3",
+    "file_size": 256000,
+    "mime_type": "audio/mpeg"
   }
 }
 
@@ -722,6 +764,10 @@ Content-Type: application/json
 
 ### 3. WebSocket Connection
 ```javascript
+// Connect to specific room
+const ws = new WebSocket('ws://localhost:8000/api/v1/chat/ws?token=your-jwt-token&room_id=1');
+
+// Or connect without room
 const ws = new WebSocket('ws://localhost:8000/api/v1/chat/ws?token=your-jwt-token');
 ```
 
