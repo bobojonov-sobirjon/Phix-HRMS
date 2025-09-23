@@ -409,21 +409,20 @@ async def delete_message(
 
 # WebSocket Endpoint
 @router.websocket("/ws")
-async def websocket_endpoint(websocket: WebSocket, room_id: int = None):
+async def websocket_endpoint(websocket: WebSocket, token: str = None, room_id: int = None):
     """WebSocket endpoint for real-time chat with authentication and room_id"""
     from ..utils.websocket_auth import authenticate_websocket
     
-    # For testing, skip authentication
-    # user = await authenticate_websocket(websocket)
-    # if not user:
-    #     return  # Connection already closed by authentication function
+    # WebSocket connection ni accept qiling
+    await websocket.accept()
     
-    # user_id = user.id
-    # user_name = user.name
+    # Authenticate user
+    user = await authenticate_websocket(websocket)
+    if not user:
+        return  # Connection already closed by authentication function
     
-    # Test user data
-    user_id = 1
-    user_name = "Test User"
+    user_id = user.id
+    user_name = user.name
     
     await manager.connect(websocket, user_id)
     
