@@ -69,6 +69,25 @@ class Settings:
     # App Configuration
     APP_NAME: str = os.getenv("APP_NAME", "Phix HRMS")
     APP_VERSION: str = os.getenv("APP_VERSION", "1.0.0")
-    BASE_URL: str = os.getenv("BASE_URL", "http://127.0.0.1:8000")
+    
+    # Auto-detect BASE_URL based on environment
+    def get_base_url():
+        base_url = os.getenv("BASE_URL")
+        if base_url:
+            return base_url
+        
+        # Check if running in production (common indicators)
+        if os.getenv("ENVIRONMENT") == "production" or os.getenv("PRODUCTION") == "true":
+            return "https://api.migfastkg.ru"
+        
+        # Check if running on server (not localhost)
+        hostname = os.getenv("HOSTNAME", "")
+        if "migfastkg.ru" in hostname or "sutwmdarfs" in hostname:
+            return "https://api.migfastkg.ru"
+        
+        # Default to local
+        return "http://127.0.0.1:8000"
+    
+    BASE_URL: str = get_base_url()
 
 settings = Settings()
