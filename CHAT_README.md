@@ -822,6 +822,168 @@ The chat tables are automatically created when you start the application. If you
 alembic upgrade head
 ```
 
+## How to Send Images, Files, and Voice Messages
+
+### 1. Image Messages
+
+#### WebSocket (Real-time):
+```json
+{
+  "type": "send_message",
+  "data": {
+    "receiver_id": 5,
+    "message_type": "image",
+    "file_data": "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD...",
+    "file_name": "photo.jpg",
+    "file_size": 245760,
+    "mime_type": "image/jpeg"
+  }
+}
+```
+
+#### REST API:
+```bash
+curl -X POST "https://api.migfastkg.ru/api/v1/chat/send-message" \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "receiver_id": 5,
+    "message_type": "image",
+    "file_data": "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD...",
+    "file_name": "photo.jpg",
+    "file_size": 245760,
+    "mime_type": "image/jpeg"
+  }'
+```
+
+### 2. File Messages
+
+#### WebSocket (Real-time):
+```json
+{
+  "type": "send_message",
+  "data": {
+    "receiver_id": 5,
+    "message_type": "file",
+    "file_data": "data:application/pdf;base64,JVBERi0xLjQKJcfsj6IKNSAwIG9iago8PAovVHlwZSAvUGFnZQovUGFyZW50IDMgMCBSCi9SZXNvdXJjZXMgPDwKL0ZvbnQgPDwKL0YxIDIgMCBSCj4+Cj4+Ci9NZWRpYUJveCBbMCAwIDU5NSA4NDJdCi9Db250ZW50cyA0IDAgUgo+PgplbmRvYmoKNC...",
+    "file_name": "document.pdf",
+    "file_size": 1024000,
+    "mime_type": "application/pdf"
+  }
+}
+```
+
+### 3. Voice Messages
+
+#### WebSocket (Real-time):
+```json
+{
+  "type": "send_message",
+  "data": {
+    "receiver_id": 5,
+    "message_type": "voice",
+    "file_data": "data:audio/mpeg;base64,SUQzBAAAAAAAI1RTU0UAAAAPAAADTGF2ZjU4Ljc2LjEwMAAAAAAAAAAAAAAA/+M4wAAAAAAAAAAAAEluZm8AAAAPAAAAAwAAABkAAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMD...",
+    "file_name": "voice_message.mp3",
+    "file_size": 45632,
+    "mime_type": "audio/mpeg"
+  }
+}
+```
+
+### 4. Converting Files to Base64
+
+#### JavaScript (Frontend):
+```javascript
+// Image to Base64
+function imageToBase64(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
+// Usage
+const fileInput = document.getElementById('fileInput');
+const file = fileInput.files[0];
+const base64 = await imageToBase64(file);
+```
+
+#### Python (Backend):
+```python
+import base64
+
+# File to Base64
+def file_to_base64(file_path):
+    with open(file_path, "rb") as file:
+        return base64.b64encode(file.read()).decode('utf-8')
+
+# Usage
+base64_data = file_to_base64("image.jpg")
+```
+
+#### Online Tools:
+- **Image to Base64**: `base64-image.de`
+- **File to Base64**: `base64encode.org`
+- **Audio to Base64**: `audio-to-base64.com`
+
+### 5. Supported File Types
+
+| Type | Extensions | Max Size | MIME Types |
+|------|------------|----------|------------|
+| **Images** | .jpg, .jpeg, .png, .gif, .webp | 10MB | image/jpeg, image/png, image/gif, image/webp |
+| **Files** | .pdf, .doc, .docx, .xls, .xlsx, .txt, .zip, .rar | 50MB | application/pdf, application/msword, etc. |
+| **Voice** | .mp3, .wav, .m4a, .aac, .ogg | 20MB | audio/mpeg, audio/wav, audio/mp4, audio/aac |
+
+### 6. File Storage Structure
+
+```
+static/chat_files/
+├── images/                     # Image files
+│   └── {user_id}_{timestamp}_{filename}
+├── files/                      # Document files
+│   └── {user_id}_{timestamp}_{filename}
+└── voices/                     # Voice messages
+    └── {user_id}_{timestamp}_{filename}
+```
+
+### 7. Response Format
+
+All file messages return the same response structure:
+
+```json
+{
+  "type": "new_message",
+  "data": {
+    "id": 123,
+    "content": "",
+    "message_type": "image|file|voice",
+    "file_name": "4_20250923_123456_photo.jpg",
+    "file_path": "https://api.migfastkg.ru/static/chat_files/images/4_20250923_123456_photo.jpg",
+    "file_size": 245760,
+    "created_at": "2025-09-23T12:34:56.789123+00:00",
+    "is_read": false,
+    "is_deleted": false,
+    "is_sender": true
+  }
+}
+```
+
+### 8. Error Handling
+
+```json
+{
+  "type": "error",
+  "message": "File upload failed: File too large"
+}
+```
+
+Common errors:
+- `File too large` - File exceeds size limit
+- `Invalid file type` - Unsupported file format
+- `File upload failed` - Server error during upload
+
 ## File Structure
 
 ```
@@ -836,7 +998,8 @@ app/
 
 static/chat_files/
 ├── images/                     # Uploaded images
-└── files/                      # Uploaded files
+├── files/                      # Uploaded files
+└── voices/                     # Voice messages
 ```
 
 This implementation provides a complete, production-ready chat system that integrates seamlessly with your existing HRMS application!
