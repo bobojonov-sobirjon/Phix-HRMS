@@ -99,7 +99,7 @@ async def create_proposal(
     if gig_job_id:
         # Proposal for gig job
         gig_job_repository = GigJobRepository(db)
-        gig_job = gig_job_repository.get_object_by_id(gig_job_id)
+        gig_job = gig_job_repository.get_by_id(gig_job_id)
         if not gig_job:
             return JSONResponse(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -110,7 +110,7 @@ async def create_proposal(
             )
         
         # Check if user is not the author of the gig job
-        if gig_job['author_id'] == current_user.id:
+        if gig_job['author']['id'] == current_user.id:
             return JSONResponse(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 content={
@@ -244,7 +244,7 @@ async def get_proposal_by_id(
         if proposal.gig_job_id:
             gig_job_repository = GigJobRepository(db)
             gig_job = gig_job_repository.get_by_id(proposal.gig_job_id)
-            if gig_job and gig_job['author_id'] == current_user.id:
+            if gig_job and gig_job['author']['id'] == current_user.id:
                 has_permission = True
         elif proposal.full_time_job_id:
             full_time_job_repository = FullTimeJobRepository(db)
@@ -286,7 +286,7 @@ async def get_gig_job_proposals(
         )
     
     # Check if user is the author of the gig job
-    if gig_job['author_id'] != current_user.id:
+    if gig_job['author']['id'] != current_user.id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="You can only view proposals for your own gig jobs"
