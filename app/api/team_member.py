@@ -84,12 +84,13 @@ async def invite_team_member(
             team_member, corporate_profile_id, current_user.id
         )
         
-        # Send invitation email
+        # Send invitation email with team member ID
         await send_team_invitation_email_new(
             email=team_member.email,
             company_name=corporate_profile.company_name,
             inviter_name=current_user.name,
-            role=team_member.role.value
+            role=team_member.role.value,
+            team_member_id=new_team_member.id
         )
         
         return SuccessResponse(
@@ -299,3 +300,103 @@ async def get_pending_invitations(
             )
     
     return invitation_responses
+
+
+@router.get("/accept-invitation")
+async def accept_invitation(
+    team_member_id: int = Query(..., description="Team member invitation ID"),
+    db: Session = Depends(get_db)
+):
+    """Accept team member invitation (no authentication required)"""
+    team_member_repo = TeamMemberRepository(db)
+    team_member = team_member_repo.get_team_member_by_id(team_member_id)
+    
+    if not team_member:
+        raise HTTPException(status_code=404, detail="Team member invitation not found")
+    
+    if team_member.status != TeamMemberStatus.PENDING:
+        raise HTTPException(status_code=400, detail="Invitation has already been processed")
+    
+    # Accept the invitation
+    updated_member = team_member_repo.update_team_member_status(team_member_id, True)
+    
+    if not updated_member:
+        raise HTTPException(status_code=500, detail="Error accepting invitation")
+    
+    # Return HTML response for better user experience
+    html_response = """
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <meta charset="utf-8">
+        <title>Invitation Accepted</title>
+        <style>
+            body { font-family: Arial, sans-serif; text-align: center; padding: 50px; background-color: #f5f5f5; }
+            .container { max-width: 500px; margin: 0 auto; background: white; padding: 40px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+            .success { color: #4CAF50; font-size: 24px; margin-bottom: 20px; }
+            .message { color: #333; font-size: 16px; margin-bottom: 30px; }
+            .button { display: inline-block; padding: 12px 24px; background-color: #4CAF50; color: white; text-decoration: none; border-radius: 5px; }
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <div class="success">✅ Invitation Accepted!</div>
+            <div class="message">You have successfully accepted the team invitation. You can now close this window.</div>
+            <a href="#" onclick="window.close()" class="button">Close Window</a>
+        </div>
+    </body>
+    </html>
+    """
+    
+    from fastapi.responses import HTMLResponse
+    return HTMLResponse(content=html_response)
+
+
+@router.get("/reject-invitation")
+async def reject_invitation(
+    team_member_id: int = Query(..., description="Team member invitation ID"),
+    db: Session = Depends(get_db)
+):
+    """Reject team member invitation (no authentication required)"""
+    team_member_repo = TeamMemberRepository(db)
+    team_member = team_member_repo.get_team_member_by_id(team_member_id)
+    
+    if not team_member:
+        raise HTTPException(status_code=404, detail="Team member invitation not found")
+    
+    if team_member.status != TeamMemberStatus.PENDING:
+        raise HTTPException(status_code=400, detail="Invitation has already been processed")
+    
+    # Reject the invitation
+    updated_member = team_member_repo.update_team_member_status(team_member_id, False)
+    
+    if not updated_member:
+        raise HTTPException(status_code=500, detail="Error rejecting invitation")
+    
+    # Return HTML response for better user experience
+    html_response = """
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <meta charset="utf-8">
+        <title>Invitation Rejected</title>
+        <style>
+            body { font-family: Arial, sans-serif; text-align: center; padding: 50px; background-color: #f5f5f5; }
+            .container { max-width: 500px; margin: 0 auto; background: white; padding: 40px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+            .rejected { color: #f44336; font-size: 24px; margin-bottom: 20px; }
+            .message { color: #333; font-size: 16px; margin-bottom: 30px; }
+            .button { display: inline-block; padding: 12px 24px; background-color: #f44336; color: white; text-decoration: none; border-radius: 5px; }
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <div class="rejected">❌ Invitation Rejected</div>
+            <div class="message">You have declined the team invitation. You can now close this window.</div>
+            <a href="#" onclick="window.close()" class="button">Close Window</a>
+        </div>
+    </body>
+    </html>
+    """
+    
+    from fastapi.responses import HTMLResponse
+    return HTMLResponse(content=html_response)

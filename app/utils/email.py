@@ -778,7 +778,7 @@ def send_team_invitation_email_direct(email: str, company_name: str, inviter_nam
     try:
         subject = f"Job Invitation - {company_name}"
         
-        # Create HTML content in English
+        # Create HTML content in English with Accept/Cancel buttons
         html_content = f"""
         <!DOCTYPE html>
         <html>
@@ -790,7 +790,10 @@ def send_team_invitation_email_direct(email: str, company_name: str, inviter_nam
                 .container {{ max-width: 600px; margin: 0 auto; padding: 20px; }}
                 .header {{ background-color: #4CAF50; color: white; padding: 20px; text-align: center; }}
                 .content {{ padding: 20px; background-color: #f9f9f9; }}
-                .button {{ display: inline-block; padding: 12px 24px; background-color: #4CAF50; color: white; text-decoration: none; border-radius: 5px; margin: 20px 0; }}
+                .button {{ display: inline-block; padding: 12px 24px; color: white; text-decoration: none; border-radius: 5px; margin: 10px; font-weight: bold; }}
+                .accept-btn {{ background-color: #4CAF50; }}
+                .cancel-btn {{ background-color: #f44336; }}
+                .button-container {{ text-align: center; margin: 30px 0; }}
                 .footer {{ text-align: center; padding: 20px; color: #666; font-size: 12px; }}
             </style>
         </head>
@@ -802,8 +805,13 @@ def send_team_invitation_email_direct(email: str, company_name: str, inviter_nam
                 <div class="content">
                     <h2>Hello!</h2>
                     <p><strong>{inviter_name}</strong> has invited you to join <strong>{company_name}</strong> as a <strong>{role}</strong>.</p>
-                    <p>Please log in to your account to accept or decline this invitation.</p>
+                    <p>Please click one of the buttons below to accept or decline this invitation.</p>
                     <p>If you have any questions, please contact the person who invited you.</p>
+                    
+                    <div class="button-container">
+                        <a href="{{base_url}}/api/v1/team-members/accept-invitation?token={{accept_token}}" class="button accept-btn">Accept</a>
+                        <a href="{{base_url}}/api/v1/team-members/reject-invitation?token={{reject_token}}" class="button cancel-btn">Cancel</a>
+                    </div>
                 </div>
                 <div class="footer">
                     <p>This message was sent automatically by Phix HRMS system.</p>
@@ -892,23 +900,255 @@ def send_team_invitation_email_direct(email: str, company_name: str, inviter_nam
         return False
 
 
-async def send_team_invitation_email_new(email: str, company_name: str, inviter_name: str, role: str):
-    """Send team invitation email (new async version)"""
+async def send_team_invitation_email_new(email: str, company_name: str, inviter_name: str, role: str, team_member_id: int = None):
+    """Send team invitation email (new async version) with Accept/Cancel buttons"""
     try:
         # Run the direct function in a thread pool
         loop = asyncio.get_event_loop()
         with ThreadPoolExecutor() as executor:
             await loop.run_in_executor(
                 executor, 
-                send_team_invitation_email_direct, 
+                send_team_invitation_email_with_buttons, 
                 email, 
                 company_name, 
                 inviter_name, 
-                role
+                role,
+                team_member_id
             )
     except Exception as e:
         print(f"Error sending team invitation email: {e}")
         raise e
+
+
+def send_team_invitation_email_with_buttons(email: str, company_name: str, inviter_name: str, role: str, team_member_id: int = None) -> bool:
+    """Send team invitation email with Accept/Cancel buttons"""
+    try:
+        subject = f"Job Invitation - {company_name}"
+        
+        # Create HTML content with Accept/Cancel buttons
+        base_url = settings.BASE_URL.rstrip('/')
+        accept_url = f"{base_url}/api/v1/team-members/accept-invitation?team_member_id={team_member_id}" if team_member_id else "#"
+        reject_url = f"{base_url}/api/v1/team-members/reject-invitation?team_member_id={team_member_id}" if team_member_id else "#"
+        
+        html_content = f"""
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="utf-8">
+            <title>Team Invitation - {company_name}</title>
+            <style>
+                body {{ 
+                    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+                    line-height: 1.6; 
+                    color: #333; 
+                    margin: 0; 
+                    padding: 0; 
+                    background-color: #f8f9fa;
+                }}
+                .email-container {{ 
+                    max-width: 600px; 
+                    margin: 20px auto; 
+                    background: white; 
+                    border-radius: 12px; 
+                    overflow: hidden; 
+                    box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+                }}
+                .header {{ 
+                    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                    color: white; 
+                    padding: 30px 20px; 
+                    text-align: center;
+                }}
+                .header h1 {{ 
+                    margin: 0; 
+                    font-size: 28px; 
+                    font-weight: 300;
+                    text-shadow: 0 2px 4px rgba(0,0,0,0.3);
+                }}
+                .content {{ 
+                    padding: 40px 30px; 
+                    background: white;
+                }}
+                .greeting {{ 
+                    font-size: 18px; 
+                    color: #2c3e50; 
+                    margin-bottom: 20px;
+                }}
+                .invitation-text {{ 
+                    font-size: 16px; 
+                    color: #34495e; 
+                    margin-bottom: 25px;
+                    line-height: 1.7;
+                }}
+                .role-badge {{ 
+                    display: inline-block; 
+                    background: linear-gradient(45deg, #3498db, #2980b9);
+                    color: white; 
+                    padding: 8px 16px; 
+                    border-radius: 20px; 
+                    font-size: 14px; 
+                    font-weight: 600;
+                    text-transform: uppercase;
+                    letter-spacing: 0.5px;
+                }}
+                .button-container {{ 
+                    text-align: center; 
+                    margin: 40px 0; 
+                }}
+                .button {{ 
+                    display: inline-block; 
+                    padding: 16px 32px; 
+                    color: white !important; 
+                    text-decoration: none; 
+                    border-radius: 8px; 
+                    margin: 8px 12px; 
+                    font-weight: 600; 
+                    font-size: 16px;
+                    transition: all 0.3s ease;
+                    box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+                    text-transform: uppercase;
+                    letter-spacing: 0.5px;
+                }}
+                .accept-btn {{ 
+                    background: linear-gradient(45deg, #27ae60, #2ecc71);
+                    color: white !important;
+                }}
+                .accept-btn:hover {{ 
+                    transform: translateY(-2px);
+                    box-shadow: 0 6px 20px rgba(46, 204, 113, 0.4);
+                    color: white !important;
+                }}
+                .cancel-btn {{ 
+                    background: linear-gradient(45deg, #e74c3c, #c0392b);
+                    color: white !important;
+                }}
+                .cancel-btn:hover {{ 
+                    transform: translateY(-2px);
+                    box-shadow: 0 6px 20px rgba(231, 76, 60, 0.4);
+                    color: white !important;
+                }}
+                .footer {{ 
+                    text-align: center; 
+                    padding: 25px; 
+                    background: #ecf0f1; 
+                    color: #7f8c8d; 
+                    font-size: 13px;
+                }}
+                .company-name {{ 
+                    color: #2c3e50; 
+                    font-weight: 600;
+                }}
+                .inviter-name {{ 
+                    color: #8e44ad; 
+                    font-weight: 600;
+                }}
+                .divider {{ 
+                    height: 1px; 
+                    background: linear-gradient(to right, transparent, #bdc3c7, transparent); 
+                    margin: 30px 0;
+                }}
+            </style>
+        </head>
+        <body>
+            <div class="email-container">
+                <div class="header">
+                    <h1>🎉 Team Invitation</h1>
+                </div>
+                <div class="content">
+                    <div class="greeting">Hello there!</div>
+                    
+                    <div class="invitation-text">
+                        <span class="inviter-name">{inviter_name}</span> has invited you to join 
+                        <span class="company-name">{company_name}</span> as a 
+                        <span class="role-badge">{role}</span>
+                    </div>
+                    
+                    <div class="invitation-text">
+                        Please click one of the buttons below to accept or decline this invitation. 
+                        This will help us manage our team effectively.
+                    </div>
+                    
+                    <div class="divider"></div>
+                    
+                    <div class="button-container">
+                        <a href="{accept_url}" class="button accept-btn">✅ Accept Invitation</a>
+                        <a href="{reject_url}" class="button cancel-btn">❌ Decline</a>
+                    </div>
+                    
+                    <div class="invitation-text" style="font-size: 14px; color: #7f8c8d; margin-top: 30px;">
+                        If you have any questions, please contact <span class="inviter-name">{inviter_name}</span> directly.
+                    </div>
+                </div>
+                <div class="footer">
+                    <p>This message was sent automatically by <strong>Phix HRMS</strong> system.</p>
+                    <p>Please do not reply to this email.</p>
+                </div>
+            </div>
+        </body>
+        </html>
+        """
+        
+        # Use existing SMTP configurations
+        smtp_configs = [
+            {
+                "name": "Gmail SSL (465)",
+                "server": "smtp.gmail.com",
+                "port": 465,
+                "use_ssl": True,
+                "username": settings.SMTP_USERNAME,
+                "password": settings.SMTP_PASSWORD
+            },
+            {
+                "name": "Gmail TLS (587)",
+                "server": "smtp.gmail.com",
+                "port": 587,
+                "use_ssl": False,
+                "username": settings.SMTP_USERNAME,
+                "password": settings.SMTP_PASSWORD
+            }
+        ]
+        
+        # Try each SMTP configuration
+        for config in smtp_configs:
+            if not config["username"] or not config["password"]:
+                continue
+                
+            try:
+                print(f"Trying {config['name']}...")
+                
+                # Create message
+                msg = MIMEMultipart()
+                msg['From'] = config["username"]
+                msg['To'] = email
+                msg['Subject'] = subject
+                
+                msg.attach(MIMEText(html_content, 'html'))
+                
+                # Connect and send
+                if config["use_ssl"]:
+                    server = smtplib.SMTP_SSL(config["server"], config["port"])
+                else:
+                    server = smtplib.SMTP(config["server"], config["port"])
+                    server.starttls()
+                
+                server.login(config["username"], config["password"])
+                text = msg.as_string()
+                server.sendmail(config["username"], email, text)
+                server.quit()
+                
+                print(f"Team invitation email sent successfully to {email} using {config['name']}")
+                return True
+                
+            except Exception as e:
+                print(f"Failed with {config['name']}: {e}")
+                continue
+        
+        print(f"All SMTP methods failed for team invitation email to {email}")
+        return False
+        
+    except Exception as e:
+        print(f"Error sending team invitation email to {email}: {e}")
+        return False
 
 
 def cleanup_email_executor():
