@@ -6,17 +6,17 @@ import enum
 
 
 class TeamMemberRole(str, enum.Enum):
-    OWNER = "Owner"
-    ADMIN = "Admin"
-    HR_MANAGER = "HR Manager"
-    RECRUITER = "Recruiter"
-    VIEWER = "Viewer"
+    OWNER = "OWNER"
+    ADMIN = "ADMIN"
+    HR_MANAGER = "HR_MANAGER"
+    RECRUITER = "RECRUITER"
+    VIEWER = "VIEWER"
 
 
 class TeamMemberStatus(str, enum.Enum):
-    PENDING = "pending"
-    ACCEPTED = "accepted"
-    REJECTED = "rejected"
+    PENDING = "PENDING"
+    ACCEPTED = "ACCEPTED"
+    REJECTED = "REJECTED"
 
 
 class TeamMember(Base):

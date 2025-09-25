@@ -1,35 +1,35 @@
-from pydantic import BaseModel, validator, Field
+from pydantic import BaseModel, validator, Field, model_validator
 from typing import Optional, List
 from datetime import datetime
 from enum import Enum
 
 
 class JobType(str, Enum):
-    FULL_TIME = "full_time"
-    PART_TIME = "part_time"
-    CONTRACT = "contract"
-    INTERNSHIP = "internship"
+    FULL_TIME = "FULL_TIME"
+    PART_TIME = "PART_TIME"
+    CONTRACT = "CONTRACT"
+    INTERNSHIP = "INTERNSHIP"
 
 
 class WorkMode(str, Enum):
-    ON_SITE = "on_site"
-    REMOTE = "remote"
-    HYBRID = "hybrid"
+    ON_SITE = "ON_SITE"
+    REMOTE = "REMOTE"
+    HYBRID = "HYBRID"
 
 
 class ExperienceLevel(str, Enum):
-    ENTRY_LEVEL = "entry_level"
-    JUNIOR = "junior"
-    MID_LEVEL = "mid_level"
-    SENIOR = "senior"
-    LEAD = "lead"
-    DIRECTOR = "director"
+    ENTRY_LEVEL = "ENTRY_LEVEL"
+    JUNIOR = "JUNIOR"
+    MID_LEVEL = "MID_LEVEL"
+    SENIOR = "SENIOR"
+    LEAD = "LEAD"
+    DIRECTOR = "DIRECTOR"
 
 
 class JobStatus(str, Enum):
-    ACTIVE = "active"
-    CLOSED = "closed"
-    DRAFT = "draft"
+    ACTIVE = "ACTIVE"
+    CLOSED = "CLOSED"
+    DRAFT = "DRAFT"
 
 
 # Base schema
@@ -41,12 +41,13 @@ class FullTimeJobBase(BaseModel):
     job_type: JobType = JobType.FULL_TIME
     work_mode: WorkMode = WorkMode.ON_SITE
     experience_level: ExperienceLevel
-    skill_names: List[str]  # List of skill names
+    skill_ids: List[int] = Field(..., description="List of skill IDs")
     min_salary: float
     max_salary: float
     status: JobStatus = JobStatus.ACTIVE
     category_id: int = Field(..., description="Main category ID")
     subcategory_id: Optional[int] = Field(None, description="Subcategory ID")
+    corporate_profile_id: int = Field(..., description="Corporate profile ID")
 
 
 # Create schema
@@ -63,7 +64,7 @@ class FullTimeJobUpdate(BaseModel):
     job_type: Optional[JobType] = None
     work_mode: Optional[WorkMode] = None
     experience_level: Optional[ExperienceLevel] = None
-    skill_names: Optional[List[str]] = None
+    skill_ids: Optional[List[int]] = Field(None, description="List of skill IDs")
     min_salary: Optional[float] = None
     max_salary: Optional[float] = None
     status: Optional[JobStatus] = None
@@ -78,12 +79,12 @@ class FullTimeJobResponse(BaseModel):
     description: str
     responsibilities: Optional[str] = None
     location: str = "Worldwide"
-    job_type: JobType = JobType.FULL_TIME
-    work_mode: WorkMode = WorkMode.ON_SITE
-    experience_level: ExperienceLevel
+    job_type: str = "FULL_TIME"
+    work_mode: str = "ON_SITE"
+    experience_level: str
     min_salary: float
     max_salary: float
-    status: JobStatus = JobStatus.ACTIVE
+    status: str = "ACTIVE"
     company_id: int
     company_name: str
     category_id: int
@@ -96,6 +97,8 @@ class FullTimeJobResponse(BaseModel):
     created_at: datetime
     updated_at: Optional[datetime] = None
     skills: List[dict] = Field(default_factory=list, description="List of skills with details")
+    all_jobs_count: int = Field(default=0, description="Total number of jobs created by the user")
+    relevance_score: Optional[float] = Field(default=None, description="Relevance score (only when token is provided)")
     
     class Config:
         from_attributes = True

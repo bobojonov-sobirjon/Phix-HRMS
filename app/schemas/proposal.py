@@ -163,11 +163,11 @@ class ProposalResponse(ProposalBase):
             "description": gig_job.description,
             "location_id": gig_job.location_id,
             "location": location_data,
-            "experience_level": gig_job.experience_level,
+            "experience_level": cls._normalize_enum_value(gig_job.experience_level, 'ExperienceLevel'),
             "project_length": gig_job.project_length,
             "min_salary": gig_job.min_salary,
             "max_salary": gig_job.max_salary,
-            "status": gig_job.status,
+            "status": cls._normalize_enum_value(gig_job.status, 'GigJobStatus'),
             "author_id": gig_job.author_id,
             "category_id": gig_job.category_id,
             "category_name": gig_job.category.name if hasattr(gig_job, 'category') and gig_job.category else None,
@@ -219,22 +219,38 @@ class ProposalResponse(ProposalBase):
             "description": full_time_job.description,
             "responsibilities": full_time_job.responsibilities,
             "location": full_time_job.location,
-            "job_type": full_time_job.job_type,
-            "work_mode": full_time_job.work_mode,
-            "experience_level": full_time_job.experience_level,
+            "job_type": cls._normalize_enum_value(full_time_job.job_type, 'JobType'),
+            "work_mode": cls._normalize_enum_value(full_time_job.work_mode, 'WorkMode'),
+            "experience_level": cls._normalize_enum_value(full_time_job.experience_level, 'ExperienceLevel'),
             "min_salary": full_time_job.min_salary,
             "max_salary": full_time_job.max_salary,
-            "status": full_time_job.status,
+            "status": cls._normalize_enum_value(full_time_job.status, 'JobStatus'),
             "company_id": full_time_job.company_id,
             "company_name": getattr(full_time_job, 'company_name', 'Unknown Company'),
             "category_id": full_time_job.category_id,
             "category_name": getattr(full_time_job, 'category_name', 'Unknown Category'),
             "subcategory_id": full_time_job.subcategory_id,
             "subcategory_name": getattr(full_time_job, 'subcategory_name', None),
+            "created_by_user_id": getattr(full_time_job, 'created_by_user_id', 0),
+            "created_by_user_name": getattr(full_time_job, 'created_by_user_name', 'Unknown User'),
+            "created_by_role": getattr(full_time_job, 'created_by_role', 'UNKNOWN'),
             "created_at": full_time_job.created_at,
             "updated_at": full_time_job.updated_at,
             "skills": skills_data
         }
+    
+    @classmethod
+    def _normalize_enum_value(cls, value, enum_type):
+        """Normalize enum values to uppercase for Pydantic validation"""
+        if hasattr(value, 'value'):
+            # It's already an enum object
+            return value.value
+        elif isinstance(value, str):
+            # It's a string, normalize to uppercase
+            return value.upper()
+        else:
+            # Fallback to string representation
+            return str(value).upper()
 
 
 # List response schema

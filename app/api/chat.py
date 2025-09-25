@@ -20,7 +20,7 @@ from ..utils.agora_tokens import generate_rtc_token
 from ..models.user import User
 import uuid
 
-router = APIRouter()
+router = APIRouter(tags=["Chat"])
 
 # User Search Endpoints
 @router.get("/search-users", response_model=UserSearchListResponse)

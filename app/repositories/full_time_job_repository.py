@@ -11,27 +11,20 @@ class FullTimeJobRepository:
     def __init__(self, db: Session):
         self.db = db
     
-    def _get_or_create_skills(self, skill_names: List[str]) -> List[Skill]:
-        """Get existing skills or create new ones if they don't exist"""
-        skills = []
-        for skill_name in skill_names:
-            if skill_name.strip():  # Skip empty strings
-                # Check if skill exists
-                skill = self.db.query(Skill).filter(
-                    Skill.name.ilike(skill_name.strip())
-                ).first()
-                
-                if not skill:
-                    # Create new skill
-                    skill = Skill(name=skill_name.strip())
-                    self.db.add(skill)
-                    self.db.flush()  # Flush to get the ID
-                
-                skills.append(skill)
+    def _get_skills_by_ids(self, skill_ids: List[int]) -> List[Skill]:
+        """Get existing skills by their IDs"""
+        if not skill_ids:
+            return []
+        
+        skills = self.db.query(Skill).filter(
+            Skill.id.in_(skill_ids),
+            Skill.is_deleted == False
+        ).all()
         
         return skills
     
-    def _prepare_full_time_job_response(self, job: FullTimeJob) -> dict:
+    
+    def _prepare_full_time_job_response(self, job: FullTimeJob, current_user_id: Optional[int] = None) -> dict:
         """Prepare full-time job data for response with skills"""
         # Convert skills to dict format
         skills_data = []
@@ -44,6 +37,16 @@ class FullTimeJobRepository:
                 "updated_at": skill.updated_at,
                 "is_deleted": skill.is_deleted
             })
+        
+        # Count all jobs by the user who created this job
+        all_jobs_count = self.db.query(FullTimeJob).filter(
+            FullTimeJob.created_by_user_id == job.created_by_user_id
+        ).count()
+        
+        # Calculate relevance score if current user is provided
+        relevance_score = None
+        if current_user_id:
+            relevance_score = self._calculate_relevance_score(job, current_user_id)
         
         # Create response data
         response_data = {
@@ -60,12 +63,86 @@ class FullTimeJobRepository:
             "status": job.status,
             "company_id": job.company_id,
             "company_name": job.company.company_name if job.company else None,
+            "category_id": job.category_id,
+            "category_name": job.category.name if job.category else "",
+            "subcategory_id": job.subcategory_id,
+            "subcategory_name": job.subcategory.name if job.subcategory else None,
+            "created_by_user_id": job.created_by_user_id,
+            "created_by_user_name": job.created_by_user.name if job.created_by_user else "",
+            "created_by_role": job.created_by_role.value if job.created_by_role else "",
             "created_at": job.created_at,
             "updated_at": job.updated_at,
-            "skills": skills_data
+            "skills": skills_data,
+            "all_jobs_count": all_jobs_count,
+            "relevance_score": relevance_score
         }
         
         return response_data
+
+    def _calculate_relevance_score(self, job: FullTimeJob, current_user_id: int) -> float:
+        """Calculate relevance score based on user skills and job requirements"""
+        from ..models.user_skill import UserSkill
+        from ..models.user import User
+        
+        # Get user's skills
+        user_skills = self.db.query(UserSkill).filter(
+            UserSkill.user_id == current_user_id,
+            UserSkill.is_deleted == False
+        ).all()
+        
+        if not user_skills:
+            return 0.0
+        
+        user_skill_ids = {skill.skill_id for skill in user_skills}
+        job_skill_ids = {skill.id for skill in job.skills if not skill.is_deleted}
+        
+        if not job_skill_ids:
+            return 0.0
+        
+        # Calculate skill match percentage (primary factor)
+        matching_skills = user_skill_ids.intersection(job_skill_ids)
+        skill_match_percentage = (len(matching_skills) / len(job_skill_ids)) * 100
+        
+        # Get user details for additional factors
+        user = self.db.query(User).filter(User.id == current_user_id).first()
+        if not user:
+            return round(skill_match_percentage, 2)
+        
+        # Additional relevance factors
+        bonus_score = 0.0
+        
+        # Experience level match bonus
+        if hasattr(job, 'experience_level') and hasattr(user, 'experience_level'):
+            if job.experience_level == user.experience_level:
+                bonus_score += 10.0
+        
+        # Work mode match bonus
+        if hasattr(job, 'work_mode') and hasattr(user, 'preferred_work_mode'):
+            if job.work_mode == user.preferred_work_mode:
+                bonus_score += 8.0
+        
+        # Location match bonus (if user has location preference)
+        if hasattr(job, 'location') and job.location and hasattr(user, 'location_id'):
+            if job.location == user.location_id:
+                bonus_score += 5.0
+        
+        # Salary range match bonus (if user's expected salary is within job range)
+        if hasattr(user, 'expected_salary') and user.expected_salary:
+            if job.min_salary <= user.expected_salary <= job.max_salary:
+                bonus_score += 15.0
+            elif user.expected_salary < job.min_salary:
+                # User expects less than minimum, but still relevant
+                bonus_score += 5.0
+        
+        # Job type match bonus
+        if hasattr(job, 'job_type') and hasattr(user, 'preferred_job_type'):
+            if job.job_type == user.preferred_job_type:
+                bonus_score += 7.0
+        
+        # Calculate final score (skill match + bonuses, capped at 100)
+        final_score = min(skill_match_percentage + bonus_score, 100.0)
+        
+        return round(final_score, 2)
 
     def _format_job_response(self, job: FullTimeJob) -> dict:
         """Format job response with all related data including context"""
@@ -112,9 +189,9 @@ class FullTimeJobRepository:
     
     def create(self, full_time_job: FullTimeJobCreate, company_id: int) -> dict:
         """Create a new full-time job with skills"""
-        # Extract skill_names from the data
-        skill_names = full_time_job.skill_names
-        job_dict = full_time_job.model_dump(exclude={'skill_names'})
+        # Extract skill_ids from the request
+        skill_ids = full_time_job.skill_ids
+        job_dict = full_time_job.model_dump(exclude={'skill_ids'})
         
         # Create the job
         db_job = FullTimeJob(
@@ -124,9 +201,9 @@ class FullTimeJobRepository:
         self.db.add(db_job)
         self.db.flush()  # Flush to get the ID
         
-        # Get or create skills and add them to the job
-        if skill_names:
-            skills = self._get_or_create_skills(skill_names)
+        # Get skills by IDs and add them to the job
+        if skill_ids:
+            skills = self._get_skills_by_ids(skill_ids)
             db_job.skills = skills
         
         self.db.commit()
@@ -144,12 +221,14 @@ class FullTimeJobRepository:
         """Create job with context about who created it"""
         from ..models.team_member import TeamMemberRole
         
-        # Extract skill_names from the data
-        skill_names = job_data.skill_names if hasattr(job_data, 'skill_names') else []
+        # Extract skill_ids from the request
+        skill_ids = job_data.skill_ids if hasattr(job_data, 'skill_ids') else []
+        
         job_dict = job_data.dict() if hasattr(job_data, 'dict') else job_data.model_dump()
         
-        # Remove skill_names from job_dict
-        job_dict.pop('skill_names', None)
+        # Remove fields that are not part of FullTimeJob model
+        job_dict.pop('skill_ids', None)
+        job_dict.pop('corporate_profile_id', None)
         
         # Add context fields
         job_dict.update({
@@ -163,9 +242,9 @@ class FullTimeJobRepository:
         self.db.add(db_job)
         self.db.flush()  # Flush to get the ID
         
-        # Get or create skills and add them to the job
-        if skill_names:
-            skills = self._get_or_create_skills(skill_names)
+        # Get skills by IDs and add them to the job
+        if skill_ids:
+            skills = self._get_skills_by_ids(skill_ids)
             db_job.skills = skills
         
         self.db.commit()
@@ -179,7 +258,7 @@ class FullTimeJobRepository:
         # Return prepared response data
         return self._format_job_response(db_job)
     
-    def get_by_id(self, job_id: int) -> Optional[dict]:
+    def get_by_id(self, job_id: int, current_user_id: Optional[int] = None) -> Optional[dict]:
         """Get full-time job by ID with skills"""
         job = self.db.query(FullTimeJob).options(
             joinedload(FullTimeJob.skills),
@@ -196,7 +275,7 @@ class FullTimeJobRepository:
         """Get full-time job object by ID (for internal use)"""
         return self.db.query(FullTimeJob).filter(FullTimeJob.id == job_id).first()
     
-    def get_by_company_id(self, company_id: int, skip: int = 0, limit: int = 100) -> List[dict]:
+    def get_by_company_id(self, company_id: int, skip: int = 0, limit: int = 100, current_user_id: Optional[int] = None) -> List[dict]:
         """Get all jobs by company ID"""
         jobs = self.db.query(FullTimeJob).options(
             joinedload(FullTimeJob.skills),
@@ -208,12 +287,12 @@ class FullTimeJobRepository:
         # Prepare response data for each job
         prepared_jobs = []
         for job in jobs:
-            prepared_jobs.append(self._prepare_full_time_job_response(job))
+            prepared_jobs.append(self._prepare_full_time_job_response(job, current_user_id))
         
         return prepared_jobs
     
-    def get_by_user_id(self, user_id: int, skip: int = 0, limit: int = 100) -> List[dict]:
-        """Get all jobs by user ID (through corporate profile)"""
+    def get_by_user_id(self, user_id: int, skip: int = 0, limit: int = 100, current_user_id: Optional[int] = None) -> List[dict]:
+        """Get all jobs by user ID (through corporate profile) - OWNER only"""
         jobs = self.db.query(FullTimeJob).options(
             joinedload(FullTimeJob.skills),
             joinedload(FullTimeJob.company)
@@ -226,27 +305,85 @@ class FullTimeJobRepository:
         # Prepare response data for each job
         prepared_jobs = []
         for job in jobs:
-            prepared_jobs.append(self._prepare_full_time_job_response(job))
+            prepared_jobs.append(self._prepare_full_time_job_response(job, current_user_id))
         
         return prepared_jobs
     
-    def get_all_active(self, skip: int = 0, limit: int = 100) -> List[dict]:
-        """Get all active full-time jobs"""
+    def get_user_created_jobs(self, user_id: int, skip: int = 0, limit: int = 100, current_user_id: Optional[int] = None) -> List[dict]:
+        """Get all jobs created by user (as owner or team member)"""
         jobs = self.db.query(FullTimeJob).options(
             joinedload(FullTimeJob.skills),
-            joinedload(FullTimeJob.company)
+            joinedload(FullTimeJob.company),
+            joinedload(FullTimeJob.category),
+            joinedload(FullTimeJob.subcategory),
+            joinedload(FullTimeJob.created_by_user)
         ).filter(
-            FullTimeJob.status == "active"
+            FullTimeJob.created_by_user_id == user_id
         ).offset(skip).limit(limit).all()
         
         # Prepare response data for each job
         prepared_jobs = []
         for job in jobs:
-            prepared_jobs.append(self._prepare_full_time_job_response(job))
+            prepared_jobs.append(self._prepare_full_time_job_response(job, current_user_id))
         
         return prepared_jobs
     
-    def get_all(self, skip: int = 0, limit: int = 100) -> List[dict]:
+    def get_user_accessible_jobs(self, user_id: int, skip: int = 0, limit: int = 100, current_user_id: Optional[int] = None) -> List[dict]:
+        """Get all jobs user can access (as owner or team member)"""
+        from app.models.team_member import TeamMember, TeamMemberStatus
+        
+        # Get corporate profiles where user is owner or team member
+        owned_profiles = self.db.query(CorporateProfile).filter(
+            CorporateProfile.user_id == user_id
+        ).all()
+        
+        team_memberships = self.db.query(TeamMember).filter(
+            TeamMember.user_id == user_id,
+            TeamMember.status == TeamMemberStatus.ACCEPTED
+        ).all()
+        
+        # Collect all corporate profile IDs
+        corporate_profile_ids = [profile.id for profile in owned_profiles]
+        corporate_profile_ids.extend([membership.corporate_profile_id for membership in team_memberships])
+        
+        if not corporate_profile_ids:
+            return []
+        
+        # Get all jobs from these corporate profiles
+        jobs = self.db.query(FullTimeJob).options(
+            joinedload(FullTimeJob.skills),
+            joinedload(FullTimeJob.company),
+            joinedload(FullTimeJob.category),
+            joinedload(FullTimeJob.subcategory),
+            joinedload(FullTimeJob.created_by_user)
+        ).filter(
+            FullTimeJob.company_id.in_(corporate_profile_ids)
+        ).offset(skip).limit(limit).all()
+        
+        # Prepare response data for each job
+        prepared_jobs = []
+        for job in jobs:
+            prepared_jobs.append(self._prepare_full_time_job_response(job, current_user_id))
+        
+        return prepared_jobs
+    
+    def get_all_active(self, skip: int = 0, limit: int = 100, current_user_id: Optional[int] = None) -> List[dict]:
+        """Get all active full-time jobs"""
+        jobs = self.db.query(FullTimeJob).options(
+            joinedload(FullTimeJob.skills),
+            joinedload(FullTimeJob.company)
+        ).filter(
+            FullTimeJob.status == "ACTIVE"
+        ).offset(skip).limit(limit).all()
+        
+        # Prepare response data for each job
+        prepared_jobs = []
+        for job in jobs:
+            prepared_jobs.append(self._prepare_full_time_job_response(job, current_user_id))
+        
+        return prepared_jobs
+    
+    def get_all(self, skip: int = 0, limit: int = 100, current_user_id: Optional[int] = None) -> List[dict]:
         """Get all full-time jobs with pagination"""
         jobs = self.db.query(FullTimeJob).options(
             joinedload(FullTimeJob.skills),
@@ -256,7 +393,7 @@ class FullTimeJobRepository:
         # Prepare response data for each job
         prepared_jobs = []
         for job in jobs:
-            prepared_jobs.append(self._prepare_full_time_job_response(job))
+            prepared_jobs.append(self._prepare_full_time_job_response(job, current_user_id))
         
         return prepared_jobs
     
@@ -269,15 +406,15 @@ class FullTimeJobRepository:
         update_data = full_time_job.model_dump(exclude_unset=True)
         
         # Handle skills separately
-        skill_names = update_data.pop('skill_names', None)
+        skill_ids = update_data.pop('skill_ids', None)
         
         # Update other fields
         for field, value in update_data.items():
             setattr(db_job, field, value)
         
         # Update skills if provided
-        if skill_names is not None:
-            skills = self._get_or_create_skills(skill_names)
+        if skill_ids is not None:
+            skills = self._get_skills_by_ids(skill_ids)
             db_job.skills = skills
         
         self.db.commit()
@@ -324,15 +461,17 @@ class FullTimeJobRepository:
                    location: Optional[str] = None,
                    experience_level: Optional[str] = None,
                    work_mode: Optional[str] = None,
+                   skill_ids: Optional[List[int]] = None,
                    min_salary: Optional[float] = None,
                    max_salary: Optional[float] = None,
                    skip: int = 0,
-                   limit: int = 100) -> List[dict]:
-        """Search jobs with filters"""
+                   limit: int = 100,
+                   current_user_id: Optional[int] = None) -> List[dict]:
+        """Search jobs with filters including skill IDs"""
         query = self.db.query(FullTimeJob).options(
             joinedload(FullTimeJob.skills),
             joinedload(FullTimeJob.company)
-        ).filter(FullTimeJob.status == "active")
+        ).filter(FullTimeJob.status == "ACTIVE")
         
         if title:
             query = query.filter(FullTimeJob.title.ilike(f"%{title}%"))
@@ -346,6 +485,12 @@ class FullTimeJobRepository:
         if work_mode:
             query = query.filter(FullTimeJob.work_mode == work_mode)
         
+        if skill_ids:
+            # Filter jobs that have any of the specified skills
+            query = query.join(FullTimeJob.skills).filter(
+                Skill.id.in_(skill_ids)
+            ).distinct()
+        
         if min_salary is not None:
             query = query.filter(FullTimeJob.max_salary >= min_salary)
         
@@ -357,7 +502,7 @@ class FullTimeJobRepository:
         # Prepare response data for each job
         prepared_jobs = []
         for job in jobs:
-            prepared_jobs.append(self._prepare_full_time_job_response(job))
+            prepared_jobs.append(self._prepare_full_time_job_response(job, current_user_id))
         
         return prepared_jobs
     
@@ -368,7 +513,7 @@ class FullTimeJobRepository:
     def count_active(self) -> int:
         """Get count of active full-time jobs"""
         return self.db.query(FullTimeJob).filter(
-            FullTimeJob.status == "active"
+            FullTimeJob.status == "ACTIVE"
         ).count()
     
     def count_by_company(self, company_id: int) -> int:
@@ -378,12 +523,123 @@ class FullTimeJobRepository:
         ).count()
     
     def count_by_user(self, user_id: int) -> int:
-        """Get count of jobs by user"""
+        """Get count of jobs by user (owner only)"""
         return self.db.query(FullTimeJob).join(
             CorporateProfile, FullTimeJob.company_id == CorporateProfile.id
         ).filter(
             CorporateProfile.user_id == user_id
         ).count()
+    
+    def count_user_created_jobs(self, user_id: int) -> int:
+        """Get count of jobs created by user (as owner or team member)"""
+        return self.db.query(FullTimeJob).filter(
+            FullTimeJob.created_by_user_id == user_id
+        ).count()
+    
+    def count_user_accessible_jobs(self, user_id: int) -> int:
+        """Get count of jobs user can access (as owner or team member)"""
+        from app.models.team_member import TeamMember, TeamMemberStatus
+        
+        # Get corporate profiles where user is owner or team member
+        owned_profiles = self.db.query(CorporateProfile).filter(
+            CorporateProfile.user_id == user_id
+        ).all()
+        
+        team_memberships = self.db.query(TeamMember).filter(
+            TeamMember.user_id == user_id,
+            TeamMember.status == TeamMemberStatus.ACCEPTED
+        ).all()
+        
+        # Collect all corporate profile IDs
+        corporate_profile_ids = [profile.id for profile in owned_profiles]
+        corporate_profile_ids.extend([membership.corporate_profile_id for membership in team_memberships])
+        
+        if not corporate_profile_ids:
+            return 0
+        
+        return self.db.query(FullTimeJob).filter(
+            FullTimeJob.company_id.in_(corporate_profile_ids)
+        ).count()
+    
+    def get_by_corporate_profiles_with_filters(self, 
+                                             corporate_profile_ids: List[int],
+                                             skip: int = 0,
+                                             limit: int = 100,
+                                             status: Optional[str] = None,
+                                             job_type: Optional[str] = None,
+                                             experience_level: Optional[str] = None,
+                                             work_mode: Optional[str] = None,
+                                             location: Optional[str] = None,
+                                             min_salary: Optional[float] = None,
+                                             max_salary: Optional[float] = None,
+                                             current_user_id: Optional[int] = None) -> List[dict]:
+        """Get jobs by corporate profile IDs with filters"""
+        query = self.db.query(FullTimeJob).options(
+            joinedload(FullTimeJob.skills),
+            joinedload(FullTimeJob.company),
+            joinedload(FullTimeJob.category),
+            joinedload(FullTimeJob.subcategory),
+            joinedload(FullTimeJob.created_by_user)
+        ).filter(
+            FullTimeJob.company_id.in_(corporate_profile_ids)
+        )
+        
+        # Apply filters
+        if status:
+            query = query.filter(FullTimeJob.status == status)
+        if job_type:
+            query = query.filter(FullTimeJob.job_type == job_type)
+        if experience_level:
+            query = query.filter(FullTimeJob.experience_level == experience_level)
+        if work_mode:
+            query = query.filter(FullTimeJob.work_mode == work_mode)
+        if location:
+            query = query.filter(FullTimeJob.location.ilike(f"%{location}%"))
+        if min_salary is not None:
+            query = query.filter(FullTimeJob.max_salary >= min_salary)
+        if max_salary is not None:
+            query = query.filter(FullTimeJob.min_salary <= max_salary)
+        
+        jobs = query.offset(skip).limit(limit).all()
+        
+        # Prepare response data for each job
+        prepared_jobs = []
+        for job in jobs:
+            prepared_jobs.append(self._prepare_full_time_job_response(job, current_user_id))
+        
+        return prepared_jobs
+    
+    def count_by_corporate_profiles_with_filters(self, 
+                                               corporate_profile_ids: List[int],
+                                               status: Optional[str] = None,
+                                               job_type: Optional[str] = None,
+                                               experience_level: Optional[str] = None,
+                                               work_mode: Optional[str] = None,
+                                               location: Optional[str] = None,
+                                               min_salary: Optional[float] = None,
+                                               max_salary: Optional[float] = None) -> int:
+        """Get count of jobs by corporate profile IDs with filters"""
+        query = self.db.query(FullTimeJob).filter(
+            FullTimeJob.company_id.in_(corporate_profile_ids)
+        )
+        
+        # Apply filters
+        if status:
+            query = query.filter(FullTimeJob.status == status)
+        if job_type:
+            query = query.filter(FullTimeJob.job_type == job_type)
+        if experience_level:
+            query = query.filter(FullTimeJob.experience_level == experience_level)
+        if work_mode:
+            query = query.filter(FullTimeJob.work_mode == work_mode)
+        if location:
+            query = query.filter(FullTimeJob.location.ilike(f"%{location}%"))
+        if min_salary is not None:
+            query = query.filter(FullTimeJob.max_salary >= min_salary)
+        if max_salary is not None:
+            query = query.filter(FullTimeJob.min_salary <= max_salary)
+        
+        return query.count()
     
     def get_by_user_id_with_filters(self, 
                                    user_id: int, 
@@ -395,7 +651,8 @@ class FullTimeJobRepository:
                                    work_mode: Optional[str] = None,
                                    location: Optional[str] = None,
                                    min_salary: Optional[float] = None,
-                                   max_salary: Optional[float] = None) -> List[dict]:
+                                   max_salary: Optional[float] = None,
+                                   current_user_id: Optional[int] = None) -> List[dict]:
         """Get filtered jobs by user ID with skills"""
         query = self.db.query(FullTimeJob).options(
             joinedload(FullTimeJob.skills),
@@ -432,7 +689,7 @@ class FullTimeJobRepository:
         # Prepare response data for each job
         prepared_jobs = []
         for job in jobs:
-            prepared_jobs.append(self._prepare_full_time_job_response(job))
+            prepared_jobs.append(self._prepare_full_time_job_response(job, current_user_id))
         
         return prepared_jobs
     

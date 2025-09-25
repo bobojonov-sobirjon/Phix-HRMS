@@ -35,8 +35,9 @@ def get_current_user_optional(authorization: Optional[str] = Header(None)) -> Op
         user_repo = UserRepository(db)
         
         # Verify token and get user
-        user_id = verify_token(token)
-        if user_id:
+        payload = verify_token(token)
+        if payload and 'sub' in payload:
+            user_id = int(payload['sub'])
             user = user_repo.get_by_id(user_id)
             return user
         return None
@@ -128,7 +129,8 @@ async def get_all_gig_jobs(
         category_id=category_id,
         subcategory_id=subcategory_id,
         date_posted=date_posted,
-        sort_by=sort_by
+        sort_by=sort_by,
+        current_user_id=current_user.id if current_user else None
     )
     
     return create_pagination_response(
@@ -186,7 +188,8 @@ async def get_my_gig_jobs(
         category_id=category_id,
         subcategory_id=subcategory_id,
         date_posted=date_posted,
-        sort_by=sort_by
+        sort_by=sort_by,
+        current_user_id=current_user.id
     )
     
     return create_pagination_response(
@@ -333,7 +336,8 @@ async def search_gig_jobs(
     q: str = Query(..., min_length=2, description="Search term"),
     page: int = Query(1, ge=1, description="Page number"),
     size: int = Query(10, ge=1, le=100, description="Page size"),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: Optional[User] = Depends(get_current_user_optional)
 ):
     """
     Search gig jobs by title, description, or skills.
@@ -345,7 +349,7 @@ async def search_gig_jobs(
     repository = GigJobRepository(db)
     pagination = PaginationParams(page=page, size=size)
     
-    gig_jobs, total = repository.search_gig_jobs(q, pagination)
+    gig_jobs, total = repository.search_gig_jobs(q, pagination, current_user.id if current_user else None)
     
     return create_pagination_response(
         items=gig_jobs,

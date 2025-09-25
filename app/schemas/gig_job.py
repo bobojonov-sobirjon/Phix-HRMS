@@ -13,10 +13,10 @@ class ExperienceLevel(str, Enum):
 
 
 class GigJobStatus(str, Enum):
-    ACTIVE = "active"
-    IN_PROGRESS = "in_progress"
-    COMPLETED = "completed"
-    CANCELLED = "cancelled"
+    ACTIVE = "ACTIVE"
+    IN_PROGRESS = "IN_PROGRESS"
+    COMPLETED = "COMPLETED"
+    CANCELLED = "CANCELLED"
 
 
 class ProjectLength(str, Enum):
@@ -27,15 +27,15 @@ class ProjectLength(str, Enum):
 
 
 class DatePosted(str, Enum):
-    ANY_TIME = "any_time"
-    PAST_24_HOURS = "past_24_hours"
-    PAST_WEEK = "past_week"
-    PAST_MONTH = "past_month"
+    ANY_TIME = "ANY_TIME"
+    PAST_24_HOURS = "PAST_24_HOURS"
+    PAST_WEEK = "PAST_WEEK"
+    PAST_MONTH = "PAST_MONTH"
 
 
 class SortBy(str, Enum):
-    MOST_RECENT = "most_recent"
-    MOST_RELEVANT = "most_relevant"
+    MOST_RECENT = "MOST_RECENT"
+    MOST_RELEVANT = "MOST_RELEVANT"
 
 
 # Base schema
@@ -78,11 +78,11 @@ class GigJobResponse(BaseModel):
     title: str = Field(..., min_length=1, max_length=255, description="Job title")
     description: str = Field(..., min_length=10, description="Detailed job description")
     location: Optional[Location] = None
-    experience_level: ExperienceLevel = Field(..., description="Required experience level")
-    project_length: ProjectLength = Field(..., description="Project length (LESS_THAN_ONE_MONTH, ONE_TO_THREE_MONTHS, THREE_TO_SIX_MONTHS, MORE_THAN_SIX_MONTHS)")
+    experience_level: str = Field(..., description="Required experience level")
+    project_length: str = Field(..., description="Project length (LESS_THAN_ONE_MONTH, ONE_TO_THREE_MONTHS, THREE_TO_SIX_MONTHS, MORE_THAN_SIX_MONTHS)")
     min_salary: float = Field(..., gt=0, description="Minimum salary")
     max_salary: float = Field(..., gt=0, description="Maximum salary")
-    status: GigJobStatus
+    status: str
     author: Optional[dict] = None
     man_category: Optional[dict] = None
     sub_category: Optional[dict] = None
@@ -90,6 +90,8 @@ class GigJobResponse(BaseModel):
     updated_at: Optional[datetime] = None
     skills: List[dict] = Field(default_factory=list, description="List of skills with details")
     proposal_count: int = Field(default=0, description="Number of proposals for this job")
+    all_jobs_count: int = Field(default=0, description="Total number of jobs created by the author")
+    relevance_score: Optional[float] = Field(default=None, description="Relevance score (only when token is provided)")
     
     model_config = {
         "from_attributes": True

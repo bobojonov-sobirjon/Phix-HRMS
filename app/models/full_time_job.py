@@ -7,31 +7,31 @@ from .team_member import TeamMemberRole
 
 
 class JobType(str, enum.Enum):
-    FULL_TIME = "full_time"
-    PART_TIME = "part_time"
-    CONTRACT = "contract"
-    INTERNSHIP = "internship"
+    FULL_TIME = "FULL_TIME"
+    PART_TIME = "PART_TIME"
+    CONTRACT = "CONTRACT"
+    INTERNSHIP = "INTERNSHIP"
 
 
 class WorkMode(str, enum.Enum):
-    ON_SITE = "on_site"
-    REMOTE = "remote"
-    HYBRID = "hybrid"
+    ON_SITE = "ON_SITE"
+    REMOTE = "REMOTE"
+    HYBRID = "HYBRID"
 
 
 class ExperienceLevel(str, enum.Enum):
-    ENTRY_LEVEL = "entry_level"
-    JUNIOR = "junior"
-    MID_LEVEL = "mid_level"
-    SENIOR = "senior"
-    LEAD = "lead"
-    DIRECTOR = "director"
+    ENTRY_LEVEL = "ENTRY_LEVEL"
+    JUNIOR = "JUNIOR"
+    MID_LEVEL = "MID_LEVEL"
+    SENIOR = "SENIOR"
+    LEAD = "LEAD"
+    DIRECTOR = "DIRECTOR"
 
 
 class JobStatus(str, enum.Enum):
-    ACTIVE = "active"
-    CLOSED = "closed"
-    DRAFT = "draft"
+    ACTIVE = "ACTIVE"
+    CLOSED = "CLOSED"
+    DRAFT = "DRAFT"
 
 
 class FullTimeJob(Base):
