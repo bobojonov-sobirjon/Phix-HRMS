@@ -34,14 +34,12 @@ def upgrade() -> None:
         sa.PrimaryKeyConstraint('id')
     )
 
-    # Indexni CONCURRENTLY bilan yaratish (bloklamaslik uchun)
-    op.execute(
-        'CREATE INDEX CONCURRENTLY IF NOT EXISTS ix_saved_jobs_id ON saved_jobs (id);'
-    )
+    # Create index on id column
+    op.create_index('ix_saved_jobs_id', 'saved_jobs', ['id'])
 
 
 def downgrade() -> None:
     """Downgrade schema."""
-    op.execute('DROP INDEX CONCURRENTLY IF EXISTS ix_saved_jobs_id;')
+    op.drop_index('ix_saved_jobs_id', table_name='saved_jobs')
     op.drop_table('saved_jobs')
 
