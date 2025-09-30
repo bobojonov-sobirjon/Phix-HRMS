@@ -20,22 +20,28 @@ depends_on: Union[str, Sequence[str], None] = None
 
 def upgrade() -> None:
     """Upgrade schema."""
-    # Create saved_jobs table
-    op.create_table(
-        'saved_jobs',
-        sa.Column('id', sa.Integer(), nullable=False),
-        sa.Column('user_id', sa.Integer(), nullable=False),
-        sa.Column('gig_job_id', sa.Integer(), nullable=True),
-        sa.Column('full_time_job_id', sa.Integer(), nullable=True),
-        sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=True),
-        sa.ForeignKeyConstraint(['full_time_job_id'], ['full_time_jobs.id']),
-        sa.ForeignKeyConstraint(['gig_job_id'], ['gig_jobs.id']),
-        sa.ForeignKeyConstraint(['user_id'], ['users.id']),
-        sa.PrimaryKeyConstraint('id')
-    )
+    # Check if table already exists before creating
+    connection = op.get_bind()
+    inspector = sa.inspect(connection)
+    tables = inspector.get_table_names()
+    
+    if 'saved_jobs' not in tables:
+        # Create saved_jobs table
+        op.create_table(
+            'saved_jobs',
+            sa.Column('id', sa.Integer(), nullable=False),
+            sa.Column('user_id', sa.Integer(), nullable=False),
+            sa.Column('gig_job_id', sa.Integer(), nullable=True),
+            sa.Column('full_time_job_id', sa.Integer(), nullable=True),
+            sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=True),
+            sa.ForeignKeyConstraint(['full_time_job_id'], ['full_time_jobs.id']),
+            sa.ForeignKeyConstraint(['gig_job_id'], ['gig_jobs.id']),
+            sa.ForeignKeyConstraint(['user_id'], ['users.id']),
+            sa.PrimaryKeyConstraint('id')
+        )
 
-    # Create index on id column
-    op.create_index('ix_saved_jobs_id', 'saved_jobs', ['id'])
+        # Create index on id column
+        op.create_index('ix_saved_jobs_id', 'saved_jobs', ['id'])
 
 
 def downgrade() -> None:

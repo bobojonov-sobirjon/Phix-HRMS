@@ -19,10 +19,16 @@ depends_on: Union[str, Sequence[str], None] = None
 
 def upgrade() -> None:
     """Add is_deleted column to corporate_profiles table."""
-    op.add_column('corporate_profiles', sa.Column('is_deleted', sa.Boolean(), nullable=True, default=False))
+    # Check if column already exists before adding
+    connection = op.get_bind()
+    inspector = sa.inspect(connection)
+    columns = [col['name'] for col in inspector.get_columns('corporate_profiles')]
     
-    # Set all existing records to is_deleted = False
-    op.execute("UPDATE corporate_profiles SET is_deleted = false WHERE is_deleted IS NULL")
+    if 'is_deleted' not in columns:
+        op.add_column('corporate_profiles', sa.Column('is_deleted', sa.Boolean(), nullable=True, default=False))
+        
+        # Set all existing records to is_deleted = False
+        op.execute("UPDATE corporate_profiles SET is_deleted = false WHERE is_deleted IS NULL")
 
 
 def downgrade() -> None:
