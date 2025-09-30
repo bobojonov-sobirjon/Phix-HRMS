@@ -21,21 +21,27 @@ depends_on: Union[str, Sequence[str], None] = None
 def upgrade() -> None:
     """Upgrade schema."""
     # Create saved_jobs table
-    op.create_table('saved_jobs',
+    op.create_table(
+        'saved_jobs',
         sa.Column('id', sa.Integer(), nullable=False),
         sa.Column('user_id', sa.Integer(), nullable=False),
         sa.Column('gig_job_id', sa.Integer(), nullable=True),
         sa.Column('full_time_job_id', sa.Integer(), nullable=True),
         sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=True),
-        sa.ForeignKeyConstraint(['full_time_job_id'], ['full_time_jobs.id'], ),
-        sa.ForeignKeyConstraint(['gig_job_id'], ['gig_jobs.id'], ),
-        sa.ForeignKeyConstraint(['user_id'], ['users.id'], ),
+        sa.ForeignKeyConstraint(['full_time_job_id'], ['full_time_jobs.id']),
+        sa.ForeignKeyConstraint(['gig_job_id'], ['gig_jobs.id']),
+        sa.ForeignKeyConstraint(['user_id'], ['users.id']),
         sa.PrimaryKeyConstraint('id')
     )
-    op.create_index(op.f('ix_saved_jobs_id'), 'saved_jobs', ['id'], unique=False)
+
+    # Indexni CONCURRENTLY bilan yaratish (bloklamaslik uchun)
+    op.execute(
+        'CREATE INDEX CONCURRENTLY IF NOT EXISTS ix_saved_jobs_id ON saved_jobs (id);'
+    )
 
 
 def downgrade() -> None:
     """Downgrade schema."""
-    op.drop_index(op.f('ix_saved_jobs_id'), table_name='saved_jobs')
+    op.execute('DROP INDEX CONCURRENTLY IF EXISTS ix_saved_jobs_id;')
     op.drop_table('saved_jobs')
+
