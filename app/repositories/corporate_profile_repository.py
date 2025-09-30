@@ -34,14 +34,17 @@ class CorporateProfileRepository:
         ).first()
     
     def get_by_user_id(self, user_id: int) -> Optional[CorporateProfile]:
-        """Get corporate profile by user ID"""
+        """Get corporate profile by user ID (excluding deleted)"""
         return self.db.query(CorporateProfile).options(
             joinedload(CorporateProfile.location),
             joinedload(CorporateProfile.user),
             joinedload(CorporateProfile.team_members).joinedload(TeamMember.user),
             joinedload(CorporateProfile.team_members).joinedload(TeamMember.invited_by)
         ).filter(
-            CorporateProfile.user_id == user_id
+            and_(
+                CorporateProfile.user_id == user_id,
+                CorporateProfile.is_deleted == False
+            )
         ).first()
     
     def get_all(self, skip: int = 0, limit: int = 100) -> List[CorporateProfile]:

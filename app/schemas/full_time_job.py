@@ -99,6 +99,7 @@ class FullTimeJobResponse(BaseModel):
     skills: List[dict] = Field(default_factory=list, description="List of skills with details")
     all_jobs_count: int = Field(default=0, description="Total number of jobs created by the user")
     relevance_score: Optional[float] = Field(default=None, description="Relevance score (only when token is provided)")
+    is_saved: bool = Field(default=False, description="Whether the job is saved by the current user")
     
     class Config:
         from_attributes = True

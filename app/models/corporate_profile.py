@@ -32,6 +32,7 @@ class CorporateProfile(Base):
     # Verification status
     is_active = Column(Boolean, default=False)  # False until verified
     is_verified = Column(Boolean, default=False)
+    is_deleted = Column(Boolean, default=False)
     
     # Foreign keys
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False, unique=True)

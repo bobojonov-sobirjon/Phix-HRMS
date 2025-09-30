@@ -11,6 +11,7 @@ from ..repositories.experience_repository import ExperienceRepository
 from ..repositories.certification_repository import CertificationRepository
 from ..repositories.project_repository import ProjectRepository
 from ..repositories.language_repository import LanguageRepository
+from ..repositories.category_repository import CategoryRepository
 from ..schemas.profile import (
     UserFullResponse,
     SkillResponse, SkillCreate,
@@ -20,8 +21,9 @@ from ..schemas.profile import (
     ProjectResponse, ProjectCreate, ProjectUpdate,
     UserLanguageUpdate
 )
+from ..schemas.category import CategoryResponse
 from ..schemas.common import SuccessResponse, ErrorResponse
-from typing import List
+from typing import List, Optional
 import os
 
 router = APIRouter(prefix="/profile", tags=[])
@@ -545,5 +547,79 @@ def update_user_language(data: UserLanguageUpdate, current_user: User = Depends(
         )
     except HTTPException:
         raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+# Category Management Endpoints
+@router.get("/categories", response_model=SuccessResponse, tags=["Profile Categories"])
+def get_categories(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Get all main categories"""
+    try:
+        repo = CategoryRepository(db)
+        categories = repo.get_categories_only_with_filter(is_active=True)
+        category_responses = [CategoryResponse.model_validate(cat) for cat in categories]
+        return SuccessResponse(
+            msg="Categories retrieved successfully",
+            data=category_responses
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/categories/{category_id}/subcategories", response_model=SuccessResponse, tags=["Profile Categories"])
+def get_subcategories(category_id: int, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Get subcategories for a specific main category"""
+    try:
+        repo = CategoryRepository(db)
+        subcategories = repo.get_subcategories_with_filter(category_id, is_active=True)
+        subcategory_responses = [CategoryResponse.model_validate(sub) for sub in subcategories]
+        return SuccessResponse(
+            msg="Subcategories retrieved successfully",
+            data=subcategory_responses
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.patch("/categories", response_model=SuccessResponse, tags=["Profile Categories"])
+def update_user_categories(
+    main_category_id: Optional[int] = None,
+    sub_category_id: Optional[int] = None,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Update user's main category and sub-category"""
+    try:
+        repo = UserRepository(db)
+        updated_user = repo.update_user_categories(
+            current_user.id, 
+            main_category_id=main_category_id, 
+            sub_category_id=sub_category_id
+        )
+        
+        if not updated_user:
+            raise HTTPException(status_code=404, detail="User not found or invalid category IDs")
+        
+        user_response = UserFullResponse.model_validate(updated_user)
+        return SuccessResponse(
+            msg="Categories updated successfully",
+            data=user_response
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/my-categories", response_model=SuccessResponse, tags=["Profile Categories"])
+def get_my_categories(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Get current user's categories"""
+    try:
+        user_response = UserFullResponse.model_validate(current_user)
+        categories_data = {
+            "main_category": user_response.main_category,
+            "sub_category": user_response.sub_category
+        }
+        return SuccessResponse(
+            msg="User categories retrieved successfully",
+            data=categories_data
+        )
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e)) 

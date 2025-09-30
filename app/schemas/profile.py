@@ -3,6 +3,7 @@ from typing import Optional, List
 from datetime import datetime
 from pydantic import computed_field
 from ..config import settings
+from .category import CategoryResponse
 
 class LocationBase(BaseModel):
     name: str
@@ -229,8 +230,12 @@ class UserFullResponse(BaseModel):
     about_me: Optional[str] = None
     current_position: Optional[str] = None
     location_id: Optional[int] = None
+    main_category_id: Optional[int] = None
+    sub_category_id: Optional[int] = None
     roles: List[RoleResponse] = []
     location: Optional[LocationResponse] = None
+    main_category: Optional[CategoryResponse] = None
+    sub_category: Optional[CategoryResponse] = None
     skills: List[SkillResponse] = []
     educations: List[EducationResponse] = []
     experiences: List[ExperienceResponse] = []
@@ -250,6 +255,8 @@ class UserUpdate(BaseModel):
     current_position: Optional[str] = None
     location_id: Optional[int] = None
     language_id: Optional[int] = None
+    main_category_id: Optional[int] = None
+    sub_category_id: Optional[int] = None
 
 class UserSkillBase(BaseModel):
     user_id: int

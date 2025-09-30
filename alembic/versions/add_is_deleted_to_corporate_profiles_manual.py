@@ -1,0 +1,30 @@
+"""add_is_deleted_to_corporate_profiles_manual
+
+Revision ID: add_is_deleted_manual
+Revises: add_saved_jobs_manual
+Create Date: 2025-09-30 11:15:00.000000
+
+"""
+from typing import Sequence, Union
+
+from alembic import op
+import sqlalchemy as sa
+
+# revision identifiers, used by Alembic.
+revision: str = 'add_is_deleted_manual'
+down_revision: Union[str, Sequence[str], None] = 'add_saved_jobs_manual'
+branch_labels: Union[str, Sequence[str], None] = None
+depends_on: Union[str, Sequence[str], None] = None
+
+
+def upgrade() -> None:
+    """Add is_deleted column to corporate_profiles table."""
+    op.add_column('corporate_profiles', sa.Column('is_deleted', sa.Boolean(), nullable=True, default=False))
+    
+    # Set all existing records to is_deleted = False
+    op.execute("UPDATE corporate_profiles SET is_deleted = false WHERE is_deleted IS NULL")
+
+
+def downgrade() -> None:
+    """Remove is_deleted column from corporate_profiles table."""
+    op.drop_column('corporate_profiles', 'is_deleted')

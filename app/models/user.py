@@ -29,6 +29,10 @@ class User(Base):
     location_id = Column(Integer, ForeignKey('locations.id'), nullable=True)
     language_id = Column(Integer, ForeignKey('languages.id'), nullable=True)
     
+    # Category information
+    main_category_id = Column(Integer, ForeignKey('categories.id'), nullable=True)
+    sub_category_id = Column(Integer, ForeignKey('categories.id'), nullable=True)
+    
     # Account status
     is_active = Column(Boolean, default=True)
     is_verified = Column(Boolean, default=False)
@@ -42,6 +46,8 @@ class User(Base):
     # Relationships
     location = relationship('Location', back_populates='users')
     language = relationship('Language')
+    main_category = relationship('Category', foreign_keys=[main_category_id], back_populates='users_main')
+    sub_category = relationship('Category', foreign_keys=[sub_category_id], back_populates='users_sub')
     certifications = relationship('Certification', back_populates='user', cascade='all, delete-orphan')
     educations = relationship('Education', back_populates='user', cascade='all, delete-orphan')
     experiences = relationship('Experience', back_populates='user', cascade='all, delete-orphan')
@@ -52,6 +58,7 @@ class User(Base):
     corporate_profile = relationship('CorporateProfile', back_populates='user', uselist=False, cascade='all, delete-orphan')
     team_memberships = relationship('TeamMember', foreign_keys='TeamMember.user_id', back_populates='user')
     proposals = relationship('Proposal', back_populates='user', cascade='all, delete-orphan')
+    saved_jobs = relationship('SavedJob', back_populates='user', cascade='all, delete-orphan')
     
     def set_password(self, password: str):
         """Hash password using bcrypt"""

@@ -71,6 +71,7 @@ class FullTimeJob(Base):
     proposals = relationship("Proposal", back_populates="full_time_job", cascade="all, delete-orphan")
     skills = relationship("Skill", secondary="full_time_job_skills", back_populates="full_time_jobs")
     created_by_user = relationship("User", foreign_keys=[created_by_user_id])
+    saved_jobs = relationship("SavedJob", back_populates="full_time_job", cascade="all, delete-orphan")
     
     def __repr__(self):
         return f"<FullTimeJob(id={self.id}, title='{self.title}', company_id={self.company_id})>"

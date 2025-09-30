@@ -175,28 +175,57 @@ async def create_proposal(
             db.commit()
             db.refresh(proposal)
     
+    # Get the created proposal with all relationships for response
+    proposal_with_details = repository.get_by_id(proposal.id)
+    
     # Determine job type for success message
     job_type = "gig job" if gig_job_id else "full-time job"
     job_id = gig_job_id if gig_job_id else full_time_job_id
     
-    return JSONResponse(
-        status_code=status.HTTP_201_CREATED,
-        content={
-            "status": "success",
-            "msg": f"Proposal successfully submitted for {job_type} (ID: {job_id})"
-        }
-    )
+    try:
+        # Create response data with expanded job details
+        response_data = ProposalResponse.from_orm(proposal_with_details)
+        
+        return JSONResponse(
+            status_code=status.HTTP_201_CREATED,
+            content={
+                "status": "success",
+                "msg": f"Proposal successfully submitted for {job_type} (ID: {job_id})",
+                "data": response_data.model_dump(mode='json')
+            }
+        )
+    except Exception as e:
+        # If there's an error with the detailed response, return basic response
+        return JSONResponse(
+            status_code=status.HTTP_201_CREATED,
+            content={
+                "status": "success",
+                "msg": f"Proposal successfully submitted for {job_type} (ID: {job_id})",
+                "data": {
+                    "id": proposal.id,
+                    "user_id": proposal.user_id,
+                    "gig_job_id": proposal.gig_job_id,
+                    "full_time_job_id": proposal.full_time_job_id,
+                    "cover_letter": proposal.cover_letter,
+                    "delivery_time": proposal.delivery_time,
+                    "offer_amount": proposal.offer_amount,
+                    "attachments": json.loads(proposal.attachments) if proposal.attachments else [],
+                    "created_at": proposal.created_at.isoformat() if proposal.created_at else None,
+                    "updated_at": proposal.updated_at.isoformat() if proposal.updated_at else None
+                }
+            }
+        )
 
 
-@router.get("/my-proposals", response_model=ProposalListResponse)
-async def get_my_proposals(
+@router.get("/my-proposals-gig-job", response_model=ProposalListResponse)
+async def get_my_gig_job_proposals(
     page: int = Query(1, ge=1, description="Page number"),
     size: int = Query(10, ge=1, le=100, description="Page size"),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
     """
-    Get proposals submitted by the current user.
+    Get gig job proposals submitted by the current user.
     
     - **page**: Page number (default: 1)
     - **size**: Page size (default: 10, max: 100)
@@ -204,7 +233,35 @@ async def get_my_proposals(
     repository = ProposalRepository(db)
     pagination = PaginationParams(page=page, size=size)
     
-    proposals, total = repository.get_user_proposals(current_user.id, pagination)
+    proposals, total = repository.get_user_gig_job_proposals(current_user.id, pagination)
+    
+    # Convert proposals to response format
+    proposal_responses = [ProposalResponse.from_orm(proposal) for proposal in proposals]
+    
+    return create_pagination_response(
+        items=proposal_responses,
+        total=total,
+        pagination=pagination
+    )
+
+
+@router.get("/my-proposals-full-time-jobs", response_model=ProposalListResponse)
+async def get_my_full_time_job_proposals(
+    page: int = Query(1, ge=1, description="Page number"),
+    size: int = Query(10, ge=1, le=100, description="Page size"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Get full-time job proposals submitted by the current user.
+    
+    - **page**: Page number (default: 1)
+    - **size**: Page size (default: 10, max: 100)
+    """
+    repository = ProposalRepository(db)
+    pagination = PaginationParams(page=page, size=size)
+    
+    proposals, total = repository.get_user_full_time_job_proposals(current_user.id, pagination)
     
     # Convert proposals to response format
     proposal_responses = [ProposalResponse.from_orm(proposal) for proposal in proposals]
@@ -427,17 +484,46 @@ async def update_proposal(
             }
         )
     
+    # Get the updated proposal with all relationships for response
+    proposal_with_details = repository.get_by_id(proposal_id)
+    
     # Determine job type for success message
     job_type = "gig job" if existing_proposal.gig_job_id else "full-time job"
     job_id = existing_proposal.gig_job_id if existing_proposal.gig_job_id else existing_proposal.full_time_job_id
     
-    return JSONResponse(
-        status_code=status.HTTP_200_OK,
-        content={
-            "status": "success",
-            "msg": f"Proposal successfully updated for {job_type} (ID: {job_id})"
-        }
-    )
+    try:
+        # Create response data with expanded job details
+        response_data = ProposalResponse.from_orm(proposal_with_details)
+        
+        return JSONResponse(
+            status_code=status.HTTP_200_OK,
+            content={
+                "status": "success",
+                "msg": f"Proposal successfully updated for {job_type} (ID: {job_id})",
+                "data": response_data.model_dump(mode='json')
+            }
+        )
+    except Exception as e:
+        # If there's an error with the detailed response, return basic response
+        return JSONResponse(
+            status_code=status.HTTP_200_OK,
+            content={
+                "status": "success",
+                "msg": f"Proposal successfully updated for {job_type} (ID: {job_id})",
+                "data": {
+                    "id": proposal_with_details.id,
+                    "user_id": proposal_with_details.user_id,
+                    "gig_job_id": proposal_with_details.gig_job_id,
+                    "full_time_job_id": proposal_with_details.full_time_job_id,
+                    "cover_letter": proposal_with_details.cover_letter,
+                    "delivery_time": proposal_with_details.delivery_time,
+                    "offer_amount": proposal_with_details.offer_amount,
+                    "attachments": json.loads(proposal_with_details.attachments) if proposal_with_details.attachments else [],
+                    "created_at": proposal_with_details.created_at.isoformat() if proposal_with_details.created_at else None,
+                    "updated_at": proposal_with_details.updated_at.isoformat() if proposal_with_details.updated_at else None
+                }
+            }
+        )
 
 
 @router.delete("/{proposal_id}")

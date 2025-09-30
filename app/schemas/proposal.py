@@ -114,7 +114,7 @@ class ProposalResponse(ProposalBase):
         
         # Include user details if available
         if hasattr(obj, 'user') and obj.user:
-            data["user"] = UserFullResponse.from_orm(obj.user)
+            data["user"] = UserFullResponse.model_validate(obj.user)
         
         # Include gig job details if available
         if hasattr(obj, 'gig_job') and obj.gig_job:
@@ -131,6 +131,11 @@ class ProposalResponse(ProposalBase):
         """Prepare gig job data for response"""
         if not gig_job:
             return None
+        
+        # Handle both model objects and dictionaries
+        if isinstance(gig_job, dict):
+            # If it's already a dictionary (from repository), return as is
+            return gig_job
             
         # Convert skills to dict format
         skills_data = []
@@ -200,6 +205,11 @@ class ProposalResponse(ProposalBase):
         """Prepare full-time job data for response"""
         if not full_time_job:
             return None
+        
+        # Handle both model objects and dictionaries
+        if isinstance(full_time_job, dict):
+            # If it's already a dictionary (from repository), return as is
+            return full_time_job
             
         # Convert skills to dict format
         skills_data = []

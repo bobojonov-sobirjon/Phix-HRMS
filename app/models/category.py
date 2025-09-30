@@ -27,5 +27,9 @@ class Category(Base):
     full_time_jobs = relationship("FullTimeJob", foreign_keys="FullTimeJob.category_id", back_populates="category")
     gig_jobs = relationship("GigJob", foreign_keys="GigJob.category_id", back_populates="category")
     
+    # User relationships
+    users_main = relationship("User", foreign_keys="User.main_category_id", back_populates="main_category")
+    users_sub = relationship("User", foreign_keys="User.sub_category_id", back_populates="sub_category")
+    
     def __repr__(self):
         return f"<Category(id={self.id}, name='{self.name}', parent_id={self.parent_id})>"

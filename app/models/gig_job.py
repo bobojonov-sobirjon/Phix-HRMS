@@ -56,6 +56,7 @@ class GigJob(Base):
     location = relationship("Location")
     proposals = relationship("Proposal", back_populates="gig_job", cascade="all, delete-orphan")
     skills = relationship("Skill", secondary="gig_job_skills", back_populates="gig_jobs")
+    saved_jobs = relationship("SavedJob", back_populates="gig_job", cascade="all, delete-orphan")
     
     def __repr__(self):
         return f"<GigJob(id={self.id}, title='{self.title}', author_id={self.author_id})>"
