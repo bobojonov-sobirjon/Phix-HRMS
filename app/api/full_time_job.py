@@ -63,7 +63,7 @@ def check_job_access_permission(
     team_repo = TeamMemberRepository(db)
     
     # Get job details
-    job = job_repo.get_by_id(job_id)
+    job = job_repo.get_by_id(job_id, user_id)
     if not job:
         return False, {}, "Full-time job not found"
     
@@ -99,8 +99,10 @@ def get_user_corporate_profiles(user_id: int, db: Session) -> List[int]:
     team_repo = TeamMemberRepository(db)
     
     # Get owned profiles
-    owned_profiles = corporate_repo.get_by_user_id(user_id)
-    corporate_profile_ids = [profile.id for profile in owned_profiles]
+    owned_profile = corporate_repo.get_by_user_id(user_id)
+    corporate_profile_ids = []
+    if owned_profile:
+        corporate_profile_ids.append(owned_profile.id)
     
     # Get team member profiles
     team_memberships = team_repo.get_user_team_memberships_accepted(user_id)
@@ -301,7 +303,7 @@ async def get_my_full_time_jobs(
 async def get_my_full_time_jobs_with_filters(
     page: int = Query(1, ge=1),
     size: int = Query(10, ge=1, le=100),
-    status: Optional[str] = Query(None, description="Filter by job status"),
+    job_status: Optional[str] = Query(None, description="Filter by job status"),
     job_type: Optional[str] = Query(None, description="Filter by job type"),
     experience_level: Optional[str] = Query(None, description="Filter by experience level"),
     work_mode: Optional[str] = Query(None, description="Filter by work mode"),
@@ -332,18 +334,19 @@ async def get_my_full_time_jobs_with_filters(
             corporate_profile_ids=corporate_profile_ids,
             skip=skip,
             limit=size,
-            status=status,
+            status=job_status,
             job_type=job_type,
             experience_level=experience_level,
             work_mode=work_mode,
             location=location,
             min_salary=min_salary,
-            max_salary=max_salary
+            max_salary=max_salary,
+            current_user_id=current_user.id
         )
         
         total = job_repo.count_by_corporate_profiles_with_filters(
             corporate_profile_ids=corporate_profile_ids,
-            status=status,
+            status=job_status,
             job_type=job_type,
             experience_level=experience_level,
             work_mode=work_mode,
@@ -508,7 +511,7 @@ async def delete_full_time_job(
 @router.patch("/{job_id}/status", response_model=FullTimeJobResponse, tags=["Full Time Job"])
 async def change_job_status(
     job_id: int,
-    status: str = Query(..., regex="^(ACTIVE|CLOSED|DRAFT)$"),
+    new_status: str = Query(..., regex="^(ACTIVE|CLOSED|DRAFT)$"),
     current_user: dict = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
@@ -533,7 +536,7 @@ async def change_job_status(
         
         # Change status
         job_repo = FullTimeJobRepository(db)
-        updated_job = job_repo.change_status(job_id, status)
+        updated_job = job_repo.change_status(job_id, new_status)
         if not updated_job:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

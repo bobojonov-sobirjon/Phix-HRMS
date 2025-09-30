@@ -39,7 +39,9 @@ class UserRepository:
             selectinload(User.roles),  # Eager load roles to avoid N+1
             selectinload(User.skills),  # Eager load skills
             selectinload(User.location),  # Eager load location
-            selectinload(User.language)  # Eager load language
+            selectinload(User.language),  # Eager load language
+            selectinload(User.main_category),  # Eager load main category
+            selectinload(User.sub_category)  # Eager load sub category
         ).filter(and_(User.id == user_id, User.is_deleted == False)).first()
         
         if user:
@@ -152,11 +154,44 @@ class UserRepository:
         self.db.refresh(user)
         return user
 
+    def update_user_categories(self, user_id: int, main_category_id: Optional[int] = None, sub_category_id: Optional[int] = None) -> Optional[User]:
+        """Update user categories with validation"""
+        user = self.get_user_by_id(user_id)
+        if not user:
+            return None
+        
+        # Validate categories exist if provided
+        if main_category_id is not None:
+            from ..models.category import Category
+            main_category = self.db.query(Category).filter(Category.id == main_category_id).first()
+            if not main_category:
+                return None
+            user.main_category_id = main_category_id
+        
+        if sub_category_id is not None:
+            from ..models.category import Category
+            sub_category = self.db.query(Category).filter(Category.id == sub_category_id).first()
+            if not sub_category:
+                return None
+            user.sub_category_id = sub_category_id
+        
+        self.db.commit()
+        self.db.refresh(user)
+        return user
+
     def soft_delete_user(self, user_id: int) -> bool:
         """Soft delete user with optimized query"""
         # Use direct update instead of loading user first
         result = self.db.query(User).filter(User.id == user_id).update({
             User.is_deleted: True
+        })
+        self.db.commit()
+        return result > 0
+
+    def restore_user_by_email(self, email: str) -> bool:
+        """Restore user by email (set is_deleted to False)"""
+        result = self.db.query(User).filter(User.email == email).update({
+            User.is_deleted: False
         })
         self.db.commit()
         return result > 0
@@ -198,7 +233,9 @@ class UserRepository:
             # Use selectinload for better performance than joinedload
             selectinload(User.location),
             selectinload(User.roles),
-            selectinload(User.skills)
+            selectinload(User.skills),
+            selectinload(User.main_category),
+            selectinload(User.sub_category)
         ).filter(and_(User.id == user_id, User.is_deleted == False)).first()
         
         if user:

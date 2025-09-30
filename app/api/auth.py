@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Header, UploadFile, File, Form, Request
+from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 from typing import Optional
 from ..database import get_db
@@ -7,7 +8,7 @@ from ..schemas.auth import (
     OTPVerify, PasswordResetVerified, LoginResponse, UserResponse, 
     Token, OTPResponse, UserUpdate, RegisterOTPRequest, 
     RegisterOTPVerify, RegisterResponse, RefreshTokenRequest, 
-    RefreshTokenResponse
+    RefreshTokenResponse, UserRestore
 )
 from ..schemas.profile import UserFullResponse, RoleResponse
 from ..schemas.common import SuccessResponse, ErrorResponse
@@ -15,7 +16,7 @@ from ..repositories.user_repository import UserRepository, OTPRepository
 from ..repositories.role_repository import RoleRepository
 from ..repositories.team_member_repository import TeamMemberRepository
 from ..repositories.corporate_profile_repository import CorporateProfileRepository
-from ..utils.auth import create_access_token, create_refresh_token, verify_password, verify_refresh_token
+from ..utils.auth import create_access_token, create_refresh_token, verify_password, verify_refresh_token, oauth2_scheme
 from ..utils.email import generate_otp, send_otp_email, send_registration_otp_email
 from ..utils.social_auth import verify_social_token
 from ..models.user import User
@@ -30,7 +31,7 @@ from json import JSONDecodeError
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 
-# Dependency to get current user from token
+# Dependency to get current user from token (for manual header usage)
 def get_current_user(
     authorization: str = Header(None),
     db: Session = Depends(get_db)
@@ -52,6 +53,85 @@ def get_current_user(
         )
     
     token = authorization.replace("Bearer ", "")
+    
+    payload = verify_token(token)
+    if not payload:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid token"
+        )
+    
+    user_id = payload.get("sub")
+    if not user_id:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid token"
+        )
+    
+    user_repo = UserRepository(db)
+    user = user_repo.get_user_by_id(int(user_id))
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="User does not exist"
+        )
+    
+    return user
+
+# Dependency to get current user including deleted users (for restore operations)
+def get_current_user_including_deleted(
+    authorization: str = Header(None),
+    db: Session = Depends(get_db)
+) -> Optional[User]:
+    """Get current user from JWT token including deleted users"""
+    from ..utils.auth import verify_token
+    
+    if not authorization:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authorization header required"
+        )
+    
+    # Extract token from Authorization header
+    if not authorization.startswith("Bearer "):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid authorization header format"
+        )
+    
+    token = authorization.replace("Bearer ", "")
+    
+    payload = verify_token(token)
+    if not payload:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid token"
+        )
+    
+    user_id = payload.get("sub")
+    if not user_id:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid token"
+        )
+    
+    # Get user including deleted users
+    user = db.query(User).filter(User.id == int(user_id)).first()
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="User does not exist"
+        )
+    
+    return user
+
+# Dependency to get current user from OAuth2 token (for Swagger UI)
+def get_current_user_oauth2(
+    token: str = Depends(oauth2_scheme),
+    db: Session = Depends(get_db)
+) -> Optional[User]:
+    """Get current user from OAuth2 token (for Swagger UI)"""
+    from ..utils.auth import verify_token
     
     payload = verify_token(token)
     if not payload:
@@ -247,6 +327,55 @@ async def verify_registration_otp(otp_verify: RegisterOTPVerify, db: Session = D
         return SuccessResponse(
             msg="Registration completed successfully",
             data=login_response
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/token", response_model=Token)
+async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
+    """OAuth2 compatible token endpoint for Swagger UI"""
+    try:
+        user_repo = UserRepository(db)
+        
+        # Get user by email (this now excludes deleted users)
+        user = user_repo.get_user_by_email(form_data.username)  # OAuth2PasswordRequestForm uses 'username' field
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Incorrect email or password",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+        
+        # Check if user is active
+        if not user.is_active:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Account is deactivated",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+        
+        # Verify password
+        if not user.verify_password(form_data.password):
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Incorrect email or password",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+        
+        # Create access token
+        access_token = create_access_token(
+            data={"sub": str(user.id)}
+        )
+        
+        # Update last login
+        user_repo.update_last_login(user.id)
+        
+        return Token(
+            access_token=access_token,
+            token_type="bearer",
+            expires_in=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60
         )
     except HTTPException:
         raise
@@ -496,7 +625,7 @@ async def reset_password(password_reset: PasswordResetVerified, db: Session = De
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/me", response_model=SuccessResponse)
-async def get_current_user_info(request: Request, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+async def get_current_user_info(request: Request, current_user: User = Depends(get_current_user_oauth2), db: Session = Depends(get_db)):
     """Get current user full profile, with full avatar_url, full image URLs for project images, and full flag_image URL for location. Only one location object should be returned."""
     try:
         user_repo = UserRepository(db)
@@ -552,6 +681,8 @@ async def update_profile(update: UserUpdate, request: Request, current_user: Use
             about_me=updated_user.about_me,
             current_position=updated_user.current_position,
             location_id=updated_user.location_id,
+            main_category_id=updated_user.main_category_id,
+            sub_category_id=updated_user.sub_category_id,
             roles=[role.name for role in updated_user.roles]
         ).dict()
         if user_data["raw_avatar_url"]:
@@ -767,7 +898,7 @@ async def get_user_profiles(
             CorporateProfile.id == membership.corporate_profile_id
         ).first()
         
-        if corporate_profile and corporate_profile.is_active and corporate_profile.is_verified:
+        if corporate_profile and corporate_profile.is_active and corporate_profile.is_verified and not corporate_profile.is_deleted:
             # Role-based permissions
             permissions = [p.value for p in get_role_permissions(membership.role)]
             
@@ -790,4 +921,55 @@ async def get_user_profiles(
         status="success",
         msg="User profiles retrieved successfully",
         data={"profiles": profiles}
-    ) 
+    )
+
+@router.post("/restore-user", response_model=SuccessResponse)
+async def restore_user(
+    restore_data: UserRestore, 
+    authorization: str = Header(None),
+    db: Session = Depends(get_db)
+):
+    """Restore deleted user by email (set is_deleted to False) - Optional authentication"""
+    try:
+        user_repo = UserRepository(db)
+        
+        # Optional authentication - if token provided, verify it
+        if authorization:
+            try:
+                current_user = get_current_user_including_deleted(authorization, db)
+                # User is authenticated, can proceed
+            except HTTPException:
+                # Invalid token, but we still allow the operation
+                pass
+        
+        # Check if user exists with this email (including deleted users)
+        user = db.query(User).filter(User.email == restore_data.email).first()
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="User with this email not found"
+            )
+        
+        # Check if user is already active (not deleted)
+        if not user.is_deleted:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="User is already active (not deleted)"
+            )
+        
+        # Restore user
+        success = user_repo.restore_user_by_email(restore_data.email)
+        if not success:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to restore user"
+            )
+        
+        return SuccessResponse(
+            msg="User restored successfully",
+            data={"email": restore_data.email}
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e)) 

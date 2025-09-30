@@ -202,15 +202,17 @@ async def get_my_gig_jobs(
 @router.get("/{gig_job_id}", response_model=GigJobResponse)
 async def get_gig_job_by_id(
     gig_job_id: int,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: Optional[User] = Depends(get_current_user_optional)
 ):
     """
     Get a specific gig job by ID.
     
     - **gig_job_id**: ID of the gig job
+    - **Authorization**: Optional Bearer token for authentication
     """
     repository = GigJobRepository(db)
-    gig_job = repository.get_by_id(gig_job_id)
+    gig_job = repository.get_by_id(gig_job_id, current_user.id if current_user else None)
     
     if not gig_job:
         raise HTTPException(

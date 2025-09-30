@@ -57,6 +57,45 @@ class ProposalRepository:
         
         return proposals, total
 
+    def get_user_gig_job_proposals(self, user_id: int, pagination: PaginationParams) -> tuple[List[Proposal], int]:
+        """Get paginated gig job proposals submitted by a specific user with relationships"""
+        query = self.db.query(Proposal).options(
+            joinedload(Proposal.user),
+            joinedload(Proposal.gig_job).joinedload(GigJob.category),
+            joinedload(Proposal.gig_job).joinedload(GigJob.subcategory),
+            joinedload(Proposal.gig_job).joinedload(GigJob.location),
+            joinedload(Proposal.gig_job).joinedload(GigJob.skills)
+        ).filter(
+            and_(Proposal.user_id == user_id, Proposal.gig_job_id.isnot(None))
+        )
+        
+        # Get total count
+        total = query.count()
+        
+        # Apply pagination
+        proposals = query.offset(pagination.offset).limit(pagination.limit).all()
+        
+        return proposals, total
+
+    def get_user_full_time_job_proposals(self, user_id: int, pagination: PaginationParams) -> tuple[List[Proposal], int]:
+        """Get paginated full-time job proposals submitted by a specific user with relationships"""
+        query = self.db.query(Proposal).options(
+            joinedload(Proposal.user),
+            joinedload(Proposal.full_time_job).joinedload(FullTimeJob.category),
+            joinedload(Proposal.full_time_job).joinedload(FullTimeJob.subcategory),
+            joinedload(Proposal.full_time_job).joinedload(FullTimeJob.skills)
+        ).filter(
+            and_(Proposal.user_id == user_id, Proposal.full_time_job_id.isnot(None))
+        )
+        
+        # Get total count
+        total = query.count()
+        
+        # Apply pagination
+        proposals = query.offset(pagination.offset).limit(pagination.limit).all()
+        
+        return proposals, total
+
     def get_gig_job_proposals(self, gig_job_id: int, pagination: PaginationParams) -> tuple[List[Proposal], int]:
         """Get paginated proposals for a specific gig job with relationships"""
         query = self.db.query(Proposal).options(

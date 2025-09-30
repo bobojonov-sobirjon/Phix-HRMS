@@ -9,7 +9,7 @@ from ..config import settings
 from ..database import get_db
 
 # OAuth2 scheme for token authentication
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="api/v1/auth/login")
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="api/v1/auth/token")
 
 # Password hashing context
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -66,7 +66,7 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
     return pwd_context.verify(plain_password, hashed_password)
 
 def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)) -> Optional[dict]:
-    """Get current user from JWT token"""
+    """Get current user from JWT token (OAuth2 compatible for Swagger UI)"""
     payload = verify_token(token)
     if not payload:
         raise HTTPException(

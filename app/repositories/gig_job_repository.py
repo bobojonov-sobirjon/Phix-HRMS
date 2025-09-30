@@ -349,8 +349,15 @@ class GigJobRepository:
         
         # Calculate relevance score if current user is provided
         relevance_score = None
+        is_saved = False
         if current_user_id:
             relevance_score = self._calculate_relevance_score(gig_job, current_user_id)
+            # Check if job is saved by current user
+            from ..models.saved_job import SavedJob
+            is_saved = self.db.query(SavedJob).filter(
+                SavedJob.user_id == current_user_id,
+                SavedJob.gig_job_id == gig_job.id
+            ).first() is not None
         
         # Prepare skills data with gig_job_skill ID
         skills_data = []
@@ -429,7 +436,8 @@ class GigJobRepository:
             "skills": skills_data,
             "proposal_count": proposal_count,
             "all_jobs_count": all_jobs_count,
-            "relevance_score": relevance_score
+            "relevance_score": relevance_score,
+            "is_saved": is_saved
         }
         
         return response_data

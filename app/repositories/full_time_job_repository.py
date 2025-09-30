@@ -45,8 +45,15 @@ class FullTimeJobRepository:
         
         # Calculate relevance score if current user is provided
         relevance_score = None
+        is_saved = False
         if current_user_id:
             relevance_score = self._calculate_relevance_score(job, current_user_id)
+            # Check if job is saved by current user
+            from ..models.saved_job import SavedJob
+            is_saved = self.db.query(SavedJob).filter(
+                SavedJob.user_id == current_user_id,
+                SavedJob.full_time_job_id == job.id
+            ).first() is not None
         
         # Create response data
         response_data = {
@@ -74,7 +81,8 @@ class FullTimeJobRepository:
             "updated_at": job.updated_at,
             "skills": skills_data,
             "all_jobs_count": all_jobs_count,
-            "relevance_score": relevance_score
+            "relevance_score": relevance_score,
+            "is_saved": is_saved
         }
         
         return response_data
@@ -268,7 +276,7 @@ class FullTimeJobRepository:
         ).first()
         
         if job:
-            return self._prepare_full_time_job_response(job)
+            return self._prepare_full_time_job_response(job, current_user_id)
         return None
 
     def get_object_by_id(self, job_id: int) -> Optional[FullTimeJob]:

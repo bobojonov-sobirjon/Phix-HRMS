@@ -130,6 +130,8 @@ class UserResponse(BaseModel):
     about_me: Optional[str] = None
     current_position: Optional[str] = None
     location_id: Optional[int] = None
+    main_category_id: Optional[int] = None
+    sub_category_id: Optional[int] = None
     roles: List[str] = []
 
     @computed_field(alias="avatar_url")
@@ -159,4 +161,10 @@ class UserUpdate(BaseModel):
     phone: Optional[str] = None
     about_me: Optional[str] = None
     current_position: Optional[str] = None
-    location_id: Optional[int] = None 
+    location_id: Optional[int] = None
+    main_category_id: Optional[int] = None
+    sub_category_id: Optional[int] = None
+
+# User Restore Schema
+class UserRestore(BaseModel):
+    email: EmailStr 
