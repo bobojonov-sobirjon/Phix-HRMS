@@ -20,26 +20,57 @@ depends_on: Union[str, Sequence[str], None] = None
 
 def upgrade() -> None:
     """Upgrade schema."""
-    # Add new columns to full_time_jobs table
-    op.add_column('full_time_jobs', sa.Column('created_by_user_id', sa.Integer(), nullable=False))
-    op.add_column('full_time_jobs', sa.Column('created_by_role', sa.Enum('OWNER', 'ADMIN', 'HR_MANAGER', 'RECRUITER', 'VIEWER', name='teammemberrole'), nullable=False))
+    # Check if columns already exist before making changes
+    connection = op.get_bind()
+    inspector = sa.inspect(connection)
+    columns = [col['name'] for col in inspector.get_columns('full_time_jobs')]
     
-    # Add foreign key constraint
-    op.create_foreign_key('fk_full_time_jobs_created_by_user_id', 'full_time_jobs', 'users', ['created_by_user_id'], ['id'])
+    # Add new columns to full_time_jobs table if they don't exist
+    if 'created_by_user_id' not in columns:
+        op.add_column('full_time_jobs', sa.Column('created_by_user_id', sa.Integer(), nullable=False))
     
-    # Add index for better performance
-    op.create_index('ix_full_time_jobs_created_by_user_id', 'full_time_jobs', ['created_by_user_id'])
+    if 'created_by_role' not in columns:
+        op.add_column('full_time_jobs', sa.Column('created_by_role', sa.Enum('OWNER', 'ADMIN', 'HR_MANAGER', 'RECRUITER', 'VIEWER', name='teammemberrole'), nullable=False))
+    
+    # Add foreign key constraint if it doesn't exist
+    try:
+        op.create_foreign_key('fk_full_time_jobs_created_by_user_id', 'full_time_jobs', 'users', ['created_by_user_id'], ['id'])
+    except Exception:
+        # Foreign key already exists, continue
+        pass
+    
+    # Add index for better performance if it doesn't exist
+    try:
+        op.create_index('ix_full_time_jobs_created_by_user_id', 'full_time_jobs', ['created_by_user_id'])
+    except Exception:
+        # Index already exists, continue
+        pass
 
 
 def downgrade() -> None:
     """Downgrade schema."""
-    # Remove index
-    op.drop_index('ix_full_time_jobs_created_by_user_id', table_name='full_time_jobs')
+    # Check if columns exist before trying to remove them
+    connection = op.get_bind()
+    inspector = sa.inspect(connection)
+    columns = [col['name'] for col in inspector.get_columns('full_time_jobs')]
     
-    # Remove foreign key constraint
-    op.drop_constraint('fk_full_time_jobs_created_by_user_id', 'full_time_jobs', type_='foreignkey')
+    # Remove index if it exists
+    try:
+        op.drop_index('ix_full_time_jobs_created_by_user_id', table_name='full_time_jobs')
+    except Exception:
+        # Index doesn't exist, continue
+        pass
     
-    # Remove columns
-    op.drop_column('full_time_jobs', 'created_by_role')
-    op.drop_column('full_time_jobs', 'created_by_user_id')
+    # Remove foreign key constraint if it exists
+    try:
+        op.drop_constraint('fk_full_time_jobs_created_by_user_id', 'full_time_jobs', type_='foreignkey')
+    except Exception:
+        # Foreign key doesn't exist, continue
+        pass
+    
+    # Remove columns if they exist
+    if 'created_by_role' in columns:
+        op.drop_column('full_time_jobs', 'created_by_role')
+    if 'created_by_user_id' in columns:
+        op.drop_column('full_time_jobs', 'created_by_user_id')
 
