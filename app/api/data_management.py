@@ -7,10 +7,13 @@ from ..models.education_facility import EducationFacility
 from ..models.certification_center import CertificationCenter
 from ..models.location import Location
 from ..models.language import Language
+from ..models.category import Category
+from ..models.skill import Skill
 from ..schemas.common import SuccessResponse
 import json
 import os
 from sqlalchemy import and_
+from openpyxl import load_workbook
 
 router = APIRouter(prefix="/data-management", tags=["Data Management"])
 
@@ -20,6 +23,7 @@ CERTIFICATIONS_FILE = "app/utils/files/it_certifications.json"
 EDUCATION_FILE = "app/utils/files/education_institutions_corrected.json"
 COUNTRIES_FILE = "app/utils/files/countries.json"
 LANGUAGES_FILE = "app/utils/files/languages.json"
+CATEGORIES_FILE = "app/utils/files/Categories.xlsx"
 
 def read_json_file(file_path: str) -> List[Dict[str, Any]]:
     """Read JSON file and return its content with error handling"""
@@ -217,6 +221,173 @@ def batch_insert_languages(db: Session, languages_data: List[Dict[str, Any]]) ->
     
     return languages_imported
 
+def batch_insert_categories_and_skills(db: Session) -> Dict[str, int]:
+    """
+    Batch insert categories, sub-categories, and skills from Excel file
+    Returns dictionary with counts of imported items
+    """
+    categories_imported = 0
+    subcategories_imported = 0
+    skills_imported = 0
+    
+    try:
+        # Load Excel file
+        workbook = load_workbook(CATEGORIES_FILE, read_only=True)
+        sheet = workbook.active
+        
+        # Get existing categories and skills from database
+        existing_categories = db.query(Category).filter(Category.is_active == True).all()
+        existing_categories_dict = {cat.name: cat for cat in existing_categories}
+        
+        existing_skills = db.query(Skill).filter(Skill.is_deleted == False).all()
+        existing_skills_set = {skill.name.strip().lower() for skill in existing_skills}
+        
+        # Prepare containers for batch insert
+        new_categories = []
+        new_subcategories = []
+        new_skills = []
+        new_skills_set = set()  # Track skills being added in this batch
+        
+        # Track current category name for rows where it's not repeated
+        current_category_name = None
+        
+        # Skip header rows and iterate through data rows (data starts from row 3)
+        for row in sheet.iter_rows(min_row=3, values_only=True):
+            if not row or len(row) < 4:
+                continue
+                
+            # Data is in columns 1, 2, 3 (0-indexed), column 0 is empty
+            category_name = row[1]
+            subcategory_name = row[2]
+            skills_text = row[3]
+            
+            # If category_name is empty, use the previous one
+            if category_name:
+                current_category_name = str(category_name).strip()
+            
+            # Skip if any required field is empty
+            if not current_category_name or not subcategory_name or not skills_text:
+                continue
+            
+            # Use current_category_name instead of category_name
+            category_name = current_category_name
+            
+            # Process parent category
+            category_name = str(category_name).strip()
+            if category_name not in existing_categories_dict:
+                # Check if it's already in new_categories to avoid duplicates
+                if not any(cat.name == category_name for cat in new_categories):
+                    parent_category = Category(
+                        name=category_name,
+                        is_active=True,
+                        parent_id=None
+                    )
+                    new_categories.append(parent_category)
+                    categories_imported += 1
+            
+            # Process sub-category
+            subcategory_name = str(subcategory_name).strip()
+            # Check if subcategory already exists
+            subcategory_exists = any(
+                cat.name == subcategory_name and 
+                cat.parent and cat.parent.name == category_name 
+                for cat in existing_categories
+            )
+            
+            # Also check in new_subcategories with same parent
+            if not subcategory_exists:
+                subcategory_exists = any(
+                    cat.name == subcategory_name and 
+                    hasattr(cat, '_parent_name') and 
+                    cat._parent_name == category_name 
+                    for cat in new_subcategories
+                )
+            
+            if not subcategory_exists:
+                subcategory = Category(
+                    name=subcategory_name,
+                    is_active=True,
+                    parent_id=None  # Will be set after parent is committed
+                )
+                # Store reference to parent for later update
+                subcategory._parent_name = category_name
+                new_subcategories.append(subcategory)
+                subcategories_imported += 1
+            
+            # Process skills (comma-separated)
+            skills_list = [s.strip() for s in str(skills_text).split(',')]
+            for skill_name in skills_list:
+                skill_name = skill_name.strip()
+                if not skill_name:
+                    continue
+                
+                skill_name_lower = skill_name.lower()
+                
+                # Check if skill doesn't exist in database or current batch
+                if skill_name_lower not in existing_skills_set and skill_name_lower not in new_skills_set:
+                    skill = Skill(
+                        name=skill_name,
+                        is_deleted=False
+                    )
+                    new_skills.append(skill)
+                    new_skills_set.add(skill_name_lower)
+                    skills_imported += 1
+        
+        # Batch insert categories (parents first)
+        if new_categories:
+            db.add_all(new_categories)
+            db.commit()
+            
+            # Refresh existing_categories_dict with newly added categories
+            for cat in new_categories:
+                db.refresh(cat)
+                existing_categories_dict[cat.name] = cat
+        
+        # Now set parent_id for subcategories and batch insert them
+        if new_subcategories:
+            for subcat in new_subcategories:
+                parent = existing_categories_dict.get(subcat._parent_name)
+                if parent:
+                    subcat.parent_id = parent.id
+            
+            db.add_all(new_subcategories)
+            db.commit()
+        
+        # Batch insert skills
+        if new_skills:
+            db.bulk_save_objects(new_skills)
+            db.commit()
+        
+        workbook.close()
+        
+        return {
+            "categories_imported": categories_imported,
+            "subcategories_imported": subcategories_imported,
+            "skills_imported": skills_imported,
+            "total_imported": categories_imported + subcategories_imported + skills_imported
+        }
+    
+    except Exception as e:
+        db.rollback()
+        raise Exception(f"Failed to import from Excel: {str(e)}")
+
+@router.post("/import-categories-skills", response_model=SuccessResponse)
+async def import_categories_and_skills(db: Session = Depends(get_db)):
+    """
+    Import categories, sub-categories, and skills from Excel file (Categories.xlsx)
+    """
+    try:
+        result = batch_insert_categories_and_skills(db)
+        
+        return SuccessResponse(
+            msg="Categories and skills imported successfully",
+            data=result
+        )
+    
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Failed to import categories and skills: {str(e)}")
+
 @router.post("/import-all", response_model=SuccessResponse)
 async def import_all_data(db: Session = Depends(get_db)):
     """
@@ -245,7 +416,11 @@ async def import_all_data(db: Session = Depends(get_db)):
         # Import languages using batch operations
         languages_imported = batch_insert_languages(db, languages_data)
         
-        total_imported = companies_imported + education_imported + certifications_imported + locations_imported + languages_imported
+        # Import categories and skills from Excel
+        categories_result = batch_insert_categories_and_skills(db)
+        
+        total_imported = (companies_imported + education_imported + certifications_imported + 
+                         locations_imported + languages_imported + categories_result["total_imported"])
         
         return SuccessResponse(
             msg="Data imported successfully",
@@ -255,6 +430,9 @@ async def import_all_data(db: Session = Depends(get_db)):
                 "certification_centers_imported": certifications_imported,
                 "locations_imported": locations_imported,
                 "languages_imported": languages_imported,
+                "categories_imported": categories_result["categories_imported"],
+                "subcategories_imported": categories_result["subcategories_imported"],
+                "skills_imported": categories_result["skills_imported"],
                 "total_imported": total_imported
             }
         )
@@ -275,6 +453,8 @@ async def get_import_stats(db: Session = Depends(get_db)):
         certifications_count = db.query(CertificationCenter).filter(CertificationCenter.is_deleted == False).count()
         locations_count = db.query(Location).filter(Location.is_deleted == False).count()
         languages_count = db.query(Language).count()
+        categories_count = db.query(Category).filter(Category.is_active == True).count()
+        skills_count = db.query(Skill).filter(Skill.is_deleted == False).count()
         
         # Count records in JSON files
         companies_data = read_json_file(COMPANIES_FILE)
@@ -292,7 +472,9 @@ async def get_import_stats(db: Session = Depends(get_db)):
                     "certification_centers": certifications_count,
                     "locations": locations_count,
                     "languages": languages_count,
-                    "total": companies_count + education_count + certifications_count + locations_count + languages_count
+                    "categories": categories_count,
+                    "skills": skills_count,
+                    "total": companies_count + education_count + certifications_count + locations_count + languages_count + categories_count + skills_count
                 },
                 "json_file_stats": {
                     "companies": len(companies_data),
