@@ -21,40 +21,71 @@ depends_on: Union[str, Sequence[str], None] = None
 
 def upgrade() -> None:
     """Upgrade schema."""
-    # Create the new ProjectLength enum
-    project_length_enum = postgresql.ENUM(
-        'LESS_THAN_ONE_MONTH',
-        'ONE_TO_THREE_MONTHS', 
-        'THREE_TO_SIX_MONTHS',
-        'MORE_THAN_SIX_MONTHS',
-        name='projectlength'
-    )
-    project_length_enum.create(op.get_bind())
+    # Check if columns already exist before making changes
+    connection = op.get_bind()
+    inspector = sa.inspect(connection)
+    columns = [col['name'] for col in inspector.get_columns('gig_jobs')]
     
-    # Add the new project_length column
-    op.add_column('gig_jobs', sa.Column('project_length', project_length_enum, nullable=False, server_default='LESS_THAN_ONE_MONTH'))
+    # Create the new ProjectLength enum if it doesn't exist
+    try:
+        project_length_enum = postgresql.ENUM(
+            'LESS_THAN_ONE_MONTH',
+            'ONE_TO_THREE_MONTHS', 
+            'THREE_TO_SIX_MONTHS',
+            'MORE_THAN_SIX_MONTHS',
+            name='projectlength'
+        )
+        project_length_enum.create(op.get_bind())
+    except Exception:
+        # Enum already exists, continue
+        pass
     
-    # Remove the old columns
-    op.drop_column('gig_jobs', 'job_type')
-    op.drop_column('gig_jobs', 'work_mode')
-    op.drop_column('gig_jobs', 'remote_only')
-    op.drop_column('gig_jobs', 'deadline_days')
+    # Add the new project_length column if it doesn't exist
+    if 'project_length' not in columns:
+        project_length_enum = postgresql.ENUM(
+            'LESS_THAN_ONE_MONTH',
+            'ONE_TO_THREE_MONTHS', 
+            'THREE_TO_SIX_MONTHS',
+            'MORE_THAN_SIX_MONTHS',
+            name='projectlength'
+        )
+        op.add_column('gig_jobs', sa.Column('project_length', project_length_enum, nullable=False, server_default='LESS_THAN_ONE_MONTH'))
+    
+    # Remove the old columns if they exist
+    if 'job_type' in columns:
+        op.drop_column('gig_jobs', 'job_type')
+    if 'work_mode' in columns:
+        op.drop_column('gig_jobs', 'work_mode')
+    if 'remote_only' in columns:
+        op.drop_column('gig_jobs', 'remote_only')
+    if 'deadline_days' in columns:
+        op.drop_column('gig_jobs', 'deadline_days')
     
     # Note: Not dropping jobtype and workmode enums as they are still used by full_time_jobs table
 
 
 def downgrade() -> None:
     """Downgrade schema."""
+    # Check if columns already exist before making changes
+    connection = op.get_bind()
+    inspector = sa.inspect(connection)
+    columns = [col['name'] for col in inspector.get_columns('gig_jobs')]
+    
     # Note: jobtype and workmode enums still exist as they are used by full_time_jobs table
     
-    # Add back the old columns
-    op.add_column('gig_jobs', sa.Column('job_type', postgresql.ENUM('FULL_TIME', 'PART_TIME', 'FREELANCE', 'INTERNSHIP', name='jobtype'), nullable=False, server_default='FREELANCE'))
-    op.add_column('gig_jobs', sa.Column('work_mode', postgresql.ENUM('ON_SITE', 'REMOTE', 'HYBRID', 'FLEXIBLE_HOURS', name='workmode'), nullable=False, server_default='REMOTE'))
-    op.add_column('gig_jobs', sa.Column('remote_only', sa.Boolean(), nullable=True, server_default='false'))
-    op.add_column('gig_jobs', sa.Column('deadline_days', sa.Integer(), nullable=False, server_default='7'))
+    # Add back the old columns if they don't exist
+    if 'job_type' not in columns:
+        op.add_column('gig_jobs', sa.Column('job_type', postgresql.ENUM('FULL_TIME', 'PART_TIME', 'FREELANCE', 'INTERNSHIP', name='jobtype'), nullable=False, server_default='FREELANCE'))
+    if 'work_mode' not in columns:
+        op.add_column('gig_jobs', sa.Column('work_mode', postgresql.ENUM('ON_SITE', 'REMOTE', 'HYBRID', 'FLEXIBLE_HOURS', name='workmode'), nullable=False, server_default='REMOTE'))
+    if 'remote_only' not in columns:
+        op.add_column('gig_jobs', sa.Column('remote_only', sa.Boolean(), nullable=True, server_default='false'))
+    if 'deadline_days' not in columns:
+        op.add_column('gig_jobs', sa.Column('deadline_days', sa.Integer(), nullable=False, server_default='7'))
     
-    # Remove the new column
-    op.drop_column('gig_jobs', 'project_length')
+    # Remove the new column if it exists
+    if 'project_length' in columns:
+        op.drop_column('gig_jobs', 'project_length')
     
     # Drop the new enum
     op.execute('DROP TYPE IF EXISTS projectlength')
