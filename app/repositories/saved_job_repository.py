@@ -4,6 +4,7 @@ from typing import List, Optional
 from app.models.saved_job import SavedJob
 from app.models.gig_job import GigJob
 from app.models.full_time_job import FullTimeJob
+from app.models.user import User
 from app.schemas.saved_job import SavedJobCreate
 from app.pagination import PaginationParams
 
@@ -42,7 +43,10 @@ class SavedJobRepository:
     def get_by_id(self, saved_job_id: int) -> Optional[SavedJob]:
         """Get saved job by ID with relationships"""
         return self.db.query(SavedJob).options(
-            joinedload(SavedJob.user),
+            joinedload(SavedJob.user).joinedload(User.location),
+            joinedload(SavedJob.user).joinedload(User.main_category),
+            joinedload(SavedJob.user).joinedload(User.sub_category),
+            joinedload(SavedJob.user).joinedload(User.skills),
             joinedload(SavedJob.gig_job).joinedload(GigJob.category),
             joinedload(SavedJob.gig_job).joinedload(GigJob.subcategory),
             joinedload(SavedJob.gig_job).joinedload(GigJob.location),
@@ -71,7 +75,10 @@ class SavedJobRepository:
     def get_user_saved_jobs(self, user_id: int, pagination: PaginationParams) -> tuple[List[SavedJob], int]:
         """Get paginated saved jobs for a specific user with relationships"""
         query = self.db.query(SavedJob).options(
-            joinedload(SavedJob.user),
+            joinedload(SavedJob.user).joinedload(User.location),
+            joinedload(SavedJob.user).joinedload(User.main_category),
+            joinedload(SavedJob.user).joinedload(User.sub_category),
+            joinedload(SavedJob.user).joinedload(User.skills),
             joinedload(SavedJob.gig_job).joinedload(GigJob.category),
             joinedload(SavedJob.gig_job).joinedload(GigJob.subcategory),
             joinedload(SavedJob.gig_job).joinedload(GigJob.location),
@@ -92,7 +99,10 @@ class SavedJobRepository:
     def get_user_saved_gig_jobs(self, user_id: int, pagination: PaginationParams) -> tuple[List[SavedJob], int]:
         """Get paginated saved gig jobs for a specific user with relationships"""
         query = self.db.query(SavedJob).options(
-            joinedload(SavedJob.user),
+            joinedload(SavedJob.user).joinedload(User.location),
+            joinedload(SavedJob.user).joinedload(User.main_category),
+            joinedload(SavedJob.user).joinedload(User.sub_category),
+            joinedload(SavedJob.user).joinedload(User.skills),
             joinedload(SavedJob.gig_job).joinedload(GigJob.category),
             joinedload(SavedJob.gig_job).joinedload(GigJob.subcategory),
             joinedload(SavedJob.gig_job).joinedload(GigJob.location),
@@ -112,7 +122,10 @@ class SavedJobRepository:
     def get_user_saved_full_time_jobs(self, user_id: int, pagination: PaginationParams) -> tuple[List[SavedJob], int]:
         """Get paginated saved full-time jobs for a specific user with relationships"""
         query = self.db.query(SavedJob).options(
-            joinedload(SavedJob.user),
+            joinedload(SavedJob.user).joinedload(User.location),
+            joinedload(SavedJob.user).joinedload(User.main_category),
+            joinedload(SavedJob.user).joinedload(User.sub_category),
+            joinedload(SavedJob.user).joinedload(User.skills),
             joinedload(SavedJob.full_time_job).joinedload(FullTimeJob.category),
             joinedload(SavedJob.full_time_job).joinedload(FullTimeJob.subcategory),
             joinedload(SavedJob.full_time_job).joinedload(FullTimeJob.skills)

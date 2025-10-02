@@ -76,7 +76,8 @@ async def create_gig_job(
     
     gig_job = repository.create(gig_job_data, current_user.id)
     return SuccessResponse(
-        msg="Gig job successfully added"
+        msg="Gig job successfully added",
+        data=gig_job
     )
 
 

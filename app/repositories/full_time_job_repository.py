@@ -46,6 +46,7 @@ class FullTimeJobRepository:
         # Calculate relevance score if current user is provided
         relevance_score = None
         is_saved = False
+        is_send_proposal = False
         if current_user_id:
             relevance_score = self._calculate_relevance_score(job, current_user_id)
             # Check if job is saved by current user
@@ -53,6 +54,13 @@ class FullTimeJobRepository:
             is_saved = self.db.query(SavedJob).filter(
                 SavedJob.user_id == current_user_id,
                 SavedJob.full_time_job_id == job.id
+            ).first() is not None
+            # Check if user has sent a proposal for this job
+            from ..models.proposal import Proposal
+            is_send_proposal = self.db.query(Proposal).filter(
+                Proposal.user_id == current_user_id,
+                Proposal.full_time_job_id == job.id,
+                Proposal.is_deleted == False
             ).first() is not None
         
         # Create response data
@@ -82,7 +90,8 @@ class FullTimeJobRepository:
             "skills": skills_data,
             "all_jobs_count": all_jobs_count,
             "relevance_score": relevance_score,
-            "is_saved": is_saved
+            "is_saved": is_saved,
+            "is_send_proposal": is_send_proposal
         }
         
         return response_data

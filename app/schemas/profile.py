@@ -216,6 +216,23 @@ class LanguageResponse(BaseModel):
     class Config:
         from_attributes = True
 
+class UserShortDetails(BaseModel):
+    """Short user details for proposals and other lightweight responses"""
+    id: int
+    name: str
+    email: str
+    is_active: bool
+    is_verified: bool
+    avatar_url: Optional[str] = None
+    current_position: Optional[str] = None
+    location: Optional[LocationResponse] = None
+    main_category: Optional[CategoryResponse] = None
+    sub_category: Optional[CategoryResponse] = None
+    skills: List[SkillResponse] = []
+
+    class Config:
+        from_attributes = True
+
 class UserFullResponse(BaseModel):
     id: int
     name: str

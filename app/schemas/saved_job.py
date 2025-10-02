@@ -1,7 +1,7 @@
 from pydantic import BaseModel, Field
 from typing import Optional
 from datetime import datetime
-from .profile import UserFullResponse
+from .profile import UserFullResponse, UserShortDetails
 from .gig_job import GigJobResponse
 from .full_time_job import FullTimeJobResponse
 
@@ -50,7 +50,7 @@ class SavedJobDetailedResponse(BaseModel):
     created_at: datetime
     
     # Full details
-    user: Optional[UserFullResponse] = None
+    user: Optional[UserShortDetails] = None
     gig_job: Optional[GigJobResponse] = None
     full_time_job: Optional[FullTimeJobResponse] = None
 
@@ -96,7 +96,7 @@ class SavedJobDetailedResponse(BaseModel):
         
         # Include user details if available
         if hasattr(obj, 'user') and obj.user:
-            data["user"] = UserFullResponse.model_validate(obj.user)
+            data["user"] = UserShortDetails.model_validate(obj.user)
         
         # Include gig job details if available
         if hasattr(obj, 'gig_job') and obj.gig_job and db_session:

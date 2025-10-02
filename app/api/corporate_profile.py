@@ -249,9 +249,14 @@ async def create_corporate_profile(
         # Log error but don't fail the request
         print(f"Failed to send corporate verification email: {e}")
     
+    # Get the updated profile with relationships for response
+    updated_profile = corporate_repo.get_by_id(db_profile.id)
+    profile_with_urls = add_base_url_to_profile(updated_profile)
+    profile_response = convert_profile_to_response(profile_with_urls)
+    
     return SuccessResponse(
         msg="Corporate profile created successfully. Please check your email for verification code.",
-        data={"profile_id": db_profile.id}
+        data=profile_response
     )
 
 

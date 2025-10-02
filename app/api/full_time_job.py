@@ -170,11 +170,14 @@ async def create_full_time_job(
             user_role
         )
         
-        # 4. Return success response with job data
+        # 4. Get the formatted job response
+        formatted_job = job_repo._prepare_full_time_job_response(db_job, current_user.id)
+        
+        # 5. Return success response with job data
         return SuccessResponse(
             status="success",
             msg="Full time job successfully created",
-            data=db_job
+            data=formatted_job
         )
         
     except HTTPException:

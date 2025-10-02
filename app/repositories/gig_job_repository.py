@@ -350,6 +350,7 @@ class GigJobRepository:
         # Calculate relevance score if current user is provided
         relevance_score = None
         is_saved = False
+        is_send_proposal = False
         if current_user_id:
             relevance_score = self._calculate_relevance_score(gig_job, current_user_id)
             # Check if job is saved by current user
@@ -357,6 +358,12 @@ class GigJobRepository:
             is_saved = self.db.query(SavedJob).filter(
                 SavedJob.user_id == current_user_id,
                 SavedJob.gig_job_id == gig_job.id
+            ).first() is not None
+            # Check if user has sent a proposal for this job
+            is_send_proposal = self.db.query(Proposal).filter(
+                Proposal.user_id == current_user_id,
+                Proposal.gig_job_id == gig_job.id,
+                Proposal.is_deleted == False
             ).first() is not None
         
         # Prepare skills data with gig_job_skill ID
@@ -437,7 +444,8 @@ class GigJobRepository:
             "proposal_count": proposal_count,
             "all_jobs_count": all_jobs_count,
             "relevance_score": relevance_score,
-            "is_saved": is_saved
+            "is_saved": is_saved,
+            "is_send_proposal": is_send_proposal
         }
         
         return response_data

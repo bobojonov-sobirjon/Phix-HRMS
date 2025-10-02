@@ -5,7 +5,7 @@ from fastapi import UploadFile
 from app.config import settings
 from .gig_job import GigJobResponse
 from .full_time_job import FullTimeJobResponse
-from .profile import UserFullResponse
+from .profile import UserFullResponse, UserShortDetails
 
 
 # Base schema
@@ -73,7 +73,7 @@ class ProposalResponse(ProposalBase):
     updated_at: Optional[datetime] = None
     
     # Full details
-    user: Optional[UserFullResponse] = None
+    user: Optional[UserShortDetails] = None
     gig_job: Optional[GigJobResponse] = None
     full_time_job: Optional[FullTimeJobResponse] = None
     
@@ -114,7 +114,7 @@ class ProposalResponse(ProposalBase):
         
         # Include user details if available
         if hasattr(obj, 'user') and obj.user:
-            data["user"] = UserFullResponse.model_validate(obj.user)
+            data["user"] = UserShortDetails.model_validate(obj.user)
         
         # Include gig job details if available
         if hasattr(obj, 'gig_job') and obj.gig_job:

@@ -93,6 +93,7 @@ class GigJobResponse(BaseModel):
     all_jobs_count: int = Field(default=0, description="Total number of jobs created by the author")
     relevance_score: Optional[float] = Field(default=None, description="Relevance score (only when token is provided)")
     is_saved: bool = Field(default=False, description="Whether the job is saved by the current user")
+    is_send_proposal: bool = Field(default=False, description="Whether the current user has sent a proposal for this job")
     
     model_config = {
         "from_attributes": True
