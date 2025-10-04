@@ -33,8 +33,11 @@ def generate_otp() -> str:
 
 def save_logo_file(logo_file: UploadFile, profile_id: int) -> str:
     """Save logo file and return the URL"""
+    # Get absolute path to project root (where app folder is)
+    project_root = Path(__file__).parent.parent.parent
+    
     # Create uploads directory if it doesn't exist
-    upload_dir = Path("static/logos")
+    upload_dir = project_root / "static" / "logos"
     upload_dir.mkdir(parents=True, exist_ok=True)
     
     # Generate unique filename
@@ -43,9 +46,20 @@ def save_logo_file(logo_file: UploadFile, profile_id: int) -> str:
     file_path = upload_dir / unique_filename
     
     # Save file
-    with open(file_path, "wb") as buffer:
-        content = logo_file.file.read()
-        buffer.write(content)
+    try:
+        with open(file_path, "wb") as buffer:
+            content = logo_file.file.read()
+            buffer.write(content)
+    except PermissionError as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Permission denied when saving file. Please check directory permissions: {str(e)}"
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to save file: {str(e)}"
+        )
     
     # Return the URL
     return f"/static/logos/{unique_filename}"
