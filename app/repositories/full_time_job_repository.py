@@ -267,10 +267,14 @@ class FullTimeJobRepository:
         self.db.commit()
         self.db.refresh(db_job)
         
-        # Load company relationship for response
-        db_job.company = self.db.query(CorporateProfile).filter(
-            CorporateProfile.id == corporate_profile_id
-        ).first()
+        # Reload the job with all relationships
+        db_job = self.db.query(FullTimeJob).options(
+            joinedload(FullTimeJob.skills),
+            joinedload(FullTimeJob.company),
+            joinedload(FullTimeJob.category),
+            joinedload(FullTimeJob.subcategory),
+            joinedload(FullTimeJob.created_by_user)
+        ).filter(FullTimeJob.id == db_job.id).first()
         
         # Return prepared response data
         return self._format_job_response(db_job)
