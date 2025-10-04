@@ -162,18 +162,15 @@ async def create_full_time_job(
                 detail="You don't have permission to create jobs for this company"
             )
         
-        # 3. Create the job with context
-        db_job = job_repo.create_with_context(
+        # 3. Create the job with context (returns formatted dict)
+        formatted_job = job_repo.create_with_context(
             full_time_job, 
             corporate_profile_id, 
             current_user.id, 
             user_role
         )
         
-        # 4. Get the formatted job response
-        formatted_job = job_repo._prepare_full_time_job_response(db_job, current_user.id)
-        
-        # 5. Return success response with job data
+        # 4. Return success response with job data
         return SuccessResponse(
             status="success",
             msg="Full time job successfully created",
