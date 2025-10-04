@@ -166,13 +166,6 @@ class FullTimeJobRepository:
         # Convert skills to dict format
         skills_data = []
         
-        # Debug: Check if job and skills exist
-        if not job:
-            raise ValueError("Job object is None in _format_job_response")
-        
-        if not hasattr(job, 'skills'):
-            raise ValueError(f"Job object has no 'skills' attribute. Job type: {type(job)}, Job: {job}")
-        
         for skill in job.skills:
             skills_data.append({
                 "id": skill.id,
@@ -274,17 +267,72 @@ class FullTimeJobRepository:
         self.db.commit()
         self.db.refresh(db_job)
         
-        # Reload the job with all relationships
-        db_job = self.db.query(FullTimeJob).options(
-            joinedload(FullTimeJob.skills),
-            joinedload(FullTimeJob.company),
-            joinedload(FullTimeJob.category),
-            joinedload(FullTimeJob.subcategory),
-            joinedload(FullTimeJob.created_by_user)
-        ).filter(FullTimeJob.id == db_job.id).first()
+        # Manually build response to avoid attribute errors
+        # Convert skills to dict format
+        skills_data = []
+        for skill in db_job.skills:
+            skills_data.append({
+                "id": skill.id,
+                "name": skill.name,
+                "created_at": skill.created_at,
+                "updated_at": skill.updated_at,
+                "is_deleted": skill.is_deleted
+            })
         
-        # Return prepared response data
-        return self._format_job_response(db_job)
+        # Load related objects
+        from ..models.category import Category
+        from ..models.user import User
+        
+        company = self.db.query(CorporateProfile).filter(
+            CorporateProfile.id == corporate_profile_id
+        ).first()
+        
+        category = self.db.query(Category).filter(
+            Category.id == db_job.category_id
+        ).first()
+        
+        subcategory = None
+        if db_job.subcategory_id:
+            subcategory = self.db.query(Category).filter(
+                Category.id == db_job.subcategory_id
+            ).first()
+        
+        created_by_user = self.db.query(User).filter(
+            User.id == created_by_user_id
+        ).first()
+        
+        # Create response data manually
+        response_data = {
+            "id": db_job.id,
+            "title": db_job.title,
+            "description": db_job.description,
+            "responsibilities": db_job.responsibilities,
+            "location": db_job.location,
+            "job_type": db_job.job_type.value,
+            "work_mode": db_job.work_mode.value,
+            "experience_level": db_job.experience_level.value,
+            "min_salary": db_job.min_salary,
+            "max_salary": db_job.max_salary,
+            "status": db_job.status.value,
+            "company_id": corporate_profile_id,
+            "company_name": company.company_name if company else "",
+            "category_id": db_job.category_id,
+            "category_name": category.name if category else "",
+            "subcategory_id": db_job.subcategory_id,
+            "subcategory_name": subcategory.name if subcategory else None,
+            "created_by_user_id": created_by_user_id,
+            "created_by_user_name": created_by_user.name if created_by_user else "",
+            "created_by_role": created_by_role.value if hasattr(created_by_role, 'value') else str(created_by_role),
+            "created_at": db_job.created_at,
+            "updated_at": db_job.updated_at,
+            "skills": skills_data,
+            "all_jobs_count": 0,
+            "relevance_score": None,
+            "is_saved": False,
+            "is_send_proposal": False
+        }
+        
+        return response_data
     
     def get_by_id(self, job_id: int, current_user_id: Optional[int] = None) -> Optional[dict]:
         """Get full-time job by ID with skills"""
