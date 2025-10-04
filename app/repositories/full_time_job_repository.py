@@ -166,6 +166,13 @@ class FullTimeJobRepository:
         # Convert skills to dict format
         skills_data = []
         
+        # Debug: Check if job and skills exist
+        if not job:
+            raise ValueError("Job object is None in _format_job_response")
+        
+        if not hasattr(job, 'skills'):
+            raise ValueError(f"Job object has no 'skills' attribute. Job type: {type(job)}, Job: {job}")
+        
         for skill in job.skills:
             skills_data.append({
                 "id": skill.id,
