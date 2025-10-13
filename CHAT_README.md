@@ -1,53 +1,53 @@
-# Real-Time Chat System for Phix HRMS
+# Chat System Documentation
 
 ## Overview
-This implementation adds a complete real-time chat system to your HRMS application with the following features:
 
-- **User Search**: Search users by email to start conversations
-- **Direct Messaging**: 1-on-1 chat between users
-- **Real-time Communication**: WebSocket-based instant messaging
-- **File Sharing**: Send images and files (not URLs)
-- **Message Types**: Text, images, files, and voice messages
-- **Online Status**: See who's online/offline
-- **Message Read Status**: Track read/unread messages
+The chat system provides real-time messaging capabilities with support for text messages, single files, and multiple files/images. It includes WebSocket-based real-time communication, file upload functionality, and user presence tracking.
 
-## Database Tables Created
+## Features
 
-### 1. `chat_rooms`
-- Stores chat room information
-- Direct chat rooms between two users
-- Room metadata and timestamps
+### Core Features
+- **Real-time messaging** via WebSocket connections
+- **User search** by email
+- **Direct chat rooms** between two users
+- **Message types**: text, image, file, voice
+- **Multiple file uploads** (up to 10 files per message)
+- **File validation** with size and type restrictions
+- **User presence** tracking (online/offline status)
+- **Typing indicators**
+- **Message read status**
+- **Message editing** (text messages only)
+- **Message deletion** (soft delete)
 
-### 2. `chat_participants`
-- Manages who can access which chat rooms
-- Tracks when users joined and last read messages
-
-### 3. `chat_messages`
-- Stores all messages (text, images, files)
-- Includes sender/receiver information
-- File metadata (name, path, size, MIME type)
-
-### 4. `user_presence`
-- Tracks user online/offline status
-- Last seen timestamps
+### File Upload Features
+- **Single file upload** (backward compatibility)
+- **Multiple file upload** (new feature)
+- **Image support**: JPEG, PNG, GIF, WebP
+- **File support**: PDF, DOC, DOCX, XLS, XLSX, TXT, ZIP, RAR
+- **Voice message support**: MP3, WAV
+- **File size limits**: 10MB for images, 50MB for files
+- **Automatic file organization** by type
 
 ## API Endpoints
 
-### User Search
-- `GET /api/v1/chat/search-users?email={email}` - Search users by email
-
-**Request:**
-```http
-GET /api/v1/chat/search-users?email=john@example.com
-Authorization: Bearer {jwt_token}
+### Authentication
+All endpoints require authentication via JWT token in the Authorization header:
 ```
+Authorization: Bearer <your_jwt_token>
+```
+
+### User Search
+```http
+GET /api/chat/search-users?email=user@example.com&limit=20
+```
+Search for users by email address.
 
 **Response:**
 ```json
 {
   "users": [
     {
-      "id": 2,
+      "id": 1,
       "name": "John Doe",
       "email": "john@example.com",
       "avatar_url": "https://example.com/avatar.jpg",
@@ -60,13 +60,9 @@ Authorization: Bearer {jwt_token}
 
 ### Chat Rooms
 
-#### Create Chat Room
-- `POST /api/v1/chat/rooms` - Create a new chat room
-
-**Request:**
+#### Create Room
 ```http
-POST /api/v1/chat/rooms
-Authorization: Bearer {jwt_token}
+POST /api/chat/rooms
 Content-Type: application/json
 
 {
@@ -74,582 +70,148 @@ Content-Type: application/json
 }
 ```
 
-**Response:**
-```json
-{
-  "id": 1,
-  "name": "Direct Chat",
-  "room_type": "direct",
-  "created_by": 1,
-  "created_at": "2024-01-21T12:00:00Z",
-  "updated_at": "2024-01-21T12:00:00Z",
-  "is_active": true,
-  "other_user": {
-    "id": 2,
-    "name": "John Doe",
-    "email": "john@example.com",
-    "avatar_url": "https://example.com/avatar.jpg",
-    "is_online": true
-  },
-  "last_message": null,
-  "unread_count": 0
-}
-```
-
 #### Get User Rooms
-- `GET /api/v1/chat/rooms` - Get user's chat rooms
-
-**Request:**
 ```http
-GET /api/v1/chat/rooms
-Authorization: Bearer {jwt_token}
-```
-
-**Response:**
-```json
-{
-  "rooms": [
-    {
-      "id": 1,
-      "name": "Direct Chat",
-      "room_type": "direct",
-      "created_by": 1,
-      "created_at": "2024-01-21T12:00:00Z",
-      "updated_at": "2024-01-21T12:05:00Z",
-      "is_active": true,
-      "other_user": {
-        "id": 2,
-        "name": "John Doe",
-        "email": "john@example.com",
-        "avatar_url": "https://example.com/avatar.jpg",
-        "is_online": true
-      },
-      "last_message": {
-        "id": 5,
-        "content": "Hello there!",
-        "message_type": "text",
-        "created_at": "2024-01-21T12:05:00Z",
-        "sender_name": "John Doe"
-      },
-      "unread_count": 2
-    }
-  ],
-  "total": 1
-}
+GET /api/chat/rooms
 ```
 
 #### Get Specific Room
-- `GET /api/v1/chat/rooms/{room_id}` - Get specific room details with all messages
-
-**Note:** This endpoint returns room information, last message summary, AND all messages in the room. Each message in `message_list` clearly shows who is the sender and who is the receiver.
-
-**Request:**
 ```http
-GET /api/v1/chat/rooms/1
-Authorization: Bearer {jwt_token}
+GET /api/chat/rooms/{room_id}
+```
+
+### File Upload
+
+#### Multiple File Upload
+```http
+POST /api/chat/upload-files
+Content-Type: multipart/form-data
+
+files: [file1, file2, file3, ...]
+message_type: "image" | "file"
 ```
 
 **Response:**
 ```json
 {
-  "id": 1,
-  "name": "Direct Chat",
-  "room_type": "direct",
-  "created_by": 1,
-  "created_at": "2024-01-21T12:00:00Z",
-  "updated_at": "2024-01-21T12:05:00Z",
-  "is_active": true,
-  "other_user": {
-    "id": 2,
-    "name": "John Doe",
-    "email": "john@example.com",
-    "avatar_url": "https://example.com/avatar.jpg",
-    "is_online": true
-  },
-  "last_message": {
-    "id": 5,
-    "content": "Hello there!",
-    "message_type": "text",
-    "created_at": "2024-01-21T12:05:00Z",
-    "sender_name": "John Doe"
-  },
-  "unread_count": 2,
-  "message_list": {
-    "messages": [
-      {
-        "id": 1,
-        "room_id": 1,
-        "sender_id": 1,
-        "receiver_id": 2,
-        "sender_name": "Alice Smith",
-        "receiver_name": "John Doe",
-        "sender_avatar": "https://example.com/alice.jpg",
-        "receiver_avatar": "https://example.com/john.jpg",
-        "message_type": "text",
-        "content": "Hi John!",
-        "file_name": null,
-        "file_path": null,
-        "file_size": null,
-        "mime_type": null,
-        "created_at": "2024-01-21T12:00:00Z",
-        "is_read": true,
-        "is_deleted": false
-      },
-      {
-        "id": 2,
-        "room_id": 1,
-        "sender_id": 2,
-        "receiver_id": 1,
-        "sender_name": "John Doe",
-        "receiver_name": "Alice Smith",
-        "sender_avatar": "https://example.com/john.jpg",
-        "receiver_avatar": "https://example.com/alice.jpg",
-        "message_type": "text",
-        "content": "Hello Alice!",
-        "file_name": null,
-        "file_path": null,
-        "file_size": null,
-        "mime_type": null,
-        "created_at": "2024-01-21T12:01:00Z",
-        "is_read": true,
-        "is_deleted": false
-      },
-      {
-        "id": 5,
-        "room_id": 1,
-        "sender_id": 2,
-        "receiver_id": 1,
-        "sender_name": "John Doe",
-        "receiver_name": "Alice Smith",
-        "sender_avatar": "https://example.com/john.jpg",
-        "receiver_avatar": "https://example.com/alice.jpg",
-        "message_type": "text",
-        "content": "Hello there!",
-        "file_name": null,
-        "file_path": null,
-        "file_size": null,
-        "mime_type": null,
-        "created_at": "2024-01-21T12:05:00Z",
-        "is_read": false,
-        "is_deleted": false
-      }
-    ],
-    "total": 3
-  }
-}
-```
-
-**Message Structure in `message_list`:**
-Each message object contains:
-- **`sender_id`** & **`sender_name`** - Who sent the message
-- **`receiver_id`** & **`receiver_name`** - Who received the message  
-- **`sender_avatar`** & **`receiver_avatar`** - Profile pictures
-- **`message_type`** - "text", "image", or "file"
-- **`content`** - Message text (for text messages)
-- **`file_name`**, **`file_path`**, **`file_size`**, **`mime_type`** - File details (for image/file messages)
-- **`created_at`** - When the message was sent
-- **`is_read`** - Whether the message has been read
-- **`is_deleted`** - Whether the message has been deleted
-
-**Example Message Flow:**
-```json
-// Message 1: Alice (ID: 1) sends to John (ID: 2)
-{
-  "sender_id": 1,
-  "sender_name": "Alice Smith", 
-  "receiver_id": 2,
-  "receiver_name": "John Doe",
-  "content": "Hi John!"
-}
-
-// Message 2: John (ID: 2) replies to Alice (ID: 1)  
-{
-  "sender_id": 2,
-  "sender_name": "John Doe",
-  "receiver_id": 1, 
-  "receiver_name": "Alice Smith",
-  "content": "Hello Alice!"
+  "files": [
+    {
+      "file_name": "image1.jpg",
+      "file_path": "chat_files/images/uuid_image1.jpg",
+      "file_size": 1024000,
+      "mime_type": "image/jpeg"
+    }
+  ],
+  "total_files": 3,
+  "total_size": 3072000
 }
 ```
 
 ### Messages
 
-**Important:** There are two different endpoints for getting room data:
-
-1. **`GET /api/v1/chat/rooms/{room_id}`** - Room info + last message summary + ALL messages in one call
-2. **`GET /api/v1/chat/rooms/{room_id}/messages`** - ALL messages in the room (with pagination)
-
-Use the first one when opening a chat to get everything in one call. Use the second one for paginated message loading if you have many messages.
-
-**Note:** All messages (text, image, file) are sent through WebSocket for real-time delivery. No separate REST API endpoints are needed for sending messages.
-
 #### Get Room Messages
-- `GET /api/v1/chat/rooms/{room_id}/messages` - Get ALL messages in a room (with pagination)
-
-**Request:**
 ```http
-GET /api/v1/chat/rooms/1/messages?page=1&per_page=50
-Authorization: Bearer {jwt_token}
+GET /api/chat/rooms/{room_id}/messages?page=1&per_page=50
 ```
 
-**Response:**
-```json
-{
-  "messages": [
-    {
-      "id": 7,
-      "room_id": 1,
-      "sender_id": 1,
-      "receiver_id": 2,
-      "sender_name": "Alice Smith",
-      "receiver_name": "John Doe",
-      "sender_avatar": "https://example.com/alice.jpg",
-      "receiver_avatar": "https://example.com/john.jpg",
-      "message_type": "file",
-      "content": null,
-      "file_name": "document.pdf",
-      "file_path": "chat_files/files/uuid-document.pdf",
-      "file_size": 1024000,
-      "mime_type": "application/pdf",
-      "created_at": "2024-01-21T12:07:00Z",
-      "is_read": false,
-      "is_deleted": false
-    },
-    {
-      "id": 6,
-      "room_id": 1,
-      "sender_id": 1,
-      "receiver_id": 2,
-      "sender_name": "Alice Smith",
-      "receiver_name": "John Doe",
-      "sender_avatar": "https://example.com/alice.jpg",
-      "receiver_avatar": "https://example.com/john.jpg",
-      "message_type": "image",
-      "content": null,
-      "file_name": "photo.jpg",
-      "file_path": "chat_files/images/uuid-photo.jpg",
-      "file_size": 245760,
-      "mime_type": "image/jpeg",
-      "created_at": "2024-01-21T12:06:00Z",
-      "is_read": false,
-      "is_deleted": false
-    },
-    {
-      "id": 5,
-      "room_id": 1,
-      "sender_id": 1,
-      "receiver_id": 2,
-      "sender_name": "Alice Smith",
-      "receiver_name": "John Doe",
-      "sender_avatar": "https://example.com/alice.jpg",
-      "receiver_avatar": "https://example.com/john.jpg",
-      "message_type": "text",
-      "content": "Hello there!",
-      "file_name": null,
-      "file_path": null,
-      "file_size": null,
-      "mime_type": null,
-      "created_at": "2024-01-21T12:05:00Z",
-      "is_read": false,
-      "is_deleted": false
-    }
-  ],
-  "total": 3,
-  "has_more": false
-}
-```
-
-#### Mark Room as Read
-- `POST /api/v1/chat/rooms/{room_id}/read` - Mark room as read
-
-**Request:**
+#### Mark Messages as Read
 ```http
-POST /api/v1/chat/rooms/1/read
-Authorization: Bearer {jwt_token}
-```
-
-**Response:**
-```json
-{
-  "status": "success",
-  "message": "Room marked as read"
-}
+POST /api/chat/rooms/{room_id}/read
 ```
 
 #### Update Message
-- `PUT /api/v1/chat/messages/{message_id}` - Update message (only text messages)
-
-**Request:**
 ```http
-PUT /api/v1/chat/messages/5
-Authorization: Bearer {jwt_token}
+PUT /api/chat/messages/{message_id}
 Content-Type: application/x-www-form-urlencoded
 
-content=Updated message content
-```
-
-**Response:**
-```json
-{
-  "id": 5,
-  "room_id": 1,
-  "sender_id": 1,
-  "receiver_id": 2,
-  "sender_name": "Alice Smith",
-  "receiver_name": "John Doe",
-  "sender_avatar": "https://example.com/alice.jpg",
-  "receiver_avatar": "https://example.com/john.jpg",
-  "message_type": "text",
-  "content": "Updated message content",
-  "file_name": null,
-  "file_path": null,
-  "file_size": null,
-  "mime_type": null,
-  "created_at": "2024-01-21T12:00:00Z",
-  "updated_at": "2024-01-21T12:10:00Z",
-  "is_read": false,
-  "is_deleted": false,
-  "is_edited": true
-}
+content=Updated message text
 ```
 
 #### Delete Message
-- `DELETE /api/v1/chat/messages/{message_id}` - Delete message
-
-**Request:**
 ```http
-DELETE /api/v1/chat/messages/5
-Authorization: Bearer {jwt_token}
+DELETE /api/chat/messages/{message_id}
 ```
-
-**Response:**
-```json
-{
-  "status": "success",
-  "message": "Message deleted"
-}
-```
-
-### WebSocket
-- `WS /api/v1/chat/ws?token={jwt_token}&room_id={room_id}` - Real-time chat connection (requires JWT token and optional room_id)
-
-**Connection:**
-```javascript
-// Connect to specific room
-const ws = new WebSocket('ws://localhost:8000/api/v1/chat/ws?token=your-jwt-token&room_id=1');
-
-// Or connect without room (join room later via message)
-const ws = new WebSocket('ws://localhost:8000/api/v1/chat/ws?token=your-jwt-token');
-```
-
-**Request:**
-```http
-WS /api/v1/chat/ws?token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
-```
-
-**Response:**
-```json
-// Connection established - no initial response
-// Server will start sending real-time messages
-
-// If authentication fails, connection closes with error codes:
-// 4000: General authentication error
-// 4001: Missing/invalid token or user not found
-```
-
-**Connection States:**
-- **Open**: Connection established successfully
-- **Closed with 4000**: General authentication error
-- **Closed with 4001**: Missing/invalid token or user not found
-- **Closed with 1000**: Normal closure
-
-**Complete WebSocket Flow:**
-```json
-// 1. Client connects with room_id in URL
-WS /api/v1/chat/ws?token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...&room_id=1
-
-// 2. Server accepts connection and automatically joins room (no response)
-
-// 3. Client sends a message (room_id is optional if provided in URL)
-{
-  "type": "send_message",
-  "data": {
-    "receiver_id": 2,
-    "message_type": "text",
-    "content": "Hello there!"
-  }
-}
-
-// Alternative: Connect without room_id and join room via message
-WS /api/v1/chat/ws?token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
-
-// Then join room
-{
-  "type": "join_room",
-  "data": {
-    "room_id": 1
-  }
-}
-
-// Then send message
-{
-  "type": "send_message",
-  "data": {
-    "room_id": 1,
-    "receiver_id": 2,
-    "message_type": "text",
-    "content": "Hello there!"
-  }
-}
-
-// 5. Server broadcasts message to all users in room
-{
-  "type": "new_message",
-  "data": {
-    "id": 123,
-    "room_id": 1,
-    "sender_id": 1,
-    "receiver_id": 2,
-    "sender_name": "John Doe",
-    "receiver_name": "Alice Smith",
-    "message_type": "text",
-    "content": "Hello there!",
-    "created_at": "2024-01-21T12:00:00Z"
-  }
-}
-```
-
-**WebSocket Messages:** See the "WebSocket Events" section below for complete message formats.
 
 ### Utility Endpoints
 
 #### Get Unread Count
-- `GET /api/v1/chat/unread-count` - Get unread message counts
-
-**Request:**
 ```http
-GET /api/v1/chat/unread-count
-Authorization: Bearer {jwt_token}
-```
-
-**Response:**
-```json
-{
-  "unread_counts": {
-    "1": 2,
-    "3": 5,
-    "7": 0
-  }
-}
+GET /api/chat/unread-count
 ```
 
 #### Get Online Users
-- `GET /api/v1/chat/online-users` - Get online users list
-
-**Request:**
 ```http
-GET /api/v1/chat/online-users
-Authorization: Bearer {jwt_token}
+GET /api/chat/online-users
 ```
 
-**Response:**
-```json
-{
-  "online_users": [
-    {
-      "user_id": 2,
-      "last_seen": "2024-01-21T12:05:00Z",
-      "is_online": true
-    },
-    {
-      "user_id": 4,
-      "last_seen": "2024-01-21T12:03:00Z",
-      "is_online": true
-    }
-  ]
-}
+## WebSocket Connection
+
+### Connection
+```javascript
+const ws = new WebSocket('ws://localhost:8000/api/chat/ws?token=<jwt_token>&room_id=<room_id>');
 ```
 
-## File Upload System
+### Message Types
 
-### Supported File Types
-**Images**: JPEG, JPG, PNG, GIF, WebP (max 10MB)
-**Files**: PDF, DOC, DOCX, XLS, XLSX, TXT, ZIP, RAR (max 50MB)
-**Voice**: MP3, WAV, M4A, AAC, OGG (max 20MB)
-
-### File Storage
-- Files stored in `static/chat_files/images/`, `static/chat_files/files/`, and `static/chat_files/voices/`
-- Unique filenames generated using UUID
-- Files accessible via `/static/chat_files/{type}/{filename}`
-
-## WebSocket Events
-
-### Client to Server Messages
+#### Send Text Message
 ```json
-// Send text message (room_id optional if provided in URL)
-{
-  "type": "send_message",
-  "data": {
-    "receiver_id": 2,
-    "message_type": "text",
-    "content": "Hello there!"
-  }
-}
-
-// Or with room_id in message (if not provided in URL)
 {
   "type": "send_message",
   "data": {
     "room_id": 1,
     "receiver_id": 2,
     "message_type": "text",
-    "content": "Hello there!"
+    "content": "Hello, how are you?"
   }
 }
+```
 
-// Send image message
+#### Send Single File Message
+```json
 {
   "type": "send_message",
   "data": {
     "room_id": 1,
     "receiver_id": 2,
     "message_type": "image",
-    "file_data": "base64_encoded_image_data",
-    "file_name": "photo.jpg",
-    "file_size": 245760,
+    "content": "Check out this image!",
+    "file_data": "base64_encoded_file_data",
+    "file_name": "image.jpg",
+    "file_size": 1024000,
     "mime_type": "image/jpeg"
   }
 }
+```
 
-// Send file message
+#### Send Multiple Files Message
+```json
 {
   "type": "send_message",
   "data": {
     "room_id": 1,
     "receiver_id": 2,
-    "message_type": "file",
-    "file_data": "base64_encoded_file_data",
-    "file_name": "document.pdf",
-    "file_size": 1024000,
-    "mime_type": "application/pdf"
+    "message_type": "image",
+    "content": "Here are some photos!",
+    "files_data": [
+      {
+        "file_data": "base64_encoded_file1",
+        "file_name": "photo1.jpg",
+        "file_size": 1024000,
+        "mime_type": "image/jpeg"
+      },
+      {
+        "file_data": "base64_encoded_file2",
+        "file_name": "photo2.jpg",
+        "file_size": 2048000,
+        "mime_type": "image/jpeg"
+      }
+    ]
   }
 }
+```
 
-// Send voice message
-{
-  "type": "send_message",
-  "data": {
-    "room_id": 1,
-    "receiver_id": 2,
-    "message_type": "voice",
-    "file_data": "base64_encoded_audio_data",
-    "file_name": "voice_message.mp3",
-    "file_size": 256000,
-    "mime_type": "audio/mpeg"
-  }
-}
-
-// Typing indicator
+#### Typing Indicator
+```json
 {
   "type": "typing",
   "data": {
@@ -657,349 +219,676 @@ Authorization: Bearer {jwt_token}
     "is_typing": true
   }
 }
+```
 
-// Join room
+#### Join Room
+```json
 {
   "type": "join_room",
   "data": {
     "room_id": 1
   }
 }
+```
 
-// Leave room
+#### Leave Room
+```json
 {
-  "type": "leave_room",
-  "data": {}
+  "type": "leave_room"
 }
 ```
 
-### Server to Client Messages
+### WebSocket Responses
+
+#### New Message
 ```json
-// New message
 {
   "type": "new_message",
   "data": {
     "id": 123,
-    "room_id": 1,
-    "sender_id": 1,
-    "receiver_id": 2,
-    "sender_name": "John Doe",
-    "receiver_name": "Alice Smith",
-    "sender_avatar": "https://example.com/john.jpg",
-    "receiver_avatar": "https://example.com/alice.jpg",
-    "message_type": "text",
     "content": "Hello!",
+    "message_type": "text",
     "file_name": null,
     "file_path": null,
     "file_size": null,
-    "mime_type": null,
-    "created_at": "2024-01-21T12:00:00Z",
+    "files_data": null,
+    "created_at": "2024-01-01T12:00:00Z",
     "is_read": false,
-    "is_deleted": false
+    "is_deleted": false,
+    "sender_details": {
+      "id": 1,
+      "name": "John Doe",
+      "email": "john@example.com",
+      "avatar_url": "https://example.com/avatar.jpg",
+      "is_online": true
+    }
   }
 }
+```
 
-// Typing indicator
+#### Multiple Files Message
+```json
+{
+  "type": "new_message",
+  "data": {
+    "id": 124,
+    "content": "Here are some photos!",
+    "message_type": "image",
+    "file_name": null,
+    "file_path": null,
+    "file_size": null,
+    "files_data": [
+      {
+        "file_name": "photo1.jpg",
+        "file_path": "http://localhost:8000/static/chat_files/images/uuid_photo1.jpg",
+        "file_size": 1024000,
+        "mime_type": "image/jpeg"
+      },
+      {
+        "file_name": "photo2.jpg",
+        "file_path": "http://localhost:8000/static/chat_files/images/uuid_photo2.jpg",
+        "file_size": 2048000,
+        "mime_type": "image/jpeg"
+      }
+    ],
+    "created_at": "2024-01-01T12:00:00Z",
+    "is_read": false,
+    "is_deleted": false,
+    "sender_details": {
+      "id": 1,
+      "name": "John Doe",
+      "email": "john@example.com",
+      "avatar_url": "https://example.com/avatar.jpg",
+      "is_online": true
+    }
+  }
+}
+```
+
+#### Typing Indicator
+```json
 {
   "type": "typing",
   "data": {
     "room_id": 1,
-    "user_id": 2,
+    "user_id": 1,
     "user_name": "John Doe",
-    "is_typing": true,
-    "typing_users": [2]
+    "is_typing": true
   }
 }
+```
 
-// User presence
+#### User Presence
+```json
 {
   "type": "presence",
   "data": {
-    "user_id": 2,
-    "user_name": "John Doe",
+    "user_id": 1,
     "is_online": true,
-    "last_seen": "2024-01-21T12:05:00Z"
+    "user_name": "John Doe"
   }
 }
+```
 
-// Message updated
+#### Message Read
+```json
 {
-  "type": "message_updated",
+  "type": "message_read",
   "data": {
-    "id": 123,
     "room_id": 1,
-    "sender_id": 1,
-    "receiver_id": 2,
-    "sender_name": "John Doe",
-    "receiver_name": "Alice Smith",
-    "sender_avatar": "https://example.com/john.jpg",
-    "receiver_avatar": "https://example.com/alice.jpg",
-    "message_type": "text",
-    "content": "Updated message content",
-    "created_at": "2024-01-21T12:00:00Z",
-    "updated_at": "2024-01-21T12:10:00Z",
-    "is_edited": true
+    "user_id": 1,
+    "user_name": "John Doe"
   }
 }
 ```
 
-## Usage Example
-
-### 1. Search for a user
-```http
-GET /api/v1/chat/search-users?email=user@example.com
-Authorization: Bearer your-token
-```
-
-### 2. Create a chat room
-```http
-POST /api/v1/chat/rooms
-Authorization: Bearer your-token
-Content-Type: application/json
-
-{
-  "receiver_id": 2
-}
-```
-
-### 3. WebSocket Connection
-```javascript
-// Connect to specific room
-const ws = new WebSocket('ws://localhost:8000/api/v1/chat/ws?token=your-jwt-token&room_id=1');
-
-// Or connect without room
-const ws = new WebSocket('ws://localhost:8000/api/v1/chat/ws?token=your-jwt-token');
-```
-
-## Testing
-
-1. Start the server: `uvicorn app.main:app --reload`
-2. **Login to get your JWT token** using your existing login API
-3. Open `test_chat_client.html` in your browser
-4. Enter the token in the test client and click "Update Token"
-5. Use the test client to:
-   - Search for users
-   - Create chat rooms
-   - Send messages and files
-   - Test real-time communication
-
-## Security Features
-
-- JWT token authentication required for all endpoints and WebSocket connections
-- WebSocket authentication via query parameter: `?token={jwt_token}`
-- File type validation and size limits
-- User can only access their own chat rooms
-- Message deletion only by sender
-- Secure file upload with proper validation
-- WebSocket connection closes with error codes for authentication failures:
-  - `4000`: General authentication error
-  - `4001`: Missing/invalid token or user not found
-
-## Performance Features
-
-- Database connection pooling
-- Efficient message pagination
-- WebSocket connection management
-- File size limits to prevent abuse
-- Optimized database queries with proper indexing
-
-## Next Steps
-
-1. **Authentication**: Replace mock authentication with your actual JWT system
-2. **File Cleanup**: Implement periodic cleanup of orphaned files
-3. **Message Encryption**: Add end-to-end encryption for sensitive messages
-4. **Push Notifications**: Integrate with mobile push notification services
-5. **Message Search**: Add full-text search across messages
-6. **Group Chats**: Extend to support group conversations
-7. **Message Reactions**: Add emoji reactions to messages
-8. **Voice Messages**: Support for audio file uploads
-
-## Database Migration
-
-The chat tables are automatically created when you start the application. If you need to run the migration manually:
-
-```bash
-alembic upgrade head
-```
-
-## How to Send Images, Files, and Voice Messages
-
-### 1. Image Messages
-
-#### WebSocket (Real-time):
+#### Message Update
 ```json
 {
-  "type": "send_message",
-  "data": {
-    "receiver_id": 5,
-    "message_type": "image",
-    "file_data": "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD...",
-    "file_name": "photo.jpg",
-    "file_size": 245760,
-    "mime_type": "image/jpeg"
-  }
-}
-```
-
-#### REST API:
-```bash
-curl -X POST "https://api.migfastkg.ru/api/v1/chat/send-message" \
-  -H "Authorization: Bearer YOUR_JWT_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "receiver_id": 5,
-    "message_type": "image",
-    "file_data": "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD...",
-    "file_name": "photo.jpg",
-    "file_size": 245760,
-    "mime_type": "image/jpeg"
-  }'
-```
-
-### 2. File Messages
-
-#### WebSocket (Real-time):
-```json
-{
-  "type": "send_message",
-  "data": {
-    "receiver_id": 5,
-    "message_type": "file",
-    "file_data": "data:application/pdf;base64,JVBERi0xLjQKJcfsj6IKNSAwIG9iago8PAovVHlwZSAvUGFnZQovUGFyZW50IDMgMCBSCi9SZXNvdXJjZXMgPDwKL0ZvbnQgPDwKL0YxIDIgMCBSCj4+Cj4+Ci9NZWRpYUJveCBbMCAwIDU5NSA4NDJdCi9Db250ZW50cyA0IDAgUgo+PgplbmRvYmoKNC...",
-    "file_name": "document.pdf",
-    "file_size": 1024000,
-    "mime_type": "application/pdf"
-  }
-}
-```
-
-### 3. Voice Messages
-
-#### WebSocket (Real-time):
-```json
-{
-  "type": "send_message",
-  "data": {
-    "receiver_id": 5,
-    "message_type": "voice",
-    "file_data": "data:audio/mpeg;base64,SUQzBAAAAAAAI1RTU0UAAAAPAAADTGF2ZjU4Ljc2LjEwMAAAAAAAAAAAAAAA/+M4wAAAAAAAAAAAAEluZm8AAAAPAAAAAwAAABkAAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMD...",
-    "file_name": "voice_message.mp3",
-    "file_size": 45632,
-    "mime_type": "audio/mpeg"
-  }
-}
-```
-
-### 4. Converting Files to Base64
-
-#### JavaScript (Frontend):
-```javascript
-// Image to Base64
-function imageToBase64(file) {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(reader.result);
-    reader.onerror = reject;
-    reader.readAsDataURL(file);
-  });
-}
-
-// Usage
-const fileInput = document.getElementById('fileInput');
-const file = fileInput.files[0];
-const base64 = await imageToBase64(file);
-```
-
-#### Python (Backend):
-```python
-import base64
-
-# File to Base64
-def file_to_base64(file_path):
-    with open(file_path, "rb") as file:
-        return base64.b64encode(file.read()).decode('utf-8')
-
-# Usage
-base64_data = file_to_base64("image.jpg")
-```
-
-#### Online Tools:
-- **Image to Base64**: `base64-image.de`
-- **File to Base64**: `base64encode.org`
-- **Audio to Base64**: `audio-to-base64.com`
-
-### 5. Supported File Types
-
-| Type | Extensions | Max Size | MIME Types |
-|------|------------|----------|------------|
-| **Images** | .jpg, .jpeg, .png, .gif, .webp | 10MB | image/jpeg, image/png, image/gif, image/webp |
-| **Files** | .pdf, .doc, .docx, .xls, .xlsx, .txt, .zip, .rar | 50MB | application/pdf, application/msword, etc. |
-| **Voice** | .mp3, .wav, .m4a, .aac, .ogg | 20MB | audio/mpeg, audio/wav, audio/mp4, audio/aac |
-
-### 6. File Storage Structure
-
-```
-static/chat_files/
-├── images/                     # Image files
-│   └── {user_id}_{timestamp}_{filename}
-├── files/                      # Document files
-│   └── {user_id}_{timestamp}_{filename}
-└── voices/                     # Voice messages
-    └── {user_id}_{timestamp}_{filename}
-```
-
-### 7. Response Format
-
-All file messages return the same response structure:
-
-```json
-{
-  "type": "new_message",
+  "type": "message_update",
   "data": {
     "id": 123,
-    "content": "",
-    "message_type": "image|file|voice",
-    "file_name": "4_20250923_123456_photo.jpg",
-    "file_path": "https://api.migfastkg.ru/static/chat_files/images/4_20250923_123456_photo.jpg",
-    "file_size": 245760,
-    "created_at": "2025-09-23T12:34:56.789123+00:00",
+    "content": "Updated message",
+    "message_type": "text",
+    "file_name": null,
+    "file_path": null,
+    "file_size": null,
+    "files_data": null,
+    "created_at": "2024-01-01T12:00:00Z",
     "is_read": false,
     "is_deleted": false,
-    "is_sender": true
+    "sender_details": {
+      "id": 1,
+      "name": "John Doe",
+      "email": "john@example.com",
+      "avatar_url": "https://example.com/avatar.jpg",
+      "is_online": true
+    }
   }
 }
 ```
 
-### 8. Error Handling
-
+#### Error Response
 ```json
 {
   "type": "error",
-  "message": "File upload failed: File too large"
+  "message": "Error description"
 }
 ```
 
-Common errors:
-- `File too large` - File exceeds size limit
-- `Invalid file type` - Unsupported file format
-- `File upload failed` - Server error during upload
+## Database Schema
 
-## File Structure
-
-```
-app/
-├── models/chat.py              # Database models
-├── schemas/chat.py             # Pydantic schemas
-├── repositories/chat_repository.py  # Database operations
-├── api/chat.py                 # API endpoints
-└── utils/
-    ├── websocket_manager.py    # WebSocket management
-    └── file_upload.py          # File upload handling
-
-static/chat_files/
-├── images/                     # Uploaded images
-├── files/                      # Uploaded files
-└── voices/                     # Voice messages
+### Chat Rooms
+```sql
+CREATE TABLE chat_rooms (
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(255),
+    room_type VARCHAR(50) DEFAULT 'direct',
+    created_by INTEGER REFERENCES users(id),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE,
+    is_active BOOLEAN DEFAULT TRUE
+);
 ```
 
-This implementation provides a complete, production-ready chat system that integrates seamlessly with your existing HRMS application!
+### Chat Participants
+```sql
+CREATE TABLE chat_participants (
+    id SERIAL PRIMARY KEY,
+    room_id INTEGER REFERENCES chat_rooms(id),
+    user_id INTEGER REFERENCES users(id),
+    joined_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    last_read_at TIMESTAMP WITH TIME ZONE,
+    is_active BOOLEAN DEFAULT TRUE
+);
+```
+
+### Chat Messages
+```sql
+CREATE TABLE chat_messages (
+    id SERIAL PRIMARY KEY,
+    room_id INTEGER REFERENCES chat_rooms(id),
+    sender_id INTEGER REFERENCES users(id),
+    receiver_id INTEGER REFERENCES users(id),
+    message_type VARCHAR(20) DEFAULT 'text',
+    content TEXT,
+    file_name VARCHAR(255),
+    file_path VARCHAR(500),
+    file_size INTEGER,
+    mime_type VARCHAR(100),
+    files_data JSON,  -- New field for multiple files
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    is_read BOOLEAN DEFAULT FALSE,
+    is_deleted BOOLEAN DEFAULT FALSE
+);
+```
+
+### User Presence
+```sql
+CREATE TABLE user_presence (
+    id SERIAL PRIMARY KEY,
+    user_id INTEGER REFERENCES users(id) UNIQUE,
+    is_online BOOLEAN DEFAULT FALSE,
+    last_seen TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+```
+
+## File Storage
+
+### Directory Structure
+```
+static/
+└── chat_files/
+    ├── images/     # Image files (JPEG, PNG, GIF, WebP)
+    ├── files/      # Document files (PDF, DOC, DOCX, etc.)
+    └── voices/     # Voice messages (MP3, WAV)
+```
+
+### File Naming Convention
+- **Single files**: `{user_id}_{timestamp}_{original_filename}`
+- **Multiple files**: `{user_id}_{timestamp}_{index}_{original_filename}`
+
+### File Size Limits
+- **Images**: 10MB maximum
+- **Files**: 50MB maximum
+- **Voice messages**: 50MB maximum
+
+### Supported File Types
+
+#### Images
+- JPEG (.jpg, .jpeg)
+- PNG (.png)
+- GIF (.gif)
+- WebP (.webp)
+
+#### Documents
+- PDF (.pdf)
+- Microsoft Word (.doc, .docx)
+- Microsoft Excel (.xls, .xlsx)
+- Plain Text (.txt)
+- ZIP Archives (.zip)
+- RAR Archives (.rar)
+
+#### Voice Messages
+- MP3 (.mp3)
+- WAV (.wav)
+
+## Implementation Examples
+
+### Frontend JavaScript Example
+
+#### WebSocket Connection
+```javascript
+class ChatClient {
+    constructor(token, roomId) {
+        this.token = token;
+        this.roomId = roomId;
+        this.ws = null;
+        this.connect();
+    }
+
+    connect() {
+        this.ws = new WebSocket(`ws://localhost:8000/api/chat/ws?token=${this.token}&room_id=${this.roomId}`);
+        
+        this.ws.onopen = () => {
+            console.log('Connected to chat');
+        };
+
+        this.ws.onmessage = (event) => {
+            const data = JSON.parse(event.data);
+            this.handleMessage(data);
+        };
+
+        this.ws.onclose = () => {
+            console.log('Disconnected from chat');
+            // Reconnect logic here
+        };
+    }
+
+    handleMessage(data) {
+        switch(data.type) {
+            case 'new_message':
+                this.displayMessage(data.data);
+                break;
+            case 'typing':
+                this.showTypingIndicator(data.data);
+                break;
+            case 'presence':
+                this.updateUserPresence(data.data);
+                break;
+            case 'error':
+                this.showError(data.message);
+                break;
+        }
+    }
+
+    sendTextMessage(content, receiverId) {
+        const message = {
+            type: 'send_message',
+            data: {
+                room_id: this.roomId,
+                receiver_id: receiverId,
+                message_type: 'text',
+                content: content
+            }
+        };
+        this.ws.send(JSON.stringify(message));
+    }
+
+    sendMultipleFiles(files, receiverId, messageType = 'image') {
+        const filesData = [];
+        
+        for (let i = 0; i < files.length; i++) {
+            const file = files[i];
+            const reader = new FileReader();
+            
+            reader.onload = (e) => {
+                filesData.push({
+                    file_data: e.target.result.split(',')[1], // Remove data:image/jpeg;base64, prefix
+                    file_name: file.name,
+                    file_size: file.size,
+                    mime_type: file.type
+                });
+
+                // Send message when all files are processed
+                if (filesData.length === files.length) {
+                    const message = {
+                        type: 'send_message',
+                        data: {
+                            room_id: this.roomId,
+                            receiver_id: receiverId,
+                            message_type: messageType,
+                            content: `Sent ${files.length} files`,
+                            files_data: filesData
+                        }
+                    };
+                    this.ws.send(JSON.stringify(message));
+                }
+            };
+            
+            reader.readAsDataURL(file);
+        }
+    }
+
+    sendTypingIndicator(isTyping) {
+        const message = {
+            type: 'typing',
+            data: {
+                room_id: this.roomId,
+                is_typing: isTyping
+            }
+        };
+        this.ws.send(JSON.stringify(message));
+    }
+}
+```
+
+#### File Upload with Progress
+```javascript
+async function uploadMultipleFiles(files, messageType) {
+    const formData = new FormData();
+    
+    for (let file of files) {
+        formData.append('files', file);
+    }
+    formData.append('message_type', messageType);
+
+    try {
+        const response = await fetch('/api/chat/upload-files', {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${getAuthToken()}`
+            },
+            body: formData
+        });
+
+        const result = await response.json();
+        
+        if (response.ok) {
+            console.log('Files uploaded:', result);
+            return result.files;
+        } else {
+            throw new Error(result.detail || 'Upload failed');
+        }
+    } catch (error) {
+        console.error('Upload error:', error);
+        throw error;
+    }
+}
+```
+
+### React Component Example
+
+```jsx
+import React, { useState, useEffect, useRef } from 'react';
+
+const ChatRoom = ({ roomId, token, receiverId }) => {
+    const [messages, setMessages] = useState([]);
+    const [newMessage, setNewMessage] = useState('');
+    const [isTyping, setIsTyping] = useState(false);
+    const [selectedFiles, setSelectedFiles] = useState([]);
+    const wsRef = useRef(null);
+
+    useEffect(() => {
+        // Initialize WebSocket connection
+        wsRef.current = new WebSocket(`ws://localhost:8000/api/chat/ws?token=${token}&room_id=${roomId}`);
+        
+        wsRef.current.onmessage = (event) => {
+            const data = JSON.parse(event.data);
+            handleWebSocketMessage(data);
+        };
+
+        return () => {
+            wsRef.current?.close();
+        };
+    }, [roomId, token]);
+
+    const handleWebSocketMessage = (data) => {
+        switch(data.type) {
+            case 'new_message':
+                setMessages(prev => [...prev, data.data]);
+                break;
+            case 'typing':
+                setIsTyping(data.data.is_typing);
+                break;
+        }
+    };
+
+    const sendMessage = () => {
+        if (newMessage.trim()) {
+            wsRef.current.send(JSON.stringify({
+                type: 'send_message',
+                data: {
+                    room_id: roomId,
+                    receiver_id: receiverId,
+                    message_type: 'text',
+                    content: newMessage
+                }
+            }));
+            setNewMessage('');
+        }
+    };
+
+    const sendMultipleFiles = async () => {
+        if (selectedFiles.length === 0) return;
+
+        try {
+            const files = await uploadMultipleFiles(selectedFiles, 'image');
+            
+            wsRef.current.send(JSON.stringify({
+                type: 'send_message',
+                data: {
+                    room_id: roomId,
+                    receiver_id: receiverId,
+                    message_type: 'image',
+                    content: `Sent ${files.length} files`,
+                    files_data: files.map(file => ({
+                        file_data: file.file_path, // This would need to be base64 encoded
+                        file_name: file.file_name,
+                        file_size: file.file_size,
+                        mime_type: file.mime_type
+                    }))
+                }
+            }));
+            
+            setSelectedFiles([]);
+        } catch (error) {
+            console.error('Failed to send files:', error);
+        }
+    };
+
+    const handleFileSelect = (event) => {
+        const files = Array.from(event.target.files);
+        setSelectedFiles(prev => [...prev, ...files]);
+    };
+
+    return (
+        <div className="chat-room">
+            <div className="messages">
+                {messages.map(message => (
+                    <div key={message.id} className={`message ${message.is_sender ? 'sent' : 'received'}`}>
+                        <div className="message-content">
+                            {message.content && <p>{message.content}</p>}
+                            
+                            {/* Single file display */}
+                            {message.file_path && (
+                                <div className="file-attachment">
+                                    <a href={message.file_path} target="_blank" rel="noopener noreferrer">
+                                        {message.file_name}
+                                    </a>
+                                </div>
+                            )}
+                            
+                            {/* Multiple files display */}
+                            {message.files_data && message.files_data.length > 0 && (
+                                <div className="multiple-files">
+                                    {message.files_data.map((file, index) => (
+                                        <div key={index} className="file-attachment">
+                                            <a href={file.file_path} target="_blank" rel="noopener noreferrer">
+                                                {file.file_name}
+                                            </a>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+                        <div className="message-meta">
+                            <span className="sender">{message.sender_details?.name}</span>
+                            <span className="timestamp">{new Date(message.created_at).toLocaleTimeString()}</span>
+                        </div>
+                    </div>
+                ))}
+                
+                {isTyping && (
+                    <div className="typing-indicator">
+                        <span>Someone is typing...</span>
+                    </div>
+                )}
+            </div>
+            
+            <div className="message-input">
+                <input
+                    type="text"
+                    value={newMessage}
+                    onChange={(e) => setNewMessage(e.target.value)}
+                    onKeyPress={(e) => e.key === 'Enter' && sendMessage()}
+                    placeholder="Type a message..."
+                />
+                
+                <input
+                    type="file"
+                    multiple
+                    accept="image/*,.pdf,.doc,.docx,.txt,.zip,.rar"
+                    onChange={handleFileSelect}
+                />
+                
+                {selectedFiles.length > 0 && (
+                    <div className="selected-files">
+                        <p>Selected files: {selectedFiles.length}</p>
+                        <button onClick={sendMultipleFiles}>Send Files</button>
+                        <button onClick={() => setSelectedFiles([])}>Clear</button>
+                    </div>
+                )}
+                
+                <button onClick={sendMessage}>Send</button>
+            </div>
+        </div>
+    );
+};
+
+export default ChatRoom;
+```
+
+## Error Handling
+
+### Common Error Responses
+
+#### Authentication Error
+```json
+{
+  "detail": "Not authenticated"
+}
+```
+
+#### File Upload Error
+```json
+{
+  "detail": "File too large. Maximum size: 10.0MB"
+}
+```
+
+#### Invalid File Type
+```json
+{
+  "detail": "File type not allowed. Allowed types: image/jpeg, image/png, image/gif, image/webp"
+}
+```
+
+#### Room Not Found
+```json
+{
+  "detail": "Room not found"
+}
+```
+
+#### Message Not Found
+```json
+{
+  "detail": "Message not found"
+}
+```
+
+## Security Considerations
+
+1. **File Validation**: All uploaded files are validated for type and size
+2. **Authentication**: All endpoints require valid JWT tokens
+3. **File Storage**: Files are stored in a secure directory structure
+4. **SQL Injection**: All database queries use parameterized statements
+5. **XSS Prevention**: File names are sanitized before storage
+
+## Performance Considerations
+
+1. **File Size Limits**: Enforced to prevent storage issues
+2. **Multiple File Limit**: Maximum 10 files per upload
+3. **Database Indexing**: Proper indexes on frequently queried columns
+4. **WebSocket Connection Management**: Efficient connection pooling
+5. **File Cleanup**: Old files can be cleaned up periodically
+
+## Deployment Notes
+
+1. **Database Migration**: Run `alembic upgrade head` to apply schema changes
+2. **Static Files**: Ensure static file serving is configured
+3. **WebSocket Support**: Configure reverse proxy for WebSocket connections
+4. **File Storage**: Ensure sufficient disk space for file uploads
+5. **Environment Variables**: Configure BASE_URL and other settings
+
+## Troubleshooting
+
+### Common Issues
+
+1. **WebSocket Connection Failed**
+   - Check JWT token validity
+   - Verify WebSocket URL format
+   - Check network connectivity
+
+2. **File Upload Failed**
+   - Verify file size limits
+   - Check file type restrictions
+   - Ensure proper permissions on upload directory
+
+3. **Messages Not Appearing**
+   - Check WebSocket connection status
+   - Verify room_id and receiver_id
+   - Check authentication token
+
+4. **Database Errors**
+   - Run database migrations
+   - Check database connection
+   - Verify table schemas
+
+### Debug Mode
+
+Enable debug logging by setting the appropriate log level in your application configuration.
+
+## API Rate Limits
+
+- **File Upload**: 10 files per request
+- **Message Size**: 5000 characters maximum
+- **WebSocket Messages**: No specific rate limit (handled by WebSocket connection limits)
+
+## Future Enhancements
+
+1. **Group Chat Support**: Multi-user chat rooms
+2. **File Compression**: Automatic image compression
+3. **Message Reactions**: Emoji reactions to messages
+4. **Message Forwarding**: Forward messages to other users
+5. **Message Search**: Search within chat history
+6. **Voice/Video Calls**: Integration with Agora or similar services
+7. **Message Encryption**: End-to-end encryption for sensitive messages
+8. **File Sharing**: Temporary file sharing links
+9. **Message Scheduling**: Schedule messages for later delivery
+10. **Chat Backup**: Export chat history
+
+---
+
+For more information or support, please contact the development team.

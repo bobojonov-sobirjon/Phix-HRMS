@@ -10,13 +10,11 @@ from ..schemas.chat import (
     UserSearchResponse, UserSearchListResponse,
     ChatRoomResponse, ChatRoomCreate, ChatRoomListResponse,
     ChatMessageResponse, ChatMessageCreate, TextMessageCreate, MessageListResponse,
-    FileUploadResponse, WebSocketMessage, TypingIndicator, UserPresenceUpdate,
-    VideoCallTokenRequest, VideoCallTokenResponse, VideoCallRequest, VideoCallResponse, VideoCallStatus
+    FileUploadResponse, MultipleFileUploadResponse, WebSocketMessage, TypingIndicator, UserPresenceUpdate
 )
 from ..utils.websocket_manager import manager
 from ..utils.file_upload import file_upload_manager
 from ..utils.auth import get_current_user
-from ..utils.agora_tokens import generate_rtc_token
 from ..models.user import User
 import uuid
 
@@ -219,13 +217,28 @@ async def get_room(
         # Determine if current user is sender (for frontend positioning)
         is_sender = message.sender_id == current_user.id
         
-        # Build full URL for file_path
+        # Build full URLs for files
         file_url = None
+        files_data_with_urls = None
+        
         if message.file_path:
             from ..config import settings
             # Replace backslashes with forward slashes for web URLs
             clean_path = message.file_path.replace("\\", "/")
             file_url = f"{settings.BASE_URL}/{clean_path}"
+        
+        if message.files_data:
+            from ..config import settings
+            files_data_with_urls = []
+            for file_data in message.files_data:
+                clean_path = file_data["file_path"].replace("\\", "/")
+                file_data_with_url = {
+                    "file_name": file_data["file_name"],
+                    "file_path": f"{settings.BASE_URL}/{clean_path}",
+                    "file_size": file_data["file_size"],
+                    "mime_type": file_data["mime_type"]
+                }
+                files_data_with_urls.append(file_data_with_url)
         
         # Get sender details
         sender_details = None
@@ -246,6 +259,7 @@ async def get_room(
             "file_name": message.file_name,
             "file_path": file_url,  # Full URL instead of relative path
             "file_size": message.file_size,
+            "files_data": files_data_with_urls,  # Multiple files with full URLs
             "created_at": message.created_at.isoformat(),
             "is_read": message.is_read,
             "is_deleted": message.is_deleted,
@@ -269,6 +283,51 @@ async def get_room(
             "total": len(message_responses)
         }
     }
+
+# File Upload Endpoints
+@router.post("/upload-files", response_model=MultipleFileUploadResponse)
+async def upload_multiple_files(
+    files: List[UploadFile] = File(..., description="Multiple files to upload"),
+    message_type: str = Form(..., description="Type of message: 'image' or 'file'"),
+    current_user: User = Depends(get_current_user)
+):
+    """Upload multiple files for chat messages"""
+    if not files:
+        raise HTTPException(status_code=400, detail="No files provided")
+    
+    if len(files) > 10:  # Limit to 10 files per upload
+        raise HTTPException(status_code=400, detail="Maximum 10 files allowed per upload")
+    
+    # Determine if files are images
+    is_image = message_type.lower() == "image"
+    
+    try:
+        # Upload all files
+        uploaded_files = await file_upload_manager.upload_multiple_files(files, is_image)
+        
+        # Calculate total size
+        total_size = sum(file_info["file_size"] for file_info in uploaded_files)
+        
+        # Build response
+        file_responses = []
+        for file_info in uploaded_files:
+            file_responses.append(FileUploadResponse(
+                file_name=file_info["file_name"],
+                file_path=file_info["file_path"],
+                file_size=file_info["file_size"],
+                mime_type=file_info["mime_type"]
+            ))
+        
+        return MultipleFileUploadResponse(
+            files=file_responses,
+            total_files=len(file_responses),
+            total_size=total_size
+        )
+        
+    except HTTPException as e:
+        raise e
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Upload failed: {str(e)}")
 
 # Message Endpoints - All messages are sent via WebSocket for real-time delivery
 
@@ -295,13 +354,28 @@ async def get_room_messages(
         # Determine if current user is sender (for frontend positioning)
         is_sender = message.sender_id == current_user.id
         
-        # Build full URL for file_path
+        # Build full URLs for files
         file_url = None
+        files_data_with_urls = None
+        
         if message.file_path:
             from ..config import settings
             # Replace backslashes with forward slashes for web URLs
             clean_path = message.file_path.replace("\\", "/")
             file_url = f"{settings.BASE_URL}/{clean_path}"
+        
+        if message.files_data:
+            from ..config import settings
+            files_data_with_urls = []
+            for file_data in message.files_data:
+                clean_path = file_data["file_path"].replace("\\", "/")
+                file_data_with_url = {
+                    "file_name": file_data["file_name"],
+                    "file_path": f"{settings.BASE_URL}/{clean_path}",
+                    "file_size": file_data["file_size"],
+                    "mime_type": file_data["mime_type"]
+                }
+                files_data_with_urls.append(file_data_with_url)
         
         # Get sender details
         sender_details = None
@@ -322,6 +396,7 @@ async def get_room_messages(
             file_name=message.file_name,
             file_path=file_url,  # Full URL instead of relative path
             file_size=message.file_size,
+            files_data=files_data_with_urls,  # Multiple files with full URLs
             created_at=message.created_at,
             is_read=message.is_read,
             is_deleted=message.is_deleted,
@@ -386,13 +461,28 @@ async def update_message(
     updated_message = chat_repo.get_message(message_id)
     other_user = chat_repo.get_room_other_user(updated_message.room_id, current_user.id)
     
-    # Build full URL for file_path
+    # Build full URLs for files
     file_url = None
+    files_data_with_urls = None
+    
     if updated_message.file_path:
         from ..config import settings
         # Replace backslashes with forward slashes for web URLs
         clean_path = updated_message.file_path.replace("\\", "/")
         file_url = f"{settings.BASE_URL}/{clean_path}"
+    
+    if updated_message.files_data:
+        from ..config import settings
+        files_data_with_urls = []
+        for file_data in updated_message.files_data:
+            clean_path = file_data["file_path"].replace("\\", "/")
+            file_data_with_url = {
+                "file_name": file_data["file_name"],
+                "file_path": f"{settings.BASE_URL}/{clean_path}",
+                "file_size": file_data["file_size"],
+                "mime_type": file_data["mime_type"]
+            }
+            files_data_with_urls.append(file_data_with_url)
     
     # Get sender details
     sender_details = None
@@ -414,6 +504,7 @@ async def update_message(
         "file_name": updated_message.file_name,
         "file_path": file_url,  # Full URL instead of relative path
         "file_size": updated_message.file_size,
+        "files_data": files_data_with_urls,  # Multiple files with full URLs
         "created_at": updated_message.created_at.isoformat(),
         "is_read": updated_message.is_read,
         "is_deleted": updated_message.is_deleted,
@@ -505,113 +596,6 @@ async def websocket_endpoint(websocket: WebSocket, token: str = None, room_id: i
             elif message_data.get("type") == "leave_room":
                 manager.leave_room(user_id)
             
-            elif message_data.get("type") == "video_call":
-                # Handle video call request
-                call_info = message_data.get("data", {})
-                receiver_id = call_info.get("receiver_id")
-                channel_name = call_info.get("channel_name")
-                
-                if not receiver_id or not channel_name:
-                    await websocket.send_text(json.dumps({
-                        "type": "error",
-                        "message": "Missing receiver_id or channel_name"
-                    }))
-                    continue
-                
-                # Generate call ID
-                call_id = str(uuid.uuid4())
-                
-                # Get receiver info
-                receiver = db.query(User).filter(User.id == receiver_id).first()
-                if not receiver:
-                    await websocket.send_text(json.dumps({
-                        "type": "error",
-                        "message": "Receiver not found"
-                    }))
-                    continue
-                
-                # Create or get room
-                room = chat_repo.create_direct_room(user_id, receiver_id)
-                
-                # Get current user info
-                current_user_info = db.query(User).filter(User.id == user_id).first()
-                caller_name = current_user_info.name if current_user_info else f"User {user_id}"
-                
-                # Broadcast video call
-                await manager.broadcast_video_call(
-                    call_id=call_id,
-                    channel_name=channel_name,
-                    caller_id=user_id,
-                    caller_name=caller_name,
-                    receiver_id=receiver_id,
-                    room_id=room.id
-                )
-            
-            elif message_data.get("type") == "video_call_answer":
-                # Handle video call answer
-                call_info = message_data.get("data", {})
-                call_id = call_info.get("call_id")
-                
-                if not call_id:
-                    await websocket.send_text(json.dumps({
-                        "type": "error",
-                        "message": "Missing call_id"
-                    }))
-                    continue
-                
-                # Get current user info
-                current_user_info = db.query(User).filter(User.id == user_id).first()
-                receiver_name = current_user_info.name if current_user_info else f"User {user_id}"
-                
-                await manager.broadcast_video_call_answer(
-                    call_id=call_id,
-                    receiver_id=user_id,
-                    receiver_name=receiver_name
-                )
-            
-            elif message_data.get("type") == "video_call_reject":
-                # Handle video call reject
-                call_info = message_data.get("data", {})
-                call_id = call_info.get("call_id")
-                
-                if not call_id:
-                    await websocket.send_text(json.dumps({
-                        "type": "error",
-                        "message": "Missing call_id"
-                    }))
-                    continue
-                
-                # Get current user info
-                current_user_info = db.query(User).filter(User.id == user_id).first()
-                receiver_name = current_user_info.name if current_user_info else f"User {user_id}"
-                
-                await manager.broadcast_video_call_reject(
-                    call_id=call_id,
-                    receiver_id=user_id,
-                    receiver_name=receiver_name
-                )
-            
-            elif message_data.get("type") == "video_call_end":
-                # Handle video call end
-                call_info = message_data.get("data", {})
-                call_id = call_info.get("call_id")
-                
-                if not call_id:
-                    await websocket.send_text(json.dumps({
-                        "type": "error",
-                        "message": "Missing call_id"
-                    }))
-                    continue
-                
-                # Get current user info
-                current_user_info = db.query(User).filter(User.id == user_id).first()
-                user_name = current_user_info.name if current_user_info else f"User {user_id}"
-                
-                await manager.broadcast_video_call_end(
-                    call_id=call_id,
-                    user_id=user_id,
-                    user_name=user_name
-                )
             
             elif message_data.get("type") == "send_message":
                 # Handle all message types (text, image, file) through WebSocket
@@ -621,10 +605,15 @@ async def websocket_endpoint(websocket: WebSocket, token: str = None, room_id: i
                 receiver_id = message_info.get("receiver_id")
                 message_type = message_info.get("message_type", "text")
                 content = message_info.get("content", "")
+                
+                # Handle single file (backward compatibility)
                 file_data = message_info.get("file_data")  # Base64 encoded file data
                 file_name = message_info.get("file_name")
                 file_size = message_info.get("file_size")
                 mime_type = message_info.get("mime_type")
+                
+                # Handle multiple files
+                files_data = message_info.get("files_data", [])  # Array of file objects
                 
                 if not message_room_id or not receiver_id:
                     await websocket.send_text(json.dumps({
@@ -653,7 +642,76 @@ async def websocket_endpoint(websocket: WebSocket, token: str = None, room_id: i
                 
                 # Handle file upload for image, file, and voice messages
                 file_path = None
-                if message_type in ["image", "file", "voice"] and file_data:
+                processed_files_data = None
+                
+                # Handle multiple files (new approach)
+                if message_type in ["image", "file", "voice"] and files_data:
+                    try:
+                        import base64
+                        import os
+                        from datetime import datetime
+                        
+                        processed_files = []
+                        
+                        for file_info in files_data:
+                            file_data_item = file_info.get("file_data")
+                            file_name_item = file_info.get("file_name")
+                            file_size_item = file_info.get("file_size")
+                            mime_type_item = file_info.get("mime_type")
+                            
+                            if not file_data_item or not file_name_item:
+                                continue
+                            
+                            # Decode base64 file data
+                            file_bytes = base64.b64decode(file_data_item)
+                            
+                            # Create appropriate directory
+                            if message_type == "image":
+                                upload_dir = "static/chat_files/images"
+                            elif message_type == "voice":
+                                upload_dir = "static/chat_files/voices"
+                            else:  # file
+                                upload_dir = "static/chat_files/files"
+                            
+                            os.makedirs(upload_dir, exist_ok=True)
+                            
+                            # Generate unique filename
+                            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                            file_extension = os.path.splitext(file_name_item)[1] if file_name_item else ""
+                            unique_filename = f"{user_id}_{timestamp}_{len(processed_files)}_{file_name_item}"
+                            file_path_item = os.path.join(upload_dir, unique_filename)
+                            
+                            # Save file
+                            with open(file_path_item, "wb") as f:
+                                f.write(file_bytes)
+                            
+                            # Add to processed files
+                            processed_files.append({
+                                "file_name": file_name_item,
+                                "file_path": file_path_item,
+                                "file_size": file_size_item or len(file_bytes),
+                                "mime_type": mime_type_item
+                            })
+                        
+                        processed_files_data = processed_files
+                        
+                        # For backward compatibility, set single file fields if only one file
+                        if len(processed_files) == 1:
+                            single_file = processed_files[0]
+                            file_name = single_file["file_name"]
+                            file_path = single_file["file_path"]
+                            file_size = single_file["file_size"]
+                            mime_type = single_file["mime_type"]
+                        
+                    except Exception as e:
+                        await websocket.send_text(json.dumps({
+                            "type": "error",
+                            "message": f"Multiple file upload failed: {str(e)}"
+                        }))
+                        continue
+                
+                # Handle single file (backward compatibility)
+                elif message_type in ["image", "file", "voice"] and file_data:
                     try:
                         import base64
                         import os
@@ -702,16 +760,32 @@ async def websocket_endpoint(websocket: WebSocket, token: str = None, room_id: i
                     file_name=file_name,
                     file_path=file_path,
                     file_size=file_size,
-                    mime_type=mime_type
+                    mime_type=mime_type,
+                    files_data=processed_files_data
                 )
                 
-                # Build full URL for file_path
+                # Build full URLs for files
                 file_url = None
+                files_data_with_urls = None
+                
                 if message.file_path:
                     from ..config import settings
                     # Replace backslashes with forward slashes for web URLs
                     clean_path = message.file_path.replace("\\", "/")
                     file_url = f"{settings.BASE_URL}/{clean_path}"
+                
+                if message.files_data:
+                    from ..config import settings
+                    files_data_with_urls = []
+                    for file_data in message.files_data:
+                        clean_path = file_data["file_path"].replace("\\", "/")
+                        file_data_with_url = {
+                            "file_name": file_data["file_name"],
+                            "file_path": f"{settings.BASE_URL}/{clean_path}",
+                            "file_size": file_data["file_size"],
+                            "mime_type": file_data["mime_type"]
+                        }
+                        files_data_with_urls.append(file_data_with_url)
                 
                 # Get sender details
                 sender_details = None
@@ -733,6 +807,7 @@ async def websocket_endpoint(websocket: WebSocket, token: str = None, room_id: i
                     "file_name": message.file_name,
                     "file_path": file_url,  # Full URL instead of relative path
                     "file_size": message.file_size,
+                    "files_data": files_data_with_urls,  # Multiple files with full URLs
                     "created_at": message.created_at.isoformat(),
                     "is_read": message.is_read,
                     "is_deleted": message.is_deleted,
@@ -793,209 +868,6 @@ async def get_online_users(db: Session = Depends(get_db)):
         ]
     }
 
-# Video Calling Endpoints
-@router.post("/video-call/token", response_model=VideoCallTokenResponse)
-async def generate_video_call_token(
-    token_request: VideoCallTokenRequest,
-    current_user: User = Depends(get_current_user)
-):
-    """Generate Agora RTC token for video calling - Production Mode"""
-    try:
-        # Generate real token using Agora
-        token_data = generate_rtc_token(
-            channel_name=token_request.channel_name,
-            uid=token_request.uid,
-            user_account=token_request.user_account,
-            role=token_request.role,
-            expire_seconds=token_request.expire_seconds
-        )
-        
-        return VideoCallTokenResponse(
-            app_id=token_data["appId"],
-            channel=token_data["channel"],
-            uid=token_data["uid"],
-            user_account=token_data["userAccount"],
-            role=token_data["role"],
-            expire_at=token_data["expireAt"],
-            token=token_data["token"]
-        )
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=f"Token generation failed: {str(e)}")
-
-@router.post("/video-call/start", response_model=VideoCallResponse)
-async def start_video_call(
-    call_request: VideoCallRequest,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
-):
-    """Start a video call with another user"""
-    chat_repo = ChatRepository(db)
-    
-    # Check if receiver exists
-    receiver = db.query(User).filter(User.id == call_request.receiver_id).first()
-    if not receiver:
-        raise HTTPException(status_code=404, detail="User not found")
-    
-    # Generate unique call ID
-    call_id = str(uuid.uuid4())
-    
-    # Generate token for the caller
-    try:
-        token_data = generate_rtc_token(
-            channel_name=call_request.channel_name,
-            uid=current_user.id,
-            role="publisher",
-            expire_seconds=3600
-        )
-        
-        token_response = VideoCallTokenResponse(
-            app_id=token_data["appId"],
-            channel=token_data["channel"],
-            uid=token_data["uid"],
-            user_account=token_data["userAccount"],
-            role=token_data["role"],
-            expire_at=token_data["expireAt"],
-            token=token_data["token"]
-        )
-        
-        # Create video call message in database
-        # First, create or get room between users
-        room = chat_repo.create_direct_room(current_user.id, call_request.receiver_id)
-        
-        # Create video call message
-        message = chat_repo.create_message(
-            room_id=room.id,
-            sender_id=current_user.id,
-            receiver_id=call_request.receiver_id,
-            message_type="video_call",
-            content=f"Video call started in channel: {call_request.channel_name}",
-            file_name=None,
-            file_path=None,
-            file_size=None,
-            mime_type=None
-        )
-        
-        # Broadcast video call notification via WebSocket
-        await manager.broadcast_video_call(
-            call_id=call_id,
-            channel_name=call_request.channel_name,
-            caller_id=current_user.id,
-            caller_name=current_user.name,
-            receiver_id=call_request.receiver_id,
-            room_id=room.id
-        )
-        
-        return VideoCallResponse(
-            call_id=call_id,
-            channel_name=call_request.channel_name,
-            token=token_response,
-            receiver_id=call_request.receiver_id,
-            created_at=datetime.utcnow()
-        )
-        
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=f"Failed to start video call: {str(e)}")
-
-@router.post("/video-call/answer/{call_id}")
-async def answer_video_call(
-    call_id: str,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
-):
-    """Answer a video call"""
-    # Generate token for the receiver
-    try:
-        # For now, we'll use a simple channel name based on call_id
-        channel_name = f"call_{call_id}"
-        
-        token_data = generate_rtc_token(
-            channel_name=channel_name,
-            uid=current_user.id,
-            role="publisher",
-            expire_seconds=3600
-        )
-        
-        # Broadcast call answered notification
-        await manager.broadcast_video_call_answer(
-            call_id=call_id,
-            receiver_id=current_user.id,
-            receiver_name=current_user.name
-        )
-        
-        return {
-            "status": "answered",
-            "call_id": call_id,
-            "token": VideoCallTokenResponse(
-                app_id=token_data["appId"],
-                channel=token_data["channel"],
-                uid=token_data["uid"],
-                user_account=token_data["userAccount"],
-                role=token_data["role"],
-                expire_at=token_data["expireAt"],
-                token=token_data["token"]
-            )
-        }
-        
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=f"Failed to answer video call: {str(e)}")
-
-@router.post("/video-call/reject/{call_id}")
-async def reject_video_call(
-    call_id: str,
-    current_user: User = Depends(get_current_user)
-):
-    """Reject a video call"""
-    # Broadcast call rejected notification
-    await manager.broadcast_video_call_reject(
-        call_id=call_id,
-        receiver_id=current_user.id,
-        receiver_name=current_user.name
-    )
-    
-    return {"status": "rejected", "call_id": call_id}
-
-@router.post("/video-call/end/{call_id}")
-async def end_video_call(
-    call_id: str,
-    current_user: User = Depends(get_current_user)
-):
-    """End a video call"""
-    # Broadcast call ended notification
-    await manager.broadcast_video_call_end(
-        call_id=call_id,
-        user_id=current_user.id,
-        user_name=current_user.name
-    )
-    
-    return {"status": "ended", "call_id": call_id}
-
-# Test endpoints (no authentication required)
-@router.post("/video-call/token/test", response_model=VideoCallTokenResponse)
-async def generate_video_call_token_test(
-    token_request: VideoCallTokenRequest
-):
-    """Generate Agora RTC token for video calling (TEST - No Auth) - Production Mode"""
-    try:
-        # Generate real token using Agora
-        token_data = generate_rtc_token(
-            channel_name=token_request.channel_name,
-            uid=token_request.uid,
-            user_account=token_request.user_account,
-            role=token_request.role,
-            expire_seconds=token_request.expire_seconds
-        )
-        
-        return VideoCallTokenResponse(
-            app_id=token_data["appId"],
-            channel=token_data["channel"],
-            uid=token_data["uid"],
-            user_account=token_data["userAccount"],
-            role=token_data["role"],
-            expire_at=token_data["expireAt"],
-            token=token_data["token"]
-        )
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=f"Token generation failed: {str(e)}")
 
 # Test WebSocket endpoint (no authentication)
 @router.websocket("/ws/test")

@@ -1,7 +1,7 @@
 import os
 import uuid
 import mimetypes
-from typing import Optional, Tuple
+from typing import Optional, Tuple, List
 from fastapi import UploadFile, HTTPException
 from pathlib import Path
 
@@ -101,6 +101,24 @@ class FileUploadManager:
             "file_size": file_size,
             "mime_type": mime_type
         }
+    
+    async def upload_multiple_files(self, files: List[UploadFile], is_image: bool = False) -> List[dict]:
+        """Upload multiple files and return list of file info"""
+        uploaded_files = []
+        total_size = 0
+        
+        for file in files:
+            try:
+                file_info = await self.upload_file(file, is_image)
+                uploaded_files.append(file_info)
+                total_size += file_info["file_size"]
+            except HTTPException as e:
+                # If any file fails, clean up already uploaded files
+                for uploaded_file in uploaded_files:
+                    self.delete_file(uploaded_file["file_path"])
+                raise e
+        
+        return uploaded_files
     
     def delete_file(self, file_path: str) -> bool:
         """Delete file from storage"""
