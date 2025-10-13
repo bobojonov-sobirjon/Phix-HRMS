@@ -10,11 +10,13 @@ from ..schemas.chat import (
     UserSearchResponse, UserSearchListResponse,
     ChatRoomResponse, ChatRoomCreate, ChatRoomListResponse,
     ChatMessageResponse, ChatMessageCreate, TextMessageCreate, MessageListResponse,
-    WebSocketMessage, TypingIndicator, UserPresenceUpdate
+    WebSocketMessage, TypingIndicator, UserPresenceUpdate,
+    VideoCallTokenRequest, VideoCallTokenResponse, VideoCallRequest, VideoCallResponse, VideoCallStatus
 )
 from ..utils.websocket_manager import manager
 from ..utils.file_upload import file_upload_manager
 from ..utils.auth import get_current_user
+from ..utils.agora_tokens import generate_rtc_token
 from ..models.user import User
 import uuid
 
@@ -823,6 +825,268 @@ async def get_online_users(db: Session = Depends(get_db)):
         ]
     }
 
+
+# Test WebSocket endpoint (no authentication)
+@router.websocket("/ws/test")
+async def websocket_test_endpoint(websocket: WebSocket):
+    """Test WebSocket endpoint without authentication"""
+    try:
+        await websocket.accept()
+        print("WebSocket connection accepted")
+        
+        # Test user data
+        user_id = 1
+        user_name = "Test User"
+        
+        await manager.connect(websocket, user_id)
+        print(f"User {user_id} connected to manager")
+        
+        # Send welcome message
+        await websocket.send_text(json.dumps({
+            "type": "welcome",
+            "message": "Connected to test WebSocket",
+            "user_id": user_id,
+            "timestamp": datetime.utcnow().isoformat()
+        }))
+        
+        while True:
+            try:
+                data = await websocket.receive_text()
+                message_data = json.loads(data)
+                print(f"Received message: {message_data}")
+                
+                # Echo back the message
+                await websocket.send_text(json.dumps({
+                    "type": "echo",
+                    "data": message_data,
+                    "timestamp": datetime.utcnow().isoformat()
+                }))
+                
+            except WebSocketDisconnect:
+                print(f"WebSocket disconnected for user {user_id}")
+                break
+            except Exception as e:
+                print(f"Error processing message: {e}")
+                break
+                
+    except Exception as e:
+        print(f"WebSocket error: {e}")
+    finally:
+        try:
+            manager.disconnect(user_id)
+            print(f"Test user {user_id} disconnected")
+        except:
+            pass
+
+@router.post("/video-call/token", response_model=VideoCallTokenResponse)
+async def generate_video_call_token(
+    current_user: User = Depends(get_current_user)
+):
+    """Generate Agora RTC token for video calling - Production Mode"""
+    try:
+        # Auto-generate channel name based on user and timestamp
+        import time
+        timestamp = int(time.time())
+        channel_name = f"user_{current_user.id}_call_{timestamp}"
+        
+        # Use user email as user_account, or generate UUID if no email
+        user_account = current_user.email if current_user.email else f"user_{current_user.id}_{uuid.uuid4().hex[:8]}"
+        
+        # Generate real token using Agora with auto-generated values
+        token_data = generate_rtc_token(
+            channel_name=channel_name,
+            uid=None,  # Use user_account instead
+            user_account=user_account,
+            role="publisher",  # Default role
+            expire_seconds=3600  # Default 1 hour
+        )
+        
+        return VideoCallTokenResponse(
+            app_id=token_data["appId"],
+            channel=token_data["channel"],
+            uid=token_data["uid"],
+            user_account=token_data["userAccount"],
+            role=token_data["role"],
+            expire_at=token_data["expireAt"],
+            token=token_data["token"]
+        )
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Token generation failed: {str(e)}")
+
+@router.post("/video-call/start", response_model=VideoCallResponse)
+async def start_video_call(
+    call_request: VideoCallRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Start a video call with another user"""
+    chat_repo = ChatRepository(db)
+    
+    # Check if receiver exists
+    receiver = db.query(User).filter(User.id == call_request.receiver_id).first()
+    if not receiver:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    # Generate unique call ID
+    call_id = str(uuid.uuid4())
+    
+    # Generate token for the caller
+    try:
+        token_data = generate_rtc_token(
+            channel_name=call_request.channel_name,
+            uid=current_user.id,
+            role="publisher",
+            expire_seconds=3600
+        )
+        
+        token_response = VideoCallTokenResponse(
+            app_id=token_data["appId"],
+            channel=token_data["channel"],
+            uid=token_data["uid"],
+            user_account=token_data["userAccount"],
+            role=token_data["role"],
+            expire_at=token_data["expireAt"],
+            token=token_data["token"]
+        )
+        
+        # Create video call message in database
+        # First, create or get room between users
+        room = chat_repo.create_direct_room(current_user.id, call_request.receiver_id)
+        
+        # Create video call message
+        message = chat_repo.create_message(
+            room_id=room.id,
+            sender_id=current_user.id,
+            receiver_id=call_request.receiver_id,
+            message_type="video_call",
+            content=f"Video call started in channel: {call_request.channel_name}",
+            file_name=None,
+            file_path=None,
+            file_size=None,
+            mime_type=None
+        )
+        
+        # Broadcast video call notification via WebSocket
+        await manager.broadcast_video_call(
+            call_id=call_id,
+            channel_name=call_request.channel_name,
+            caller_id=current_user.id,
+            caller_name=current_user.name,
+            receiver_id=call_request.receiver_id,
+            room_id=room.id
+        )
+        
+        return VideoCallResponse(
+            call_id=call_id,
+            channel_name=call_request.channel_name,
+            token=token_response,
+            receiver_id=call_request.receiver_id,
+            created_at=datetime.utcnow()
+        )
+        
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Failed to start video call: {str(e)}")
+
+@router.post("/video-call/answer/{call_id}")
+async def answer_video_call(
+    call_id: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Answer a video call"""
+    # Generate token for the receiver
+    try:
+        # For now, we'll use a simple channel name based on call_id
+        channel_name = f"call_{call_id}"
+        
+        token_data = generate_rtc_token(
+            channel_name=channel_name,
+            uid=current_user.id,
+            role="publisher",
+            expire_seconds=3600
+        )
+        
+        # Broadcast call answered notification
+        await manager.broadcast_video_call_answer(
+            call_id=call_id,
+            receiver_id=current_user.id,
+            receiver_name=current_user.name
+        )
+        
+        return {
+            "status": "answered",
+            "call_id": call_id,
+            "token": VideoCallTokenResponse(
+                app_id=token_data["appId"],
+                channel=token_data["channel"],
+                uid=token_data["uid"],
+                user_account=token_data["userAccount"],
+                role=token_data["role"],
+                expire_at=token_data["expireAt"],
+                token=token_data["token"]
+            )
+        }
+        
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Failed to answer video call: {str(e)}")
+
+@router.post("/video-call/reject/{call_id}")
+async def reject_video_call(
+    call_id: str,
+    current_user: User = Depends(get_current_user)
+):
+    """Reject a video call"""
+    # Broadcast call rejected notification
+    await manager.broadcast_video_call_reject(
+        call_id=call_id,
+        receiver_id=current_user.id,
+        receiver_name=current_user.name
+    )
+    
+    return {"status": "rejected", "call_id": call_id}
+
+@router.post("/video-call/end/{call_id}")
+async def end_video_call(
+    call_id: str,
+    current_user: User = Depends(get_current_user)
+):
+    """End a video call"""
+    # Broadcast call ended notification
+    await manager.broadcast_video_call_end(
+        call_id=call_id,
+        user_id=current_user.id,
+        user_name=current_user.name
+    )
+    
+    return {"status": "ended", "call_id": call_id}
+
+# Test endpoints (no authentication required)
+@router.post("/video-call/token/test", response_model=VideoCallTokenResponse)
+async def generate_video_call_token_test(
+    token_request: VideoCallTokenRequest
+):
+    """Generate Agora RTC token for video calling (TEST - No Auth) - Production Mode"""
+    try:
+        # Generate real token using Agora
+        token_data = generate_rtc_token(
+            channel_name=token_request.channel_name,
+            uid=token_request.uid,
+            user_account=token_request.user_account,
+            role=token_request.role,
+            expire_seconds=token_request.expire_seconds
+        )
+        
+        return VideoCallTokenResponse(
+            app_id=token_data["appId"],
+            channel=token_data["channel"],
+            uid=token_data["uid"],
+            user_account=token_data["userAccount"],
+            role=token_data["role"],
+            expire_at=token_data["expireAt"],
+            token=token_data["token"]
+        )
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Token generation failed: {str(e)}")
 
 # Test WebSocket endpoint (no authentication)
 @router.websocket("/ws/test")
