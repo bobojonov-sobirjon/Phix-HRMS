@@ -68,12 +68,7 @@ A comprehensive Human Resource Management System API built with FastAPI.
 - `PUT /api/v1/proposals/{proposal_id}` - Update proposal
 - `DELETE /api/v1/proposals/{proposal_id}` - Delete proposal
 
-### Video Calling
-- `POST /api/chat/video-call/token` - Generate Agora RTC token
-- `POST /api/chat/video-call/start` - Start video call
-- `POST /api/chat/video-call/answer/{call_id}` - Answer video call
-- `POST /api/chat/video-call/reject/{call_id}` - Reject video call
-- `POST /api/chat/video-call/end/{call_id}` - End video call
+### Chat & Messaging
 - `WS /api/chat/ws` - WebSocket for real-time communication
 
 ## Database Models

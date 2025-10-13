@@ -10,7 +10,7 @@ from ..schemas.chat import (
     UserSearchResponse, UserSearchListResponse,
     ChatRoomResponse, ChatRoomCreate, ChatRoomListResponse,
     ChatMessageResponse, ChatMessageCreate, TextMessageCreate, MessageListResponse,
-    FileUploadResponse, MultipleFileUploadResponse, WebSocketMessage, TypingIndicator, UserPresenceUpdate
+    WebSocketMessage, TypingIndicator, UserPresenceUpdate
 )
 from ..utils.websocket_manager import manager
 from ..utils.file_upload import file_upload_manager
@@ -283,51 +283,6 @@ async def get_room(
             "total": len(message_responses)
         }
     }
-
-# File Upload Endpoints
-@router.post("/upload-files", response_model=MultipleFileUploadResponse)
-async def upload_multiple_files(
-    files: List[UploadFile] = File(..., description="Multiple files to upload"),
-    message_type: str = Form(..., description="Type of message: 'image' or 'file'"),
-    current_user: User = Depends(get_current_user)
-):
-    """Upload multiple files for chat messages"""
-    if not files:
-        raise HTTPException(status_code=400, detail="No files provided")
-    
-    if len(files) > 10:  # Limit to 10 files per upload
-        raise HTTPException(status_code=400, detail="Maximum 10 files allowed per upload")
-    
-    # Determine if files are images
-    is_image = message_type.lower() == "image"
-    
-    try:
-        # Upload all files
-        uploaded_files = await file_upload_manager.upload_multiple_files(files, is_image)
-        
-        # Calculate total size
-        total_size = sum(file_info["file_size"] for file_info in uploaded_files)
-        
-        # Build response
-        file_responses = []
-        for file_info in uploaded_files:
-            file_responses.append(FileUploadResponse(
-                file_name=file_info["file_name"],
-                file_path=file_info["file_path"],
-                file_size=file_info["file_size"],
-                mime_type=file_info["mime_type"]
-            ))
-        
-        return MultipleFileUploadResponse(
-            files=file_responses,
-            total_files=len(file_responses),
-            total_size=total_size
-        )
-        
-    except HTTPException as e:
-        raise e
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Upload failed: {str(e)}")
 
 # Message Endpoints - All messages are sent via WebSocket for real-time delivery
 

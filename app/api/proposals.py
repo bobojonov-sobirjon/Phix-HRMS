@@ -306,7 +306,7 @@ async def get_proposal_by_id(
         elif proposal.full_time_job_id:
             full_time_job_repository = FullTimeJobRepository(db)
             full_time_job = full_time_job_repository.get_object_by_id(proposal.full_time_job_id)
-            if full_time_job and full_time_job.author_id == current_user.id:
+            if full_time_job and full_time_job.created_by_user_id == current_user.id:
                 has_permission = True
         
         if not has_permission:
@@ -389,7 +389,7 @@ async def get_full_time_job_proposals(
         )
     
     # Check if user is the author of the full-time job
-    if full_time_job.author_id != current_user.id:
+    if full_time_job.created_by_user_id != current_user.id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="You can only view proposals for your own full-time jobs"

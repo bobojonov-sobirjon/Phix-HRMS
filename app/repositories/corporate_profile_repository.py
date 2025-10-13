@@ -124,3 +124,9 @@ class CorporateProfileRepository:
         return self.db.query(CorporateProfile).filter(
             CorporateProfile.is_active == True
         ).count()
+    
+    def count_verified(self) -> int:
+        """Get count of verified corporate profiles"""
+        return self.db.query(CorporateProfile).filter(
+            CorporateProfile.is_verified == True
+        ).count()

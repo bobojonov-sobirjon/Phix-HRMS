@@ -84,17 +84,7 @@ class ChatMessageCreate(BaseModel):
 class TextMessageCreate(ChatMessageCreate):
     content: str = Field(..., min_length=1, max_length=5000)
 
-# File Upload
-class FileUploadResponse(BaseModel):
-    file_name: str
-    file_path: str
-    file_size: int
-    mime_type: str
-
-class MultipleFileUploadResponse(BaseModel):
-    files: List[FileUploadResponse]
-    total_files: int
-    total_size: int
+# File Upload schemas removed - using WebSocket only for file uploads
 
 # WebSocket Messages
 class WebSocketMessage(BaseModel):
