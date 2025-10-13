@@ -282,12 +282,12 @@ async def get_corporate_profiles(
     size: int = 10,
     db: Session = Depends(get_db)
 ):
-    """Get all corporate profiles with pagination"""
+    """Get all verified corporate profiles with pagination"""
     corporate_repo = CorporateProfileRepository(db)
     skip = (page - 1) * size
 
-    profiles = corporate_repo.get_all(skip=skip, limit=size)
-    total = corporate_repo.count_total()
+    profiles = corporate_repo.get_verified_profiles(skip=skip, limit=size)
+    total = corporate_repo.count_verified()
 
     # Add base URL to all profiles and convert to response format
     profiles_with_urls = [add_base_url_to_profile(profile) for profile in profiles]

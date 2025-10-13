@@ -82,30 +82,7 @@ GET /api/chat/rooms/{room_id}
 
 ### File Upload
 
-#### Multiple File Upload
-```http
-POST /api/chat/upload-files
-Content-Type: multipart/form-data
-
-files: [file1, file2, file3, ...]
-message_type: "image" | "file"
-```
-
-**Response:**
-```json
-{
-  "files": [
-    {
-      "file_name": "image1.jpg",
-      "file_path": "chat_files/images/uuid_image1.jpg",
-      "file_size": 1024000,
-      "mime_type": "image/jpeg"
-    }
-  ],
-  "total_files": 3,
-  "total_size": 3072000
-}
-```
+**Note:** All file uploads are handled through WebSocket connections for real-time delivery. No separate API endpoints are provided for file uploads.
 
 ### Messages
 
@@ -583,38 +560,10 @@ class ChatClient {
 }
 ```
 
-#### File Upload with Progress
+#### File Upload via WebSocket
 ```javascript
-async function uploadMultipleFiles(files, messageType) {
-    const formData = new FormData();
-    
-    for (let file of files) {
-        formData.append('files', file);
-    }
-    formData.append('message_type', messageType);
-
-    try {
-        const response = await fetch('/api/chat/upload-files', {
-            method: 'POST',
-            headers: {
-                'Authorization': `Bearer ${getAuthToken()}`
-            },
-            body: formData
-        });
-
-        const result = await response.json();
-        
-        if (response.ok) {
-            console.log('Files uploaded:', result);
-            return result.files;
-        } else {
-            throw new Error(result.detail || 'Upload failed');
-        }
-    } catch (error) {
-        console.error('Upload error:', error);
-        throw error;
-    }
-}
+// All file uploads are handled directly through WebSocket
+// No separate API calls needed for file uploads
 ```
 
 ### React Component Example
@@ -669,32 +618,42 @@ const ChatRoom = ({ roomId, token, receiverId }) => {
         }
     };
 
-    const sendMultipleFiles = async () => {
+    const sendMultipleFiles = () => {
         if (selectedFiles.length === 0) return;
 
-        try {
-            const files = await uploadMultipleFiles(selectedFiles, 'image');
-            
-            wsRef.current.send(JSON.stringify({
-                type: 'send_message',
-                data: {
-                    room_id: roomId,
-                    receiver_id: receiverId,
-                    message_type: 'image',
-                    content: `Sent ${files.length} files`,
-                    files_data: files.map(file => ({
-                        file_data: file.file_path, // This would need to be base64 encoded
-                        file_name: file.file_name,
-                        file_size: file.file_size,
-                        mime_type: file.mime_type
-                    }))
+        // Convert files to base64 and send via WebSocket
+        const filesData = [];
+        let processedCount = 0;
+
+        selectedFiles.forEach((file, index) => {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                filesData[index] = {
+                    file_data: e.target.result.split(',')[1], // Remove data:image/jpeg;base64, prefix
+                    file_name: file.name,
+                    file_size: file.size,
+                    mime_type: file.type
+                };
+                processedCount++;
+
+                // Send when all files are processed
+                if (processedCount === selectedFiles.length) {
+                    wsRef.current.send(JSON.stringify({
+                        type: 'send_message',
+                        data: {
+                            room_id: roomId,
+                            receiver_id: receiverId,
+                            message_type: 'image',
+                            content: `Sent ${selectedFiles.length} files`,
+                            files_data: filesData
+                        }
+                    }));
+                    
+                    setSelectedFiles([]);
                 }
-            }));
-            
-            setSelectedFiles([]);
-        } catch (error) {
-            console.error('Failed to send files:', error);
-        }
+            };
+            reader.readAsDataURL(file);
+        });
     };
 
     const handleFileSelect = (event) => {

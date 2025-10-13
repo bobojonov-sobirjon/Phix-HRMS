@@ -444,12 +444,16 @@ class FullTimeJobRepository:
         return prepared_jobs
     
     def get_all_active(self, skip: int = 0, limit: int = 100, current_user_id: Optional[int] = None) -> List[dict]:
-        """Get all active full-time jobs"""
+        """Get all active full-time jobs from verified corporate profiles"""
         jobs = self.db.query(FullTimeJob).options(
             joinedload(FullTimeJob.skills),
             joinedload(FullTimeJob.company)
-        ).filter(
-            FullTimeJob.status == "ACTIVE"
+        ).join(CorporateProfile, FullTimeJob.company_id == CorporateProfile.id).filter(
+            and_(
+                FullTimeJob.status == "ACTIVE",
+                CorporateProfile.is_verified == True,
+                CorporateProfile.is_deleted == False
+            )
         ).offset(skip).limit(limit).all()
         
         # Prepare response data for each job
@@ -506,7 +510,7 @@ class FullTimeJobRepository:
     
     def delete(self, job_id: int) -> bool:
         """Delete full-time job"""
-        db_job = self.get_by_id(job_id)
+        db_job = self.get_object_by_id(job_id)
         if not db_job:
             return False
         
@@ -543,11 +547,17 @@ class FullTimeJobRepository:
                    skip: int = 0,
                    limit: int = 100,
                    current_user_id: Optional[int] = None) -> List[dict]:
-        """Search jobs with filters including skill IDs"""
+        """Search jobs with filters including skill IDs - only from verified corporate profiles"""
         query = self.db.query(FullTimeJob).options(
             joinedload(FullTimeJob.skills),
             joinedload(FullTimeJob.company)
-        ).filter(FullTimeJob.status == "ACTIVE")
+        ).join(CorporateProfile, FullTimeJob.company_id == CorporateProfile.id).filter(
+            and_(
+                FullTimeJob.status == "ACTIVE",
+                CorporateProfile.is_verified == True,
+                CorporateProfile.is_deleted == False
+            )
+        )
         
         if title:
             query = query.filter(FullTimeJob.title.ilike(f"%{title}%"))
@@ -587,9 +597,13 @@ class FullTimeJobRepository:
         return self.db.query(FullTimeJob).count()
     
     def count_active(self) -> int:
-        """Get count of active full-time jobs"""
-        return self.db.query(FullTimeJob).filter(
-            FullTimeJob.status == "ACTIVE"
+        """Get count of active full-time jobs from verified corporate profiles"""
+        return self.db.query(FullTimeJob).join(CorporateProfile, FullTimeJob.company_id == CorporateProfile.id).filter(
+            and_(
+                FullTimeJob.status == "ACTIVE",
+                CorporateProfile.is_verified == True,
+                CorporateProfile.is_deleted == False
+            )
         ).count()
     
     def count_by_company(self, company_id: int) -> int:

@@ -84,17 +84,7 @@ class ChatMessageCreate(BaseModel):
 class TextMessageCreate(ChatMessageCreate):
     content: str = Field(..., min_length=1, max_length=5000)
 
-# File Upload
-class FileUploadResponse(BaseModel):
-    file_name: str
-    file_path: str
-    file_size: int
-    mime_type: str
-
-class MultipleFileUploadResponse(BaseModel):
-    files: List[FileUploadResponse]
-    total_files: int
-    total_size: int
+# File Upload schemas removed - using WebSocket only for file uploads
 
 # WebSocket Messages
 class WebSocketMessage(BaseModel):
@@ -127,3 +117,39 @@ class UserSearchListResponse(BaseModel):
     users: List[UserSearchResponse]
     total: int
 
+class VideoCallTokenRequest(BaseModel):
+    channel_name: str = Field(..., description="Channel name for the video call")
+    uid: Optional[int] = Field(None, description="User ID (0 for auto-assign)")
+    user_account: Optional[str] = Field(None, description="String-based user account")
+    role: str = Field("publisher", description="Role: publisher or subscriber")
+    expire_seconds: int = Field(3600, ge=60, le=86400, description="Token expiry in seconds")
+
+class VideoCallTokenResponse(BaseModel):
+    app_id: str
+    channel: str
+    uid: Optional[int]
+    user_account: Optional[str]
+    role: str
+    expire_at: int
+    token: str
+
+class VideoCallRequest(BaseModel):
+    receiver_id: int = Field(..., description="ID of the user to call")
+    channel_name: str = Field(..., description="Channel name for the call")
+
+class VideoCallResponse(BaseModel):
+    call_id: str
+    channel_name: str
+    token: VideoCallTokenResponse
+    receiver_id: int
+    created_at: datetime
+
+class VideoCallStatus(BaseModel):
+    call_id: str
+    status: str  # calling, answered, rejected, ended
+    caller_id: int
+    receiver_id: int
+    channel_name: str
+    created_at: datetime
+    answered_at: Optional[datetime] = None
+    ended_at: Optional[datetime] = None
