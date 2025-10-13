@@ -49,10 +49,11 @@ class ChatMessage(Base):
     receiver_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     message_type = Column(Enum(MessageType), default=MessageType.TEXT)
     content = Column(Text, nullable=True)  # For text messages
-    file_name = Column(String(255), nullable=True)  # Original filename
-    file_path = Column(String(500), nullable=True)  # Path to stored file
-    file_size = Column(Integer, nullable=True)  # File size in bytes
-    mime_type = Column(String(100), nullable=True)  # MIME type
+    file_name = Column(String(255), nullable=True)  # Original filename (for backward compatibility)
+    file_path = Column(String(500), nullable=True)  # Path to stored file (for backward compatibility)
+    file_size = Column(Integer, nullable=True)  # File size in bytes (for backward compatibility)
+    mime_type = Column(String(100), nullable=True)  # MIME type (for backward compatibility)
+    files_data = Column(JSON, nullable=True)  # JSON array of file objects for multiple files
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     is_read = Column(Boolean, default=False)
     is_deleted = Column(Boolean, default=False)

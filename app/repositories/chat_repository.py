@@ -111,7 +111,8 @@ class ChatRepository:
     def create_message(self, room_id: int, sender_id: int, receiver_id: int, 
                       message_type: MessageType, content: str = None, 
                       file_name: str = None, file_path: str = None, 
-                      file_size: int = None, mime_type: str = None) -> ChatMessage:
+                      file_size: int = None, mime_type: str = None,
+                      files_data: list = None) -> ChatMessage:
         """Create a new message"""
         message = ChatMessage(
             room_id=room_id,
@@ -122,7 +123,8 @@ class ChatRepository:
             file_name=file_name,
             file_path=file_path,
             file_size=file_size,
-            mime_type=mime_type
+            mime_type=mime_type,
+            files_data=files_data
         )
         self.db.add(message)
         
