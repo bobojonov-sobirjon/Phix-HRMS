@@ -24,12 +24,9 @@ class ChatRepository:
     # Chat Room Methods
     def create_direct_room(self, user1_id: int, user2_id: int) -> ChatRoom:
         """Create a direct chat room between two users"""
-        print(f"🔍 DEBUG CREATE: Creating room between user1_id: {user1_id} and user2_id: {user2_id}")
-        
         # Check if room already exists
         existing_room = self.get_direct_room(user1_id, user2_id)
         if existing_room:
-            print(f"🔍 DEBUG CREATE: Room already exists with ID: {existing_room.id}")
             return existing_room
         
         # Create new room
@@ -40,7 +37,6 @@ class ChatRepository:
         )
         self.db.add(room)
         self.db.flush()  # Get the room ID
-        print(f"🔍 DEBUG CREATE: Created room with ID: {room.id}, created_at: {room.created_at}, updated_at: {room.updated_at}")
         
         # Add both users as participants
         participant1 = ChatParticipant(
@@ -54,15 +50,10 @@ class ChatRepository:
             is_active=True
         )
         
-        print(f"🔍 DEBUG CREATE: Creating participants - participant1: user_id={user1_id}, participant2: user_id={user2_id}")
-        
         self.db.add(participant1)
         self.db.add(participant2)
         self.db.commit()
         self.db.refresh(room)
-        
-        print(f"🔍 DEBUG CREATE: Added participants - user1_id: {user1_id}, user2_id: {user2_id}")
-        print(f"🔍 DEBUG CREATE: Final room - ID: {room.id}, updated_at: {room.updated_at}, is_active: {room.is_active}")
         
         return room
 
@@ -88,50 +79,16 @@ class ChatRepository:
 
     def get_user_rooms(self, user_id: int) -> List[ChatRoom]:
         """Get all rooms for a user with last message info"""
-        print(f"🔍 DEBUG REPO: Getting rooms for user_id: {user_id}")
-        
-        # First, let's check what participants exist for this user (including inactive)
-        all_participants = self.db.query(ChatParticipant).filter(
-            ChatParticipant.user_id == user_id
-        ).all()
-        print(f"🔍 DEBUG REPO: Found {len(all_participants)} total participants for user {user_id} (including inactive)")
-        
-        for p in all_participants:
-            print(f"🔍 DEBUG REPO: All Participant - room_id: {p.room_id}, user_id: {p.user_id}, is_active: {p.is_active}")
-        
-        # Now check active participants only
-        participants = self.db.query(ChatParticipant).filter(
-            and_(
-                ChatParticipant.user_id == user_id,
-                ChatParticipant.is_active == True
-            )
-        ).all()
-        print(f"🔍 DEBUG REPO: Found {len(participants)} active participants for user {user_id}")
-        
-        for p in participants:
-            print(f"🔍 DEBUG REPO: Active Participant - room_id: {p.room_id}, user_id: {p.user_id}, is_active: {p.is_active}")
-        
-        # Let's also check all rooms to see what exists
+        # Check all rooms for missing participants and data integrity issues
         all_rooms = self.db.query(ChatRoom).all()
-        print(f"🔍 DEBUG REPO: Total rooms in database: {len(all_rooms)}")
         for room in all_rooms:
-            print(f"🔍 DEBUG REPO: All Room - ID: {room.id}, name: '{room.name}', created_by: {room.created_by}, is_active: {room.is_active}, updated_at: {room.updated_at}")
-            
-            # Check participants for this room
+            # Check if user should be in this room but isn't
             room_participants = self.db.query(ChatParticipant).filter(
                 ChatParticipant.room_id == room.id
             ).all()
-            print(f"🔍 DEBUG REPO: Room {room.id} participants: {len(room_participants)}")
-            for rp in room_participants:
-                print(f"🔍 DEBUG REPO:   - user_id: {rp.user_id}, is_active: {rp.is_active}")
             
-            # Check if user 2 should be in this room but isn't
             user_in_room = any(p.user_id == user_id for p in room_participants)
             if not user_in_room and room.room_type == "direct":
-                print(f"🔍 DEBUG REPO: ⚠️  User {user_id} is NOT in room {room.id} but this is a direct chat room!")
-                print(f"🔍 DEBUG REPO: ⚠️  Room {room.id} created_by: {room.created_by}")
-                print(f"🔍 DEBUG REPO: ⚠️  This might be a missing participant issue!")
-                
                 # Try to fix missing participant
                 self.fix_missing_participants(room.id, user_id)
             
@@ -146,32 +103,20 @@ class ChatRepository:
             )
         ).order_by(desc(ChatRoom.updated_at), desc(ChatRoom.created_at)).all()
         
-        print(f"🔍 DEBUG REPO: Query returned {len(rooms)} rooms")
-        for i, room in enumerate(rooms):
-            print(f"🔍 DEBUG REPO: Room {i+1}: ID={room.id}, updated_at={room.updated_at}, created_at={room.created_at}")
-        
         return rooms
 
     def fix_room_participants(self, room_id: int) -> bool:
         """Fix room participants if they have data integrity issues"""
-        print(f"🔍 DEBUG FIX: Checking room {room_id} for data integrity issues")
-        
         # Get all participants for this room
         participants = self.db.query(ChatParticipant).filter(
             ChatParticipant.room_id == room_id
         ).all()
-        
-        print(f"🔍 DEBUG FIX: Room {room_id} has {len(participants)} participants")
         
         # Check for duplicate user_ids
         user_ids = [p.user_id for p in participants]
         unique_user_ids = list(set(user_ids))
         
         if len(user_ids) != len(unique_user_ids):
-            print(f"🔍 DEBUG FIX: Found duplicate participants in room {room_id}")
-            print(f"🔍 DEBUG FIX: User IDs: {user_ids}")
-            print(f"🔍 DEBUG FIX: Unique User IDs: {unique_user_ids}")
-            
             # Remove duplicate participants (keep the first one)
             seen_user_ids = set()
             participants_to_remove = []
@@ -179,26 +124,20 @@ class ChatRepository:
             for participant in participants:
                 if participant.user_id in seen_user_ids:
                     participants_to_remove.append(participant)
-                    print(f"🔍 DEBUG FIX: Marking duplicate participant for removal - user_id: {participant.user_id}")
                 else:
                     seen_user_ids.add(participant.user_id)
             
             # Remove duplicate participants
             for participant in participants_to_remove:
                 self.db.delete(participant)
-                print(f"🔍 DEBUG FIX: Removed duplicate participant - user_id: {participant.user_id}")
             
             self.db.commit()
-            print(f"🔍 DEBUG FIX: Fixed data integrity issues for room {room_id}")
             return True
         
-        print(f"🔍 DEBUG FIX: Room {room_id} has no data integrity issues")
         return False
 
     def fix_missing_participants(self, room_id: int, expected_user_id: int) -> bool:
         """Fix missing participants in direct chat rooms"""
-        print(f"🔍 DEBUG FIX MISSING: Checking if user {expected_user_id} should be in room {room_id}")
-        
         # Get the room
         room = self.db.query(ChatRoom).filter(ChatRoom.id == room_id).first()
         if not room or room.room_type != "direct":
@@ -213,11 +152,9 @@ class ChatRepository:
         ).first()
         
         if existing_participant:
-            print(f"🔍 DEBUG FIX MISSING: User {expected_user_id} is already in room {room_id}")
             return False
         
         # Add the missing participant
-        print(f"🔍 DEBUG FIX MISSING: Adding missing participant - user {expected_user_id} to room {room_id}")
         new_participant = ChatParticipant(
             room_id=room_id,
             user_id=expected_user_id,
@@ -227,7 +164,6 @@ class ChatRepository:
         self.db.add(new_participant)
         self.db.commit()
         
-        print(f"🔍 DEBUG FIX MISSING: Successfully added user {expected_user_id} to room {room_id}")
         return True
 
     def get_room(self, room_id: int, user_id: int) -> Optional[ChatRoom]:
