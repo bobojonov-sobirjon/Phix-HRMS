@@ -190,6 +190,8 @@ async def create_full_time_job(
 async def get_all_full_time_jobs(
     page: int = Query(1, ge=1),
     size: int = Query(10, ge=1, le=100),
+    category_id: Optional[int] = Query(None, description="Filter by category ID"),
+    subcategory_id: Optional[int] = Query(None, description="Filter by subcategory ID"),
     db: Session = Depends(get_db),
     current_user: Optional[dict] = Depends(get_current_user_optional)
 ):
@@ -197,7 +199,7 @@ async def get_all_full_time_jobs(
     job_repo = FullTimeJobRepository(db)
     skip = (page - 1) * size
     
-    jobs = job_repo.get_all_active(skip=skip, limit=size, current_user_id=current_user.id if current_user else None)
+    jobs = job_repo.get_all_active(skip=skip, limit=size, current_user_id=current_user.id if current_user else None, category_id=category_id, subcategory_id=subcategory_id)
     total = job_repo.count_active()
     
     # Convert dict responses to FullTimeJobResponse objects
@@ -221,6 +223,8 @@ async def search_full_time_jobs(
     experience_level: Optional[str] = Query(None),
     work_mode: Optional[str] = Query(None),
     skill_ids: Optional[str] = Query(None, description="Comma-separated list of skill IDs"),
+    category_id: Optional[int] = Query(None, description="Filter by category ID"),
+    subcategory_id: Optional[int] = Query(None, description="Filter by subcategory ID"),
     min_salary: Optional[float] = Query(None, ge=0),
     max_salary: Optional[float] = Query(None, ge=0),
     page: int = Query(1, ge=1),
@@ -249,6 +253,8 @@ async def search_full_time_jobs(
         experience_level=experience_level,
         work_mode=work_mode,
         skill_ids=skill_id_list,
+        category_id=category_id,
+        subcategory_id=subcategory_id,
         min_salary=min_salary,
         max_salary=max_salary,
         skip=skip,

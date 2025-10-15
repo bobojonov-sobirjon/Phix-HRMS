@@ -1,7 +1,7 @@
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import and_, or_, desc, func
 from typing import List, Optional, Dict, Any
-from ..models.chat import ChatRoom, ChatMessage, ChatParticipant, UserPresence
+from ..models.chat import ChatRoom, ChatMessage, ChatParticipant, UserPresence, MessageLike
 from ..models.user import User
 from ..schemas.chat import ChatRoomCreate, ChatMessageCreate, MessageType
 from datetime import datetime, timedelta
@@ -30,10 +30,12 @@ class ChatRepository:
             return existing_room
         
         # Create new room
+        from datetime import datetime
         room = ChatRoom(
             name=f"Direct Chat",
             room_type="direct",
-            created_by=user1_id
+            created_by=user1_id,
+            updated_at=datetime.utcnow()
         )
         self.db.add(room)
         self.db.flush()  # Get the room ID
@@ -41,11 +43,13 @@ class ChatRepository:
         # Add both users as participants
         participant1 = ChatParticipant(
             room_id=room.id,
-            user_id=user1_id
+            user_id=user1_id,
+            is_active=True
         )
         participant2 = ChatParticipant(
             room_id=room.id,
-            user_id=user2_id
+            user_id=user2_id,
+            is_active=True
         )
         
         self.db.add(participant1)
@@ -82,7 +86,7 @@ class ChatRepository:
                 ChatRoom.is_active == True,
                 ChatParticipant.is_active == True
             )
-        ).order_by(desc(ChatRoom.updated_at)).all()
+        ).order_by(desc(ChatRoom.updated_at), desc(ChatRoom.created_at)).all()
 
     def get_room(self, room_id: int, user_id: int) -> Optional[ChatRoom]:
         """Get a room if user is a participant"""
@@ -155,6 +159,19 @@ class ChatRepository:
                 ChatMessage.is_deleted == False
             )
         ).order_by(desc(ChatMessage.created_at)).offset(offset).limit(per_page).all()
+    
+    def get_room_messages_count(self, room_id: int, user_id: int) -> int:
+        """Get total count of messages in a room"""
+        # Verify user has access to the room
+        if not self.get_room(room_id, user_id):
+            return 0
+        
+        return self.db.query(ChatMessage).filter(
+            and_(
+                ChatMessage.room_id == room_id,
+                ChatMessage.is_deleted == False
+            )
+        ).count()
 
     def get_last_message(self, room_id: int) -> Optional[ChatMessage]:
         """Get the last message in a room"""
@@ -296,3 +313,67 @@ class ChatRepository:
         now = datetime.now(timezone.utc)
         five_minutes_ago = now - timedelta(minutes=5)
         return presence.is_online and presence.last_seen > five_minutes_ago
+
+    # Message Like Methods
+    def toggle_message_like(self, message_id: int, user_id: int) -> Dict[str, Any]:
+        """Toggle like/unlike for a message. Returns {'action': 'liked'/'unliked', 'like_count': int}"""
+        # Check if message exists and user has access to it
+        message = self.db.query(ChatMessage).join(ChatRoom).join(ChatParticipant).filter(
+            and_(
+                ChatMessage.id == message_id,
+                ChatParticipant.user_id == user_id,
+                ChatMessage.is_deleted == False
+            )
+        ).first()
+        
+        if not message:
+            return None
+        
+        # Check if user already liked this message
+        existing_like = self.db.query(MessageLike).filter(
+            and_(
+                MessageLike.message_id == message_id,
+                MessageLike.user_id == user_id
+            )
+        ).first()
+        
+        if existing_like:
+            # Unlike: remove the like
+            self.db.delete(existing_like)
+            action = "unliked"
+        else:
+            # Like: add new like
+            new_like = MessageLike(
+                message_id=message_id,
+                user_id=user_id
+            )
+            self.db.add(new_like)
+            action = "liked"
+        
+        self.db.commit()
+        
+        # Get updated like count
+        like_count = self.db.query(MessageLike).filter(
+            MessageLike.message_id == message_id
+        ).count()
+        
+        return {
+            "action": action,
+            "like_count": like_count
+        }
+    
+    def is_message_liked_by_user(self, message_id: int, user_id: int) -> bool:
+        """Check if a message is liked by a specific user"""
+        like = self.db.query(MessageLike).filter(
+            and_(
+                MessageLike.message_id == message_id,
+                MessageLike.user_id == user_id
+            )
+        ).first()
+        return like is not None
+    
+    def get_message_like_count(self, message_id: int) -> int:
+        """Get the total number of likes for a message"""
+        return self.db.query(MessageLike).filter(
+            MessageLike.message_id == message_id
+        ).count()

@@ -11,7 +11,8 @@ from ..schemas.chat import (
     ChatRoomResponse, ChatRoomCreate, ChatRoomListResponse,
     ChatMessageResponse, ChatMessageCreate, TextMessageCreate, MessageListResponse,
     WebSocketMessage, TypingIndicator, UserPresenceUpdate,
-    VideoCallTokenRequest, VideoCallTokenResponse, VideoCallRequest, VideoCallResponse, VideoCallStatus
+    VideoCallTokenRequest, VideoCallTokenResponse, VideoCallRequest, VideoCallResponse, VideoCallStatus,
+    MessageLikeRequest, MessageLikeResponse, RoomCheckResponse
 )
 from ..utils.websocket_manager import manager
 from ..utils.file_upload import file_upload_manager
@@ -219,6 +220,10 @@ async def get_room(
         # Determine if current user is sender (for frontend positioning)
         is_sender = message.sender_id == current_user.id
         
+        # Check if current user liked this message
+        is_liked = chat_repo.is_message_liked_by_user(message.id, current_user.id)
+        like_count = chat_repo.get_message_like_count(message.id)
+        
         # Build full URLs for files
         file_url = None
         files_data_with_urls = None
@@ -266,6 +271,8 @@ async def get_room(
             "is_read": message.is_read,
             "is_deleted": message.is_deleted,
             "is_sender": is_sender,  # Frontend uchun: true = o'ng tomonda, false = chap tomonda
+            "is_liked": is_liked,
+            "like_count": like_count,
             "sender_details": sender_details
         })
     
@@ -291,12 +298,12 @@ async def get_room(
 @router.get("/rooms/{room_id}/messages", response_model=MessageListResponse)
 async def get_room_messages(
     room_id: int,
-    page: int = Query(1, ge=1),
-    per_page: int = Query(50, ge=1, le=100),
+    page: int = Query(1, ge=1, description="Page number (starts from 1)"),
+    per_page: int = Query(50, ge=1, le=100, description="Number of messages per page (max 100)"),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Get messages for a room"""
+    """Get messages for a room with pagination"""
     chat_repo = ChatRepository(db)
     
     # Verify user has access to the room
@@ -304,12 +311,20 @@ async def get_room_messages(
     if not room:
         raise HTTPException(status_code=404, detail="Room not found")
     
+    # Get total count of messages in the room
+    total_count = chat_repo.get_room_messages_count(room_id, current_user.id)
+    
+    # Get paginated messages
     messages = chat_repo.get_room_messages(room_id, current_user.id, page, per_page)
     
     message_responses = []
     for message in messages:
         # Determine if current user is sender (for frontend positioning)
         is_sender = message.sender_id == current_user.id
+        
+        # Check if current user liked this message
+        is_liked = chat_repo.is_message_liked_by_user(message.id, current_user.id)
+        like_count = chat_repo.get_message_like_count(message.id)
         
         # Build full URLs for files
         file_url = None
@@ -358,13 +373,22 @@ async def get_room_messages(
             is_read=message.is_read,
             is_deleted=message.is_deleted,
             is_sender=is_sender,
+            is_liked=is_liked,
+            like_count=like_count,
             sender_details=sender_details
         ))
     
+    # Calculate pagination info
+    total_pages = (total_count + per_page - 1) // per_page  # Ceiling division
+    has_more = page < total_pages
+    
     return MessageListResponse(
         messages=message_responses,
-        total=len(message_responses),
-        has_more=len(message_responses) == per_page
+        total=total_count,  # Total count of all messages in the room
+        has_more=has_more,   # Whether there are more pages available
+        page=page,           # Current page number
+        per_page=per_page,   # Number of messages per page
+        total_pages=total_pages  # Total number of pages
     )
 
 @router.post("/rooms/{room_id}/read")
@@ -493,6 +517,25 @@ async def delete_message(
         raise HTTPException(status_code=404, detail="Message not found")
     
     return {"status": "success", "message": "Message deleted"}
+
+@router.post("/messages/{message_id}/like", response_model=MessageLikeResponse)
+async def toggle_message_like(
+    message_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Toggle like/unlike for a message"""
+    chat_repo = ChatRepository(db)
+    result = chat_repo.toggle_message_like(message_id, current_user.id)
+    
+    if result is None:
+        raise HTTPException(status_code=404, detail="Message not found or access denied")
+    
+    return MessageLikeResponse(
+        action=result["action"],
+        like_count=result["like_count"],
+        message_id=message_id
+    )
 
 # WebSocket Endpoint
 @router.websocket("/ws")
@@ -824,6 +867,79 @@ async def get_online_users(db: Session = Depends(get_db)):
             for user in online_users
         ]
     }
+
+@router.get("/check-room", response_model=RoomCheckResponse)
+async def check_user_room(
+    user_id: int = Query(..., description="ID of the user to check room with"),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Check if current user has a chat room with another user"""
+    chat_repo = ChatRepository(db)
+    
+    # Check if other user exists
+    other_user = db.query(User).filter(User.id == user_id).first()
+    if not other_user:
+        return RoomCheckResponse(
+            status="error",
+            msg="User not found",
+            data=[]
+        )
+    
+    # Check if room exists between users
+    room = chat_repo.get_direct_room(current_user.id, user_id)
+    
+    if not room:
+        return RoomCheckResponse(
+            status="success",
+            msg="No room found between users",
+            data=[]
+        )
+    
+    # Get other user info
+    is_online = chat_repo.is_user_online(other_user.id)
+    other_user_info = {
+        "id": other_user.id,
+        "name": other_user.name,
+        "email": other_user.email,
+        "avatar_url": other_user.avatar_url,
+        "is_online": is_online
+    }
+    
+    # Get last message
+    last_message = chat_repo.get_last_message(room.id)
+    last_message_info = None
+    if last_message:
+        last_message_info = {
+            "id": last_message.id,
+            "content": last_message.content,
+            "message_type": last_message.message_type,
+            "created_at": last_message.created_at,
+            "sender_name": last_message.sender.name
+        }
+    
+    # Get unread count
+    unread_counts = chat_repo.get_unread_count(current_user.id)
+    unread_count = unread_counts.get(room.id, 0)
+    
+    room_data = ChatRoomResponse(
+        id=room.id,
+        name=room.name,
+        room_type=room.room_type,
+        created_by=room.created_by,
+        created_at=room.created_at,
+        updated_at=room.updated_at,
+        is_active=room.is_active,
+        other_user=other_user_info,
+        last_message=last_message_info,
+        unread_count=unread_count
+    )
+    
+    return RoomCheckResponse(
+        status="success",
+        msg="Room found",
+        data=[room_data]
+    )
 
 
 # Test WebSocket endpoint (no authentication)

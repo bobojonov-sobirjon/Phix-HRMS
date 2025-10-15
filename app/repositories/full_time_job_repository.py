@@ -75,6 +75,7 @@ class FullTimeJobRepository:
             "experience_level": job.experience_level,
             "min_salary": job.min_salary,
             "max_salary": job.max_salary,
+            "pay_period": job.pay_period.value if job.pay_period else "PER_MONTH",
             "status": job.status,
             "company_id": job.company_id,
             "company_name": job.company.company_name if job.company else None,
@@ -187,6 +188,7 @@ class FullTimeJobRepository:
             "experience_level": job.experience_level.value,
             "min_salary": job.min_salary,
             "max_salary": job.max_salary,
+            "pay_period": job.pay_period.value if job.pay_period else "PER_MONTH",
             "status": job.status.value,
             "company_id": job.company_id,
             "company_name": job.company.company_name if job.company else "",
@@ -443,9 +445,9 @@ class FullTimeJobRepository:
         
         return prepared_jobs
     
-    def get_all_active(self, skip: int = 0, limit: int = 100, current_user_id: Optional[int] = None) -> List[dict]:
+    def get_all_active(self, skip: int = 0, limit: int = 100, current_user_id: Optional[int] = None, category_id: Optional[int] = None, subcategory_id: Optional[int] = None) -> List[dict]:
         """Get all active full-time jobs from verified corporate profiles"""
-        jobs = self.db.query(FullTimeJob).options(
+        query = self.db.query(FullTimeJob).options(
             joinedload(FullTimeJob.skills),
             joinedload(FullTimeJob.company)
         ).join(CorporateProfile, FullTimeJob.company_id == CorporateProfile.id).filter(
@@ -454,7 +456,15 @@ class FullTimeJobRepository:
                 CorporateProfile.is_verified == True,
                 CorporateProfile.is_deleted == False
             )
-        ).offset(skip).limit(limit).all()
+        )
+        
+        if category_id:
+            query = query.filter(FullTimeJob.category_id == category_id)
+        
+        if subcategory_id:
+            query = query.filter(FullTimeJob.subcategory_id == subcategory_id)
+        
+        jobs = query.offset(skip).limit(limit).all()
         
         # Prepare response data for each job
         prepared_jobs = []
@@ -542,6 +552,8 @@ class FullTimeJobRepository:
                    experience_level: Optional[str] = None,
                    work_mode: Optional[str] = None,
                    skill_ids: Optional[List[int]] = None,
+                   category_id: Optional[int] = None,
+                   subcategory_id: Optional[int] = None,
                    min_salary: Optional[float] = None,
                    max_salary: Optional[float] = None,
                    skip: int = 0,
@@ -570,6 +582,12 @@ class FullTimeJobRepository:
         
         if work_mode:
             query = query.filter(FullTimeJob.work_mode == work_mode)
+        
+        if category_id:
+            query = query.filter(FullTimeJob.category_id == category_id)
+        
+        if subcategory_id:
+            query = query.filter(FullTimeJob.subcategory_id == subcategory_id)
         
         if skill_ids:
             # Filter jobs that have any of the specified skills

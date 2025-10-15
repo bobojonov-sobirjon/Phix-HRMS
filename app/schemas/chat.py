@@ -70,6 +70,8 @@ class ChatMessageResponse(BaseModel):
     is_read: bool
     is_deleted: bool
     is_sender: bool  # Frontend uchun: true = o'ng tomonda, false = chap tomonda
+    is_liked: bool = False  # Whether current user liked this message
+    like_count: int = 0  # Total number of likes for this message
     sender_details: Optional[SenderDetails] = None
     
     class Config:
@@ -109,8 +111,11 @@ class ChatRoomListResponse(BaseModel):
 
 class MessageListResponse(BaseModel):
     messages: List[ChatMessageResponse]
-    total: int
-    has_more: bool
+    total: int  # Total number of messages in the room
+    has_more: bool  # Whether there are more pages available
+    page: int = 1  # Current page number
+    per_page: int = 50  # Number of messages per page
+    total_pages: int = 1  # Total number of pages
 
 # Search Response
 class UserSearchListResponse(BaseModel):
@@ -153,3 +158,18 @@ class VideoCallStatus(BaseModel):
     created_at: datetime
     answered_at: Optional[datetime] = None
     ended_at: Optional[datetime] = None
+
+# Message Like Schemas
+class MessageLikeRequest(BaseModel):
+    message_id: int = Field(..., description="ID of the message to like/unlike")
+
+class MessageLikeResponse(BaseModel):
+    action: str  # "liked" or "unliked"
+    like_count: int
+    message_id: int
+
+# Room Check Response
+class RoomCheckResponse(BaseModel):
+    status: str
+    msg: str
+    data: List[ChatRoomResponse]

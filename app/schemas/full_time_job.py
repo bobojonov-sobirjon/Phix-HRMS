@@ -32,6 +32,14 @@ class JobStatus(str, Enum):
     DRAFT = "DRAFT"
 
 
+class PayPeriod(str, Enum):
+    PER_HOUR = "PER_HOUR"
+    PER_DAY = "PER_DAY"
+    PER_WEEK = "PER_WEEK"
+    PER_MONTH = "PER_MONTH"
+    PER_YEAR = "PER_YEAR"
+
+
 # Base schema
 class FullTimeJobBase(BaseModel):
     title: str
@@ -44,6 +52,7 @@ class FullTimeJobBase(BaseModel):
     skill_ids: List[int] = Field(..., description="List of skill IDs")
     min_salary: float
     max_salary: float
+    pay_period: PayPeriod = PayPeriod.PER_MONTH
     status: JobStatus = JobStatus.ACTIVE
     category_id: int = Field(..., description="Main category ID")
     subcategory_id: Optional[int] = Field(None, description="Subcategory ID")
@@ -67,6 +76,7 @@ class FullTimeJobUpdate(BaseModel):
     skill_ids: Optional[List[int]] = Field(None, description="List of skill IDs")
     min_salary: Optional[float] = None
     max_salary: Optional[float] = None
+    pay_period: Optional[PayPeriod] = None
     status: Optional[JobStatus] = None
     category_id: Optional[int] = None
     subcategory_id: Optional[int] = None
@@ -84,6 +94,7 @@ class FullTimeJobResponse(BaseModel):
     experience_level: str
     min_salary: float
     max_salary: float
+    pay_period: str = "PER_MONTH"
     status: str = "ACTIVE"
     company_id: int
     company_name: str
