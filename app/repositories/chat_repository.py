@@ -125,6 +125,16 @@ class ChatRepository:
             for rp in room_participants:
                 print(f"🔍 DEBUG REPO:   - user_id: {rp.user_id}, is_active: {rp.is_active}")
             
+            # Check if user 2 should be in this room but isn't
+            user_in_room = any(p.user_id == user_id for p in room_participants)
+            if not user_in_room and room.room_type == "direct":
+                print(f"🔍 DEBUG REPO: ⚠️  User {user_id} is NOT in room {room.id} but this is a direct chat room!")
+                print(f"🔍 DEBUG REPO: ⚠️  Room {room.id} created_by: {room.created_by}")
+                print(f"🔍 DEBUG REPO: ⚠️  This might be a missing participant issue!")
+                
+                # Try to fix missing participant
+                self.fix_missing_participants(room.id, user_id)
+            
             # Fix data integrity issues if found
             self.fix_room_participants(room.id)
         
@@ -184,6 +194,41 @@ class ChatRepository:
         
         print(f"🔍 DEBUG FIX: Room {room_id} has no data integrity issues")
         return False
+
+    def fix_missing_participants(self, room_id: int, expected_user_id: int) -> bool:
+        """Fix missing participants in direct chat rooms"""
+        print(f"🔍 DEBUG FIX MISSING: Checking if user {expected_user_id} should be in room {room_id}")
+        
+        # Get the room
+        room = self.db.query(ChatRoom).filter(ChatRoom.id == room_id).first()
+        if not room or room.room_type != "direct":
+            return False
+        
+        # Check if user is already a participant
+        existing_participant = self.db.query(ChatParticipant).filter(
+            and_(
+                ChatParticipant.room_id == room_id,
+                ChatParticipant.user_id == expected_user_id
+            )
+        ).first()
+        
+        if existing_participant:
+            print(f"🔍 DEBUG FIX MISSING: User {expected_user_id} is already in room {room_id}")
+            return False
+        
+        # Add the missing participant
+        print(f"🔍 DEBUG FIX MISSING: Adding missing participant - user {expected_user_id} to room {room_id}")
+        new_participant = ChatParticipant(
+            room_id=room_id,
+            user_id=expected_user_id,
+            is_active=True
+        )
+        
+        self.db.add(new_participant)
+        self.db.commit()
+        
+        print(f"🔍 DEBUG FIX MISSING: Successfully added user {expected_user_id} to room {room_id}")
+        return True
 
     def get_room(self, room_id: int, user_id: int) -> Optional[ChatRoom]:
         """Get a room if user is a participant"""
