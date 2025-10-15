@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Boolean, DateTime, Text, ForeignKey, JSON, Enum, LargeBinary
+from sqlalchemy import Column, Integer, String, Boolean, DateTime, Text, ForeignKey, JSON, Enum, LargeBinary, UniqueConstraint
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
 from ..database import Base
@@ -73,3 +73,20 @@ class UserPresence(Base):
     
     # Relationships
     user = relationship("User")
+
+class MessageLike(Base):
+    __tablename__ = "message_likes"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    message_id = Column(Integer, ForeignKey("chat_messages.id"), nullable=False)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    
+    # Relationships
+    message = relationship("ChatMessage")
+    user = relationship("User")
+    
+    # Unique constraint to prevent duplicate likes
+    __table_args__ = (
+        UniqueConstraint('message_id', 'user_id', name='unique_message_user_like'),
+    )

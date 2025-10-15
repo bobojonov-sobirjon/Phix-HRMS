@@ -34,6 +34,14 @@ class JobStatus(str, enum.Enum):
     DRAFT = "DRAFT"
 
 
+class PayPeriod(str, enum.Enum):
+    PER_HOUR = "PER_HOUR"
+    PER_DAY = "PER_DAY"
+    PER_WEEK = "PER_WEEK"
+    PER_MONTH = "PER_MONTH"
+    PER_YEAR = "PER_YEAR"
+
+
 class FullTimeJob(Base):
     __tablename__ = "full_time_jobs"
 
@@ -49,6 +57,7 @@ class FullTimeJob(Base):
     experience_level = Column(Enum(ExperienceLevel), nullable=False)
     min_salary = Column(Float, nullable=False)
     max_salary = Column(Float, nullable=False)
+    pay_period = Column(Enum(PayPeriod), nullable=False, default=PayPeriod.PER_MONTH)
     status = Column(Enum(JobStatus), default=JobStatus.ACTIVE)
     
     # Foreign keys
