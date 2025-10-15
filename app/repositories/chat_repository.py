@@ -24,9 +24,12 @@ class ChatRepository:
     # Chat Room Methods
     def create_direct_room(self, user1_id: int, user2_id: int) -> ChatRoom:
         """Create a direct chat room between two users"""
+        print(f"🔍 DEBUG CREATE: Creating room between user1_id: {user1_id} and user2_id: {user2_id}")
+        
         # Check if room already exists
         existing_room = self.get_direct_room(user1_id, user2_id)
         if existing_room:
+            print(f"🔍 DEBUG CREATE: Room already exists with ID: {existing_room.id}")
             return existing_room
         
         # Create new room
@@ -37,6 +40,7 @@ class ChatRepository:
         )
         self.db.add(room)
         self.db.flush()  # Get the room ID
+        print(f"🔍 DEBUG CREATE: Created room with ID: {room.id}, created_at: {room.created_at}, updated_at: {room.updated_at}")
         
         # Add both users as participants
         participant1 = ChatParticipant(
@@ -54,6 +58,10 @@ class ChatRepository:
         self.db.add(participant2)
         self.db.commit()
         self.db.refresh(room)
+        
+        print(f"🔍 DEBUG CREATE: Added participants - user1_id: {user1_id}, user2_id: {user2_id}")
+        print(f"🔍 DEBUG CREATE: Final room - ID: {room.id}, updated_at: {room.updated_at}, is_active: {room.is_active}")
+        
         return room
 
     def get_direct_room(self, user1_id: int, user2_id: int) -> Optional[ChatRoom]:
@@ -78,13 +86,33 @@ class ChatRepository:
 
     def get_user_rooms(self, user_id: int) -> List[ChatRoom]:
         """Get all rooms for a user with last message info"""
-        return self.db.query(ChatRoom).join(ChatParticipant).filter(
+        print(f"🔍 DEBUG REPO: Getting rooms for user_id: {user_id}")
+        
+        # First, let's check what participants exist for this user
+        participants = self.db.query(ChatParticipant).filter(
+            and_(
+                ChatParticipant.user_id == user_id,
+                ChatParticipant.is_active == True
+            )
+        ).all()
+        print(f"🔍 DEBUG REPO: Found {len(participants)} active participants for user {user_id}")
+        
+        for p in participants:
+            print(f"🔍 DEBUG REPO: Participant - room_id: {p.room_id}, user_id: {p.user_id}, is_active: {p.is_active}")
+        
+        rooms = self.db.query(ChatRoom).join(ChatParticipant).filter(
             and_(
                 ChatParticipant.user_id == user_id,
                 ChatRoom.is_active == True,
                 ChatParticipant.is_active == True
             )
         ).order_by(desc(ChatRoom.updated_at), desc(ChatRoom.created_at)).all()
+        
+        print(f"🔍 DEBUG REPO: Query returned {len(rooms)} rooms")
+        for i, room in enumerate(rooms):
+            print(f"🔍 DEBUG REPO: Room {i+1}: ID={room.id}, updated_at={room.updated_at}, created_at={room.created_at}")
+        
+        return rooms
 
     def get_room(self, room_id: int, user_id: int) -> Optional[ChatRoom]:
         """Get a room if user is a participant"""

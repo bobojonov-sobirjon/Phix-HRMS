@@ -117,14 +117,17 @@ async def get_user_rooms(
     db: Session = Depends(get_db)
 ):
     """Get all rooms for the current user"""
+    print(f"🔍 DEBUG: Getting rooms for user_id: {current_user.id}")
     chat_repo = ChatRepository(db)
     rooms = chat_repo.get_user_rooms(current_user.id)
+    print(f"🔍 DEBUG: Found {len(rooms)} rooms from repository")
     
     # Get unread counts
     unread_counts = chat_repo.get_unread_count(current_user.id)
     
     room_responses = []
-    for room in rooms:
+    for i, room in enumerate(rooms):
+        print(f"🔍 DEBUG: Room {i+1}: ID={room.id}, name='{room.name}', created_by={room.created_by}, updated_at={room.updated_at}, is_active={room.is_active}")
         # Get other user info
         other_user = chat_repo.get_room_other_user(room.id, current_user.id)
         other_user_info = None
