@@ -54,6 +54,8 @@ class ChatRepository:
             is_active=True
         )
         
+        print(f"🔍 DEBUG CREATE: Creating participants - participant1: user_id={user1_id}, participant2: user_id={user2_id}")
+        
         self.db.add(participant1)
         self.db.add(participant2)
         self.db.commit()
@@ -122,6 +124,9 @@ class ChatRepository:
             print(f"🔍 DEBUG REPO: Room {room.id} participants: {len(room_participants)}")
             for rp in room_participants:
                 print(f"🔍 DEBUG REPO:   - user_id: {rp.user_id}, is_active: {rp.is_active}")
+            
+            # Fix data integrity issues if found
+            self.fix_room_participants(room.id)
         
         rooms = self.db.query(ChatRoom).join(ChatParticipant).filter(
             and_(
@@ -136,6 +141,49 @@ class ChatRepository:
             print(f"🔍 DEBUG REPO: Room {i+1}: ID={room.id}, updated_at={room.updated_at}, created_at={room.created_at}")
         
         return rooms
+
+    def fix_room_participants(self, room_id: int) -> bool:
+        """Fix room participants if they have data integrity issues"""
+        print(f"🔍 DEBUG FIX: Checking room {room_id} for data integrity issues")
+        
+        # Get all participants for this room
+        participants = self.db.query(ChatParticipant).filter(
+            ChatParticipant.room_id == room_id
+        ).all()
+        
+        print(f"🔍 DEBUG FIX: Room {room_id} has {len(participants)} participants")
+        
+        # Check for duplicate user_ids
+        user_ids = [p.user_id for p in participants]
+        unique_user_ids = list(set(user_ids))
+        
+        if len(user_ids) != len(unique_user_ids):
+            print(f"🔍 DEBUG FIX: Found duplicate participants in room {room_id}")
+            print(f"🔍 DEBUG FIX: User IDs: {user_ids}")
+            print(f"🔍 DEBUG FIX: Unique User IDs: {unique_user_ids}")
+            
+            # Remove duplicate participants (keep the first one)
+            seen_user_ids = set()
+            participants_to_remove = []
+            
+            for participant in participants:
+                if participant.user_id in seen_user_ids:
+                    participants_to_remove.append(participant)
+                    print(f"🔍 DEBUG FIX: Marking duplicate participant for removal - user_id: {participant.user_id}")
+                else:
+                    seen_user_ids.add(participant.user_id)
+            
+            # Remove duplicate participants
+            for participant in participants_to_remove:
+                self.db.delete(participant)
+                print(f"🔍 DEBUG FIX: Removed duplicate participant - user_id: {participant.user_id}")
+            
+            self.db.commit()
+            print(f"🔍 DEBUG FIX: Fixed data integrity issues for room {room_id}")
+            return True
+        
+        print(f"🔍 DEBUG FIX: Room {room_id} has no data integrity issues")
+        return False
 
     def get_room(self, room_id: int, user_id: int) -> Optional[ChatRoom]:
         """Get a room if user is a participant"""
