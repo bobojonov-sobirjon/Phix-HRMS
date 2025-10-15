@@ -30,12 +30,10 @@ class ChatRepository:
             return existing_room
         
         # Create new room
-        from datetime import datetime
         room = ChatRoom(
             name=f"Direct Chat",
             room_type="direct",
-            created_by=user1_id,
-            updated_at=datetime.utcnow()
+            created_by=user1_id
         )
         self.db.add(room)
         self.db.flush()  # Get the room ID
