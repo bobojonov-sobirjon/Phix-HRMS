@@ -88,7 +88,16 @@ class ChatRepository:
         """Get all rooms for a user with last message info"""
         print(f"🔍 DEBUG REPO: Getting rooms for user_id: {user_id}")
         
-        # First, let's check what participants exist for this user
+        # First, let's check what participants exist for this user (including inactive)
+        all_participants = self.db.query(ChatParticipant).filter(
+            ChatParticipant.user_id == user_id
+        ).all()
+        print(f"🔍 DEBUG REPO: Found {len(all_participants)} total participants for user {user_id} (including inactive)")
+        
+        for p in all_participants:
+            print(f"🔍 DEBUG REPO: All Participant - room_id: {p.room_id}, user_id: {p.user_id}, is_active: {p.is_active}")
+        
+        # Now check active participants only
         participants = self.db.query(ChatParticipant).filter(
             and_(
                 ChatParticipant.user_id == user_id,
@@ -98,7 +107,21 @@ class ChatRepository:
         print(f"🔍 DEBUG REPO: Found {len(participants)} active participants for user {user_id}")
         
         for p in participants:
-            print(f"🔍 DEBUG REPO: Participant - room_id: {p.room_id}, user_id: {p.user_id}, is_active: {p.is_active}")
+            print(f"🔍 DEBUG REPO: Active Participant - room_id: {p.room_id}, user_id: {p.user_id}, is_active: {p.is_active}")
+        
+        # Let's also check all rooms to see what exists
+        all_rooms = self.db.query(ChatRoom).all()
+        print(f"🔍 DEBUG REPO: Total rooms in database: {len(all_rooms)}")
+        for room in all_rooms:
+            print(f"🔍 DEBUG REPO: All Room - ID: {room.id}, name: '{room.name}', created_by: {room.created_by}, is_active: {room.is_active}, updated_at: {room.updated_at}")
+            
+            # Check participants for this room
+            room_participants = self.db.query(ChatParticipant).filter(
+                ChatParticipant.room_id == room.id
+            ).all()
+            print(f"🔍 DEBUG REPO: Room {room.id} participants: {len(room_participants)}")
+            for rp in room_participants:
+                print(f"🔍 DEBUG REPO:   - user_id: {rp.user_id}, is_active: {rp.is_active}")
         
         rooms = self.db.query(ChatRoom).join(ChatParticipant).filter(
             and_(
