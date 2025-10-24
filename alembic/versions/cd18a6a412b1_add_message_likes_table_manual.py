@@ -20,6 +20,25 @@ depends_on: Union[str, Sequence[str], None] = None
 
 def upgrade() -> None:
     """Upgrade schema."""
+    # Check if required tables exist before creating message_likes table
+    connection = op.get_bind()
+    inspector = sa.inspect(connection)
+    
+    # Check if chat_messages table exists (required for foreign key)
+    if 'chat_messages' not in inspector.get_table_names():
+        print("chat_messages table does not exist, skipping message_likes table creation")
+        return
+    
+    # Check if users table exists (required for foreign key)
+    if 'users' not in inspector.get_table_names():
+        print("users table does not exist, skipping message_likes table creation")
+        return
+    
+    # Check if message_likes table already exists
+    if 'message_likes' in inspector.get_table_names():
+        print("message_likes table already exists, skipping creation")
+        return
+    
     # Create message_likes table
     op.create_table('message_likes',
         sa.Column('id', sa.Integer(), nullable=False),
@@ -36,5 +55,13 @@ def upgrade() -> None:
 
 def downgrade() -> None:
     """Downgrade schema."""
+    # Check if message_likes table exists before trying to drop it
+    connection = op.get_bind()
+    inspector = sa.inspect(connection)
+    
+    if 'message_likes' not in inspector.get_table_names():
+        print("message_likes table does not exist, skipping downgrade")
+        return
+    
     op.drop_index(op.f('ix_message_likes_id'), table_name='message_likes')
     op.drop_table('message_likes')
