@@ -20,6 +20,22 @@ depends_on: Union[str, Sequence[str], None] = None
 
 def upgrade() -> None:
     """Upgrade schema."""
+    # Check if the messagetype enum exists before trying to modify it
+    connection = op.get_bind()
+    
+    # Check if messagetype enum exists
+    result = connection.execute(sa.text("""
+        SELECT EXISTS (
+            SELECT 1 FROM pg_type 
+            WHERE typname = 'messagetype'
+        )
+    """))
+    enum_exists = result.scalar()
+    
+    if not enum_exists:
+        print("messagetype enum does not exist, skipping migration")
+        return
+    
     # Add 'voice' and 'VOICE' to the messagetype enum if they don't exist
     try:
         op.execute("ALTER TYPE messagetype ADD VALUE 'voice'")
