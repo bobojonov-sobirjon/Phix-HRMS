@@ -20,8 +20,21 @@ depends_on: Union[str, Sequence[str], None] = None
 
 def upgrade() -> None:
     """Upgrade schema."""
-    # Check if the values already exist before adding them
+    # Check if the enum type exists before trying to modify it
     connection = op.get_bind()
+    
+    # Check if experiencelevel enum type exists
+    result = connection.execute(sa.text("""
+        SELECT EXISTS (
+            SELECT 1 FROM pg_type 
+            WHERE typname = 'experiencelevel'
+        )
+    """))
+    enum_exists = result.scalar()
+    
+    if not enum_exists:
+        print("experiencelevel enum type does not exist, skipping migration")
+        return
     
     # Get existing enum values
     result = connection.execute(sa.text("""
