@@ -12,7 +12,8 @@ from ..schemas.chat import (
     ChatMessageResponse, ChatMessageCreate, TextMessageCreate, MessageListResponse,
     WebSocketMessage, TypingIndicator, UserPresenceUpdate,
     VideoCallTokenRequest, VideoCallTokenResponse, VideoCallRequest, VideoCallResponse, VideoCallStatus,
-    MessageLikeRequest, MessageLikeResponse, RoomCheckResponse
+    MessageLikeRequest, MessageLikeResponse, RoomCheckResponse,
+    OnlineUsersResponse, OnlineUserDetails
 )
 from ..utils.websocket_manager import manager
 from ..utils.file_upload import file_upload_manager
@@ -61,13 +62,77 @@ async def create_room(
     """Create a direct chat room with another user"""
     chat_repo = ChatRepository(db)
     
-    # Check if receiver exists
-    receiver = db.query(User).filter(User.id == room_data.receiver_id).first()
-    if not receiver:
-        raise HTTPException(status_code=404, detail="User not found")
+    # Validate receiver_id
+    if room_data.receiver_id == current_user.id:
+        raise HTTPException(
+            status_code=400, 
+            detail="You cannot create a room with yourself"
+        )
     
-    # Create or get existing room
-    room = chat_repo.create_direct_room(current_user.id, room_data.receiver_id)
+    # Check if receiver exists and is active
+    receiver = db.query(User).filter(
+        User.id == room_data.receiver_id,
+        User.is_active == True
+    ).first()
+    if not receiver:
+        raise HTTPException(
+            status_code=404, 
+            detail="User not found or inactive"
+        )
+    
+    # Check if room already exists between these users
+    existing_room = chat_repo.get_direct_room(current_user.id, room_data.receiver_id)
+    if existing_room:
+        # Return existing room instead of creating new one
+        other_user = chat_repo.get_room_other_user(existing_room.id, current_user.id)
+        other_user_info = None
+        if other_user:
+            is_online = chat_repo.is_user_online(other_user.id)
+            other_user_info = {
+                "id": other_user.id,
+                "name": other_user.name,
+                "email": other_user.email,
+                "avatar_url": other_user.avatar_url,
+                "is_online": is_online
+            }
+        
+        # Get last message
+        last_message = chat_repo.get_last_message(existing_room.id)
+        last_message_info = None
+        if last_message:
+            last_message_info = {
+                "id": last_message.id,
+                "content": last_message.content,
+                "message_type": last_message.message_type,
+                "created_at": last_message.created_at,
+                "sender_name": last_message.sender.name
+            }
+        
+        # Get unread count
+        unread_counts = chat_repo.get_unread_count(current_user.id)
+        unread_count = unread_counts.get(existing_room.id, 0)
+        
+        return ChatRoomResponse(
+            id=existing_room.id,
+            name=existing_room.name,
+            room_type=existing_room.room_type,
+            created_by=existing_room.created_by,
+            created_at=existing_room.created_at,
+            updated_at=existing_room.updated_at,
+            is_active=existing_room.is_active,
+            other_user=other_user_info,
+            last_message=last_message_info,
+            unread_count=unread_count
+        )
+    
+    # Create new room
+    try:
+        room = chat_repo.create_direct_room(current_user.id, room_data.receiver_id)
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to create room: {str(e)}"
+        )
     
     # Get other user info
     other_user = chat_repo.get_room_other_user(room.id, current_user.id)
@@ -82,7 +147,7 @@ async def create_room(
             "is_online": is_online
         }
     
-    # Get last message
+    # Get last message (should be None for new room)
     last_message = chat_repo.get_last_message(room.id)
     last_message_info = None
     if last_message:
@@ -94,7 +159,7 @@ async def create_room(
             "sender_name": last_message.sender.name
         }
     
-    # Get unread count
+    # Get unread count (should be 0 for new room)
     unread_counts = chat_repo.get_unread_count(current_user.id)
     unread_count = unread_counts.get(room.id, 0)
     
@@ -259,22 +324,44 @@ async def get_room(
                 "is_online": is_online
             }
         
-        message_responses.append({
+        # Get receiver details
+        receiver_details = None
+        if message.receiver:
+            is_online = chat_repo.is_user_online(message.receiver.id)
+            receiver_details = {
+                "id": message.receiver.id,
+                "name": message.receiver.name,
+                "email": message.receiver.email,
+                "avatar_url": message.receiver.avatar_url,
+                "is_online": is_online
+            }
+        
+        # Create message response based on message type
+        message_response = {
             "id": message.id,
             "content": message.content,
             "message_type": message.message_type,
-            "file_name": message.file_name,
-            "file_path": file_url,  # Full URL instead of relative path
-            "file_size": message.file_size,
-            "files_data": files_data_with_urls,  # Multiple files with full URLs
             "created_at": message.created_at.isoformat(),
             "is_read": message.is_read,
             "is_deleted": message.is_deleted,
             "is_sender": is_sender,  # Frontend uchun: true = o'ng tomonda, false = chap tomonda
             "is_liked": is_liked,
             "like_count": like_count,
-            "sender_details": sender_details
-        })
+            "sender_details": sender_details,
+            "receiver_details": receiver_details
+        }
+        
+        # Add file-related fields only if they exist
+        if message.file_name:
+            message_response["file_name"] = message.file_name
+        if file_url:
+            message_response["file_path"] = file_url
+        if message.file_size:
+            message_response["file_size"] = message.file_size
+        if files_data_with_urls:
+            message_response["files_data"] = files_data_with_urls
+            
+        message_responses.append(message_response)
     
     return {
         "id": room.id,
@@ -361,22 +448,44 @@ async def get_room_messages(
                 "is_online": is_online
             }
         
-        message_responses.append(ChatMessageResponse(
-            id=message.id,
-            content=message.content,
-            message_type=message.message_type,
-            file_name=message.file_name,
-            file_path=file_url,  # Full URL instead of relative path
-            file_size=message.file_size,
-            files_data=files_data_with_urls,  # Multiple files with full URLs
-            created_at=message.created_at,
-            is_read=message.is_read,
-            is_deleted=message.is_deleted,
-            is_sender=is_sender,
-            is_liked=is_liked,
-            like_count=like_count,
-            sender_details=sender_details
-        ))
+        # Get receiver details
+        receiver_details = None
+        if message.receiver:
+            is_online = chat_repo.is_user_online(message.receiver.id)
+            receiver_details = {
+                "id": message.receiver.id,
+                "name": message.receiver.name,
+                "email": message.receiver.email,
+                "avatar_url": message.receiver.avatar_url,
+                "is_online": is_online
+            }
+        
+        # Create message data based on message type
+        message_data = {
+            "id": message.id,
+            "content": message.content,
+            "message_type": message.message_type,
+            "created_at": message.created_at,
+            "is_read": message.is_read,
+            "is_deleted": message.is_deleted,
+            "is_sender": is_sender,
+            "is_liked": is_liked,
+            "like_count": like_count,
+            "sender_details": sender_details,
+            "receiver_details": receiver_details
+        }
+        
+        # Add file-related fields only if they exist
+        if message.file_name:
+            message_data["file_name"] = message.file_name
+        if file_url:
+            message_data["file_path"] = file_url
+        if message.file_size:
+            message_data["file_size"] = message.file_size
+        if files_data_with_urls:
+            message_data["files_data"] = files_data_with_urls
+            
+        message_responses.append(ChatMessageResponse(**message_data))
     
     # Calculate pagination info
     total_pages = (total_count + per_page - 1) // per_page  # Ceiling division
@@ -477,21 +586,40 @@ async def update_message(
             "is_online": is_online
         }
     
-    # Create response
+    # Get receiver details
+    receiver_details = None
+    if updated_message.receiver:
+        is_online = chat_repo.is_user_online(updated_message.receiver.id)
+        receiver_details = {
+            "id": updated_message.receiver.id,
+            "name": updated_message.receiver.name,
+            "email": updated_message.receiver.email,
+            "avatar_url": updated_message.receiver.avatar_url,
+            "is_online": is_online
+        }
+    
+    # Create response based on message type
     message_response = {
         "id": updated_message.id,
         "content": updated_message.content,
         "message_type": updated_message.message_type,
-        "file_name": updated_message.file_name,
-        "file_path": file_url,  # Full URL instead of relative path
-        "file_size": updated_message.file_size,
-        "files_data": files_data_with_urls,  # Multiple files with full URLs
         "created_at": updated_message.created_at.isoformat(),
         "is_read": updated_message.is_read,
         "is_deleted": updated_message.is_deleted,
         "is_sender": True,  # Bu message yuboruvchi uchun
-        "sender_details": sender_details
+        "sender_details": sender_details,
+        "receiver_details": receiver_details
     }
+    
+    # Add file-related fields only if they exist
+    if updated_message.file_name:
+        message_response["file_name"] = updated_message.file_name
+    if file_url:
+        message_response["file_path"] = file_url
+    if updated_message.file_size:
+        message_response["file_size"] = updated_message.file_size
+    if files_data_with_urls:
+        message_response["files_data"] = files_data_with_urls
     
     # Broadcast updated message to all users in the room
     await manager.broadcast_message_update(
@@ -799,20 +927,39 @@ async def websocket_endpoint(websocket: WebSocket, token: str = None, room_id: i
                         "is_online": is_online
                     }
                 
-                # Create response
+                # Get receiver details
+                receiver_details = None
+                if message.receiver:
+                    is_online = chat_repo.is_user_online(message.receiver.id)
+                    receiver_details = {
+                        "id": message.receiver.id,
+                        "name": message.receiver.name,
+                        "email": message.receiver.email,
+                        "avatar_url": message.receiver.avatar_url,
+                        "is_online": is_online
+                    }
+                
+                # Create response based on message type
                 message_response = {
                     "id": message.id,
                     "content": message.content,
                     "message_type": message.message_type,
-                    "file_name": message.file_name,
-                    "file_path": file_url,  # Full URL instead of relative path
-                    "file_size": message.file_size,
-                    "files_data": files_data_with_urls,  # Multiple files with full URLs
                     "created_at": message.created_at.isoformat(),
                     "is_read": message.is_read,
                     "is_deleted": message.is_deleted,
-                    "sender_details": sender_details
+                    "sender_details": sender_details,
+                    "receiver_details": receiver_details
                 }
+                
+                # Add file-related fields only if they exist
+                if message.file_name:
+                    message_response["file_name"] = message.file_name
+                if file_url:
+                    message_response["file_path"] = file_url
+                if message.file_size:
+                    message_response["file_size"] = message.file_size
+                if files_data_with_urls:
+                    message_response["files_data"] = files_data_with_urls
                 
                 # Broadcast message to all users in the room
                 await manager.broadcast_new_message(
@@ -851,22 +998,35 @@ async def get_unread_count(
     unread_counts = chat_repo.get_unread_count(current_user.id)
     return {"unread_counts": unread_counts}
 
-@router.get("/online-users")
-async def get_online_users(db: Session = Depends(get_db)):
-    """Get list of currently online users"""
+@router.get("/online-users", response_model=OnlineUsersResponse)
+async def get_online_users(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Get list of online users who are in the same chat rooms as the current user"""
     chat_repo = ChatRepository(db)
-    online_users = chat_repo.get_online_users()
+    online_users = chat_repo.get_online_users_in_rooms(current_user.id)
     
-    return {
-        "online_users": [
-            {
-                "user_id": user.user_id,
-                "last_seen": user.last_seen,
-                "is_online": user.is_online
-            }
-            for user in online_users
-        ]
-    }
+    # Get presence information for each user
+    online_user_details = []
+    for user in online_users:
+        presence = chat_repo.get_user_presence(user.id)
+        last_seen = presence.last_seen if presence else user.last_login or user.created_at
+        
+        online_user_details.append(OnlineUserDetails(
+            id=user.id,
+            name=user.name,
+            email=user.email,
+            avatar_url=user.avatar_url,
+            phone=user.phone,
+            about_me=user.about_me,
+            current_position=user.current_position,
+            is_verified=user.is_verified,
+            last_seen=last_seen,
+            is_online=True
+        ))
+    
+    return OnlineUsersResponse(online_users=online_user_details)
 
 @router.get("/check-room", response_model=RoomCheckResponse)
 async def check_user_room(

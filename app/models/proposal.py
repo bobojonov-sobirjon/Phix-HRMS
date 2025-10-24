@@ -9,7 +9,6 @@ class Proposal(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     cover_letter = Column(Text, nullable=False)
-    attachments = Column(Text, nullable=True)  # JSON string for file paths
     delivery_time = Column(Integer, nullable=True)  # Delivery time in days
     offer_amount = Column(Float, nullable=True)  # Offer amount in currency
     
@@ -27,6 +26,7 @@ class Proposal(Base):
     user = relationship("User", back_populates="proposals")
     gig_job = relationship("GigJob", back_populates="proposals")
     full_time_job = relationship("FullTimeJob", back_populates="proposals")
+    attachments = relationship("ProposalAttachment", back_populates="proposal")
     
     def __repr__(self):
         return f"<Proposal(id={self.id}, user_id={self.user_id}, gig_job_id={self.gig_job_id}, full_time_job_id={self.full_time_job_id})>"

@@ -5,6 +5,7 @@ from app.database import get_db
 from app.utils.auth import get_current_user
 from app.models.user import User
 from app.repositories.proposal_repository import ProposalRepository
+from app.repositories.proposal_attachment_repository import ProposalAttachmentRepository
 from app.repositories.gig_job_repository import GigJobRepository
 from app.schemas.proposal import (
     ProposalCreate, 
@@ -12,7 +13,8 @@ from app.schemas.proposal import (
     ProposalResponse, 
     ProposalListResponse,
     ProposalCreateForm,
-    ProposalUpdateForm
+    ProposalUpdateForm,
+    ProposalAttachmentResponse
 )
 from app.repositories.full_time_job_repository import FullTimeJobRepository
 from app.pagination import PaginationParams, create_pagination_response
@@ -27,9 +29,9 @@ UPLOAD_DIR = "static/proposals"
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 
-def save_uploaded_files(files: List[UploadFile], user_id: int, proposal_id: int) -> List[str]:
-    """Save uploaded files and return list of file paths"""
-    file_paths = []
+def save_uploaded_files(files: List[UploadFile], user_id: int, proposal_id: int) -> List[dict]:
+    """Save uploaded files and return list of file info"""
+    file_info_list = []
     
     for file in files:
         if file.filename:
@@ -49,9 +51,17 @@ def save_uploaded_files(files: List[UploadFile], user_id: int, proposal_id: int)
             
             # Store relative path for database
             relative_path = os.path.join("proposals", f"user_{user_id}", unique_filename)
-            file_paths.append(relative_path)
+            
+            # Get file size
+            file_size = len(content)
+            
+            file_info_list.append({
+                "attachment": relative_path,
+                "size": file_size,
+                "name": file.filename
+            })
     
-    return file_paths
+    return file_info_list
 
 
 @router.post("/", status_code=status.HTTP_201_CREATED)
@@ -95,6 +105,7 @@ async def create_proposal(
         )
     
     repository = ProposalRepository(db)
+    attachment_repository = ProposalAttachmentRepository(db)
     
     if gig_job_id:
         # Proposal for gig job
@@ -158,8 +169,7 @@ async def create_proposal(
         delivery_time=delivery_time,
         offer_amount=offer_amount,
         gig_job_id=gig_job_id,
-        full_time_job_id=full_time_job_id,
-        attachments=""  # Will be updated after file processing
+        full_time_job_id=full_time_job_id
     )
     
     # Create proposal first to get ID
@@ -167,13 +177,14 @@ async def create_proposal(
     
     # Process file uploads if any
     if attachments:
-        file_paths = save_uploaded_files(attachments, current_user.id, proposal.id)
-        if file_paths:
-            # Update proposal with file paths
-            attachments_json = json.dumps(file_paths)
-            proposal.attachments = attachments_json
-            db.commit()
-            db.refresh(proposal)
+        file_info_list = save_uploaded_files(attachments, current_user.id, proposal.id)
+        for file_info in file_info_list:
+            attachment_repository.create(
+                proposal_id=proposal.id,
+                attachment=file_info["attachment"],
+                size=file_info["size"],
+                name=file_info["name"]
+            )
     
     # Get the created proposal with all relationships for response
     proposal_with_details = repository.get_by_id(proposal.id)
@@ -209,7 +220,7 @@ async def create_proposal(
                     "cover_letter": proposal.cover_letter,
                     "delivery_time": proposal.delivery_time,
                     "offer_amount": proposal.offer_amount,
-                    "attachments": json.loads(proposal.attachments) if proposal.attachments else [],
+                    "attachments": [],
                     "created_at": proposal.created_at.isoformat() if proposal.created_at else None,
                     "updated_at": proposal.updated_at.isoformat() if proposal.updated_at else None
                 }
@@ -430,6 +441,7 @@ async def update_proposal(
     - **attachments**: Updated file attachments (multiple files supported)
     """
     repository = ProposalRepository(db)
+    attachment_repository = ProposalAttachmentRepository(db)
     
     # Get existing proposal
     existing_proposal = repository.get_by_id(proposal_id)
@@ -463,11 +475,18 @@ async def update_proposal(
     
     # Process file uploads if any
     if attachments:
-        file_paths = save_uploaded_files(attachments, current_user.id, proposal_id)
-        if file_paths:
-            # Update attachments with new file paths
-            attachments_json = json.dumps(file_paths)
-            update_data['attachments'] = attachments_json
+        # Delete existing attachments
+        attachment_repository.delete_by_proposal_id(proposal_id)
+        
+        # Save new attachments
+        file_info_list = save_uploaded_files(attachments, current_user.id, proposal_id)
+        for file_info in file_info_list:
+            attachment_repository.create(
+                proposal_id=proposal_id,
+                attachment=file_info["attachment"],
+                size=file_info["size"],
+                name=file_info["name"]
+            )
     
     # Create ProposalUpdate object
     proposal_update = ProposalUpdate(**update_data)
@@ -518,7 +537,7 @@ async def update_proposal(
                     "cover_letter": proposal_with_details.cover_letter,
                     "delivery_time": proposal_with_details.delivery_time,
                     "offer_amount": proposal_with_details.offer_amount,
-                    "attachments": json.loads(proposal_with_details.attachments) if proposal_with_details.attachments else [],
+                    "attachments": [],
                     "created_at": proposal_with_details.created_at.isoformat() if proposal_with_details.created_at else None,
                     "updated_at": proposal_with_details.updated_at.isoformat() if proposal_with_details.updated_at else None
                 }
@@ -538,6 +557,7 @@ async def delete_proposal(
     - **proposal_id**: ID of the proposal to delete
     """
     repository = ProposalRepository(db)
+    attachment_repository = ProposalAttachmentRepository(db)
     
     # Get existing proposal to determine job type
     existing_proposal = repository.get_by_id(proposal_id)
@@ -560,6 +580,10 @@ async def delete_proposal(
             }
         )
     
+    # Delete attachments first
+    attachment_repository.delete_by_proposal_id(proposal_id)
+    
+    # Delete proposal
     success = repository.delete(proposal_id, current_user.id)
     
     if not success:

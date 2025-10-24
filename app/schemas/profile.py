@@ -9,6 +9,7 @@ class LocationBase(BaseModel):
     name: str
     flag_image: Optional[str] = None
     code: Optional[str] = None
+    phone_code: Optional[str] = None
 
 class LocationCreate(LocationBase):
     pass
@@ -17,6 +18,7 @@ class LocationUpdate(LocationBase):
     name: Optional[str] = None
     flag_image: Optional[str] = None
     code: Optional[str] = None
+    phone_code: Optional[str] = None
 
 class LocationResponse(LocationBase):
     id: int

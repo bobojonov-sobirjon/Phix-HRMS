@@ -79,22 +79,6 @@ class ChatRepository:
 
     def get_user_rooms(self, user_id: int) -> List[ChatRoom]:
         """Get all rooms for a user with last message info"""
-        # Check all rooms for missing participants and data integrity issues
-        all_rooms = self.db.query(ChatRoom).all()
-        for room in all_rooms:
-            # Check if user should be in this room but isn't
-            room_participants = self.db.query(ChatParticipant).filter(
-                ChatParticipant.room_id == room.id
-            ).all()
-            
-            user_in_room = any(p.user_id == user_id for p in room_participants)
-            if not user_in_room and room.room_type == "direct":
-                # Try to fix missing participant
-                self.fix_missing_participants(room.id, user_id)
-            
-            # Fix data integrity issues if found
-            self.fix_room_participants(room.id)
-        
         rooms = self.db.query(ChatRoom).join(ChatParticipant).filter(
             and_(
                 ChatParticipant.user_id == user_id,
@@ -379,6 +363,49 @@ class ChatRepository:
                 UserPresence.last_seen > five_minutes_ago
             )
         ).all()
+
+    def get_online_users_in_rooms(self, current_user_id: int) -> List[User]:
+        """Get online users who are in the same chat rooms as the current user"""
+        from datetime import timezone
+        now = datetime.now(timezone.utc)
+        five_minutes_ago = now - timedelta(minutes=5)
+        
+        # Get all room IDs where current user is a participant
+        user_room_ids = self.db.query(ChatParticipant.room_id).filter(
+            and_(
+                ChatParticipant.user_id == current_user_id,
+                ChatParticipant.is_active == True
+            )
+        ).subquery()
+        
+        # Get all user IDs who are participants in those rooms (excluding current user)
+        room_user_ids = self.db.query(ChatParticipant.user_id).filter(
+            and_(
+                ChatParticipant.room_id.in_(user_room_ids),
+                ChatParticipant.user_id != current_user_id,
+                ChatParticipant.is_active == True
+            )
+        ).subquery()
+        
+        # Get online users who are in the same rooms
+        return self.db.query(User).join(UserPresence, User.id == UserPresence.user_id).filter(
+            and_(
+                User.id.in_(room_user_ids),
+                User.is_active == True,
+                UserPresence.is_online == True,
+                UserPresence.last_seen > five_minutes_ago
+            )
+        ).all()
+
+    def get_room_participants(self, room_id: int) -> List[int]:
+        """Get all user IDs who are participants in a specific room"""
+        participants = self.db.query(ChatParticipant.user_id).filter(
+            and_(
+                ChatParticipant.room_id == room_id,
+                ChatParticipant.is_active == True
+            )
+        ).all()
+        return [participant.user_id for participant in participants]
 
     def is_user_online(self, user_id: int) -> bool:
         """Check if a user is currently online"""

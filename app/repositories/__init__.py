@@ -14,6 +14,7 @@ from .contact_us_repository import ContactUsRepository
 from .faq_repository import FAQRepository
 from .gig_job_repository import GigJobRepository
 from .proposal_repository import ProposalRepository
+from .proposal_attachment_repository import ProposalAttachmentRepository
 from .corporate_profile_repository import CorporateProfileRepository
 from .full_time_job_repository import FullTimeJobRepository
 from .team_member_repository import TeamMemberRepository
@@ -35,6 +36,7 @@ __all__ = [
     "FAQRepository",
     "GigJobRepository",
     "ProposalRepository",
+    "ProposalAttachmentRepository",
     "CorporateProfileRepository",
     "FullTimeJobRepository",
     "TeamMemberRepository"

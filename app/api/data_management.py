@@ -185,6 +185,7 @@ def batch_insert_locations(db: Session, countries_data: List[Dict[str, Any]]) ->
             location = Location(
                 name=country_data.get("name"),
                 code=country_data.get("code"),
+                phone_code=country_data.get("phone_code"),
                 flag_image=country_data.get("flag_image")
             )
             new_locations.append(location)
