@@ -14,7 +14,7 @@ from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
 revision: str = 'e17310649136'
-down_revision: Union[str, Sequence[str], None] = None
+down_revision: Union[str, Sequence[str], None] = '58b59e6b47e9'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
@@ -32,8 +32,15 @@ def upgrade() -> None:
         )
         experience_level_enum.create(op.get_bind())
     except Exception:
-        # Enum already exists, continue
-        pass
+        # Enum already exists, create reference to existing enum
+        experience_level_enum = postgresql.ENUM(
+            'ENTRY_LEVEL',
+            'MID_LEVEL', 
+            'JUNIOR',
+            'DIRECTOR',
+            name='experiencelevel',
+            create_type=False
+        )
     
     # Create the GigJobStatus enum if it doesn't exist
     try:
@@ -46,8 +53,15 @@ def upgrade() -> None:
         )
         gig_job_status_enum.create(op.get_bind())
     except Exception:
-        # Enum already exists, continue
-        pass
+        # Enum already exists, create reference to existing enum
+        gig_job_status_enum = postgresql.ENUM(
+            'active',
+            'in_progress',
+            'completed',
+            'cancelled',
+            name='gigjobstatus',
+            create_type=False
+        )
     
     # Create the ProjectLength enum if it doesn't exist
     try:
@@ -60,8 +74,15 @@ def upgrade() -> None:
         )
         project_length_enum.create(op.get_bind())
     except Exception:
-        # Enum already exists, continue
-        pass
+        # Enum already exists, create reference to existing enum
+        project_length_enum = postgresql.ENUM(
+            'LESS_THAN_ONE_MONTH',
+            'ONE_TO_THREE_MONTHS', 
+            'THREE_TO_SIX_MONTHS',
+            'MORE_THAN_SIX_MONTHS',
+            name='projectlength',
+            create_type=False
+        )
     
     # Check if gig_jobs table already exists
     connection = op.get_bind()
@@ -76,11 +97,11 @@ def upgrade() -> None:
             sa.Column('title', sa.String(length=255), nullable=False),
             sa.Column('description', sa.Text(), nullable=False),
             sa.Column('location_id', sa.Integer(), nullable=True),
-            sa.Column('experience_level', postgresql.ENUM('ENTRY_LEVEL', 'MID_LEVEL', 'JUNIOR', 'DIRECTOR', name='experiencelevel'), nullable=False),
-            sa.Column('project_length', postgresql.ENUM('LESS_THAN_ONE_MONTH', 'ONE_TO_THREE_MONTHS', 'THREE_TO_SIX_MONTHS', 'MORE_THAN_SIX_MONTHS', name='projectlength'), nullable=False),
+            sa.Column('experience_level', experience_level_enum, nullable=False),
+            sa.Column('project_length', project_length_enum, nullable=False),
             sa.Column('min_salary', sa.Float(), nullable=False),
             sa.Column('max_salary', sa.Float(), nullable=False),
-            sa.Column('status', postgresql.ENUM('active', 'in_progress', 'completed', 'cancelled', name='gigjobstatus'), nullable=True),
+            sa.Column('status', gig_job_status_enum, nullable=True),
             sa.Column('author_id', sa.Integer(), nullable=False),
             sa.Column('category_id', sa.Integer(), nullable=False),
             sa.Column('subcategory_id', sa.Integer(), nullable=True),
