@@ -21,10 +21,15 @@ depends_on: Union[str, Sequence[str], None] = None
 
 def upgrade() -> None:
     """Upgrade schema."""
-    # Check if columns already exist before making changes
+    # Check if table exists and get columns
     connection = op.get_bind()
     inspector = sa.inspect(connection)
-    columns = [col['name'] for col in inspector.get_columns('gig_jobs')]
+    
+    try:
+        columns = [col['name'] for col in inspector.get_columns('gig_jobs')]
+    except Exception:
+        # Table doesn't exist yet, skip this migration
+        return
     
     # Create the new ProjectLength enum if it doesn't exist
     try:
@@ -66,10 +71,15 @@ def upgrade() -> None:
 
 def downgrade() -> None:
     """Downgrade schema."""
-    # Check if columns already exist before making changes
+    # Check if table exists and get columns
     connection = op.get_bind()
     inspector = sa.inspect(connection)
-    columns = [col['name'] for col in inspector.get_columns('gig_jobs')]
+    
+    try:
+        columns = [col['name'] for col in inspector.get_columns('gig_jobs')]
+    except Exception:
+        # Table doesn't exist, skip this migration
+        return
     
     # Note: jobtype and workmode enums still exist as they are used by full_time_jobs table
     

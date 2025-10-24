@@ -13,18 +13,19 @@ import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision: str = 'e08c0b9816fa'
-down_revision: Union[str, Sequence[str], None] = None
+down_revision: Union[str, Sequence[str], None] = 'e17310649136'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
     """Upgrade schema."""
-    # Add is_deleted column to gig_jobs table
-    op.add_column('gig_jobs', sa.Column('is_deleted', sa.Boolean(), nullable=True, server_default='false'))
+    # is_deleted column is already included in the gig_jobs table creation
+    # This migration is kept for historical purposes but does nothing
+    pass
 
 
 def downgrade() -> None:
     """Downgrade schema."""
-    # Remove is_deleted column from gig_jobs table
-    op.drop_column('gig_jobs', 'is_deleted')
+    # is_deleted column is part of the table creation, so no need to drop it here
+    pass
