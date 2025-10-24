@@ -20,6 +20,21 @@ depends_on: Union[str, Sequence[str], None] = None
 
 def upgrade() -> None:
     """Add server_default to updated_at column in chat_rooms table"""
+    # Check if table exists before making changes
+    connection = op.get_bind()
+    inspector = sa.inspect(connection)
+    
+    # Check if chat_rooms table exists
+    if 'chat_rooms' not in inspector.get_table_names():
+        print("chat_rooms table does not exist, skipping migration")
+        return
+    
+    # Check if updated_at column exists
+    columns = [col['name'] for col in inspector.get_columns('chat_rooms')]
+    if 'updated_at' not in columns:
+        print("updated_at column does not exist in chat_rooms, skipping migration")
+        return
+    
     # Add server_default to updated_at column
     op.alter_column('chat_rooms', 'updated_at',
                     existing_type=postgresql.TIMESTAMP(timezone=True),
@@ -29,6 +44,21 @@ def upgrade() -> None:
 
 def downgrade() -> None:
     """Remove server_default from updated_at column in chat_rooms table"""
+    # Check if table exists before making changes
+    connection = op.get_bind()
+    inspector = sa.inspect(connection)
+    
+    # Check if chat_rooms table exists
+    if 'chat_rooms' not in inspector.get_table_names():
+        print("chat_rooms table does not exist, skipping downgrade")
+        return
+    
+    # Check if updated_at column exists
+    columns = [col['name'] for col in inspector.get_columns('chat_rooms')]
+    if 'updated_at' not in columns:
+        print("updated_at column does not exist in chat_rooms, skipping downgrade")
+        return
+    
     # Remove server_default from updated_at column
     op.alter_column('chat_rooms', 'updated_at',
                     existing_type=postgresql.TIMESTAMP(timezone=True),
