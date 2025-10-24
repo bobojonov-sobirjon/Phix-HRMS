@@ -20,9 +20,18 @@ depends_on: Union[str, Sequence[str], None] = None
 
 def upgrade() -> None:
     """Upgrade schema."""
-    # Add 'voice' and 'VOICE' to the messagetype enum
-    op.execute("ALTER TYPE messagetype ADD VALUE 'voice'")
-    op.execute("ALTER TYPE messagetype ADD VALUE 'VOICE'")
+    # Add 'voice' and 'VOICE' to the messagetype enum if they don't exist
+    try:
+        op.execute("ALTER TYPE messagetype ADD VALUE 'voice'")
+    except Exception:
+        # Value already exists, continue
+        pass
+    
+    try:
+        op.execute("ALTER TYPE messagetype ADD VALUE 'VOICE'")
+    except Exception:
+        # Value already exists, continue
+        pass
 
 
 def downgrade() -> None:
