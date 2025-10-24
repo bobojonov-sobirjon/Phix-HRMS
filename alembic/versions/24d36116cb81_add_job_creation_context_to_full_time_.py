@@ -20,9 +20,16 @@ depends_on: Union[str, Sequence[str], None] = None
 
 def upgrade() -> None:
     """Upgrade schema."""
-    # Check if columns already exist before making changes
+    # Check if table exists before making changes
     connection = op.get_bind()
     inspector = sa.inspect(connection)
+    
+    # Check if full_time_jobs table exists
+    if 'full_time_jobs' not in inspector.get_table_names():
+        print("full_time_jobs table does not exist, skipping migration")
+        return
+    
+    # Check if columns already exist before making changes
     columns = [col['name'] for col in inspector.get_columns('full_time_jobs')]
     
     # Add new columns to full_time_jobs table if they don't exist
@@ -49,9 +56,16 @@ def upgrade() -> None:
 
 def downgrade() -> None:
     """Downgrade schema."""
-    # Check if columns exist before trying to remove them
+    # Check if table exists before making changes
     connection = op.get_bind()
     inspector = sa.inspect(connection)
+    
+    # Check if full_time_jobs table exists
+    if 'full_time_jobs' not in inspector.get_table_names():
+        print("full_time_jobs table does not exist, skipping downgrade")
+        return
+    
+    # Check if columns exist before trying to remove them
     columns = [col['name'] for col in inspector.get_columns('full_time_jobs')]
     
     # Remove index if it exists
