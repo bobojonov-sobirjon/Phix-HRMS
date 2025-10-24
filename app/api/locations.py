@@ -50,6 +50,7 @@ def get_location(location_id: int, current_user: User = Depends(get_current_user
 async def create_location(
     name: str = Form(...),
     code: str = Form(...),
+    phone_code: str = Form(None),
     flag_image: UploadFile = File(None),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
@@ -73,6 +74,7 @@ async def create_location(
         location = repo.create_location(LocationCreate(
             name=name,
             code=code,
+            phone_code=phone_code,
             flag_image=flag_image_path
         ))
 

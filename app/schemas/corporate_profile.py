@@ -49,6 +49,7 @@ class LocationResponse(BaseModel):
     name: str
     code: Optional[str] = None
     flag_image: Optional[str] = None
+    phone_code: Optional[str] = None
     
     class Config:
         from_attributes = True

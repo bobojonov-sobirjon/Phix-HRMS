@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, validator
 from typing import Optional, List, Dict, Any
 from datetime import datetime
 from enum import Enum
@@ -37,7 +37,13 @@ class ChatRoomResponse(BaseModel):
         from_attributes = True
 
 class ChatRoomCreate(BaseModel):
-    receiver_id: int = Field(..., description="ID of the user to chat with")
+    receiver_id: int = Field(..., gt=0, description="ID of the user to chat with")
+    
+    @validator('receiver_id')
+    def validate_receiver_id(cls, v):
+        if v <= 0:
+            raise ValueError('Receiver ID must be a positive integer')
+        return v
 
 # Sender Details Schema
 class SenderDetails(BaseModel):
@@ -46,6 +52,40 @@ class SenderDetails(BaseModel):
     email: str
     avatar_url: Optional[str] = None
     is_online: bool = False
+    
+    class Config:
+        from_attributes = True
+
+# Receiver Details Schema
+class ReceiverDetails(BaseModel):
+    id: int
+    name: str
+    email: str
+    avatar_url: Optional[str] = None
+    is_online: bool = False
+    
+    class Config:
+        from_attributes = True
+
+# Online User Details Schema
+class OnlineUserDetails(BaseModel):
+    id: int
+    name: str
+    email: str
+    avatar_url: Optional[str] = None
+    phone: Optional[str] = None
+    about_me: Optional[str] = None
+    current_position: Optional[str] = None
+    is_verified: bool = False
+    last_seen: datetime
+    is_online: bool = True
+    
+    class Config:
+        from_attributes = True
+
+# Online Users Response Schema
+class OnlineUsersResponse(BaseModel):
+    online_users: List[OnlineUserDetails]
     
     class Config:
         from_attributes = True
@@ -73,6 +113,7 @@ class ChatMessageResponse(BaseModel):
     is_liked: bool = False  # Whether current user liked this message
     like_count: int = 0  # Total number of likes for this message
     sender_details: Optional[SenderDetails] = None
+    receiver_details: Optional[ReceiverDetails] = None
     
     class Config:
         from_attributes = True

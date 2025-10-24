@@ -3,6 +3,8 @@ from typing import Dict, List, Set
 import json
 import asyncio
 from datetime import datetime
+from ..database import SessionLocal
+from ..repositories.chat_repository import ChatRepository
 
 class ConnectionManager:
     def __init__(self):
@@ -40,16 +42,24 @@ class ConnectionManager:
 
     async def send_to_room_participants(self, message: dict, room_id: int, exclude_user: int = None):
         """Send a message to all users in a specific room"""
-        # This would need room participant data from database
-        # For now, we'll send to all connected users
-        for user_id, websocket in self.active_connections.items():
-            if exclude_user and user_id == exclude_user:
-                continue
-            try:
-                await websocket.send_text(json.dumps(message))
-            except Exception as e:
-                print(f"Error sending room message to user {user_id}: {e}")
-                self.disconnect(user_id)
+        # Get room participants from database
+        db = SessionLocal()
+        try:
+            chat_repo = ChatRepository(db)
+            room_participants = chat_repo.get_room_participants(room_id)
+            
+            # Send message only to connected users who are in this room
+            for user_id in room_participants:
+                if user_id in self.active_connections:
+                    if exclude_user and user_id == exclude_user:
+                        continue
+                    try:
+                        await self.active_connections[user_id].send_text(json.dumps(message))
+                    except Exception as e:
+                        print(f"Error sending room message to user {user_id}: {e}")
+                        self.disconnect(user_id)
+        finally:
+            db.close()
 
     async def send_direct_message(self, message: dict, sender_id: int, receiver_id: int):
         """Send a direct message to a specific receiver"""
@@ -94,7 +104,7 @@ class ConnectionManager:
         await self.send_to_room_participants(typing_message, room_id, exclude_user=user_id)
 
     async def broadcast_presence(self, user_id: int, is_online: bool, user_name: str = None):
-        """Broadcast user presence update to all connected users"""
+        """Broadcast user presence update to users who share rooms with this user"""
         presence_message = {
             "type": "presence",
             "data": {
@@ -105,14 +115,24 @@ class ConnectionManager:
             }
         }
         
-        # Send to all connected users except the user themselves
-        for uid, websocket in self.active_connections.items():
-            if uid != user_id:
-                try:
-                    await websocket.send_text(json.dumps(presence_message))
-                except Exception as e:
-                    print(f"Error broadcasting presence to user {uid}: {e}")
-                    self.disconnect(uid)
+        # Get all rooms where this user is a participant
+        db = SessionLocal()
+        try:
+            chat_repo = ChatRepository(db)
+            user_rooms = chat_repo.get_user_rooms(user_id)
+            
+            # Send presence update to all users in those rooms
+            for room in user_rooms:
+                room_participants = chat_repo.get_room_participants(room.id)
+                for participant_id in room_participants:
+                    if participant_id != user_id and participant_id in self.active_connections:
+                        try:
+                            await self.active_connections[participant_id].send_text(json.dumps(presence_message))
+                        except Exception as e:
+                            print(f"Error broadcasting presence to user {participant_id}: {e}")
+                            self.disconnect(participant_id)
+        finally:
+            db.close()
 
     async def broadcast_new_message(self, message_data: dict, room_id: int, sender_id: int, receiver_id: int):
         """Broadcast new message to room participants"""
@@ -187,6 +207,79 @@ class ConnectionManager:
         """Remove user from current room"""
         if user_id in self.user_rooms:
             del self.user_rooms[user_id]
+
+    async def broadcast_video_call(self, call_id: str, channel_name: str, caller_id: int, caller_name: str, receiver_id: int, room_id: int):
+        """Broadcast video call notification to room participants"""
+        video_call_message = {
+            "type": "video_call",
+            "data": {
+                "call_id": call_id,
+                "channel_name": channel_name,
+                "caller_id": caller_id,
+                "caller_name": caller_name,
+                "receiver_id": receiver_id,
+                "room_id": room_id
+            }
+        }
+        
+        await self.send_to_room_participants(video_call_message, room_id, exclude_user=caller_id)
+
+    async def broadcast_video_call_answer(self, call_id: str, receiver_id: int, receiver_name: str):
+        """Broadcast video call answer notification"""
+        answer_message = {
+            "type": "video_call_answer",
+            "data": {
+                "call_id": call_id,
+                "receiver_id": receiver_id,
+                "receiver_name": receiver_name
+            }
+        }
+        
+        # Send to all connected users (this is a global notification)
+        for user_id, websocket in self.active_connections.items():
+            try:
+                await websocket.send_text(json.dumps(answer_message))
+            except Exception as e:
+                print(f"Error broadcasting video call answer to user {user_id}: {e}")
+                self.disconnect(user_id)
+
+    async def broadcast_video_call_reject(self, call_id: str, receiver_id: int, receiver_name: str):
+        """Broadcast video call reject notification"""
+        reject_message = {
+            "type": "video_call_reject",
+            "data": {
+                "call_id": call_id,
+                "receiver_id": receiver_id,
+                "receiver_name": receiver_name
+            }
+        }
+        
+        # Send to all connected users (this is a global notification)
+        for user_id, websocket in self.active_connections.items():
+            try:
+                await websocket.send_text(json.dumps(reject_message))
+            except Exception as e:
+                print(f"Error broadcasting video call reject to user {user_id}: {e}")
+                self.disconnect(user_id)
+
+    async def broadcast_video_call_end(self, call_id: str, user_id: int, user_name: str):
+        """Broadcast video call end notification"""
+        end_message = {
+            "type": "video_call_end",
+            "data": {
+                "call_id": call_id,
+                "user_id": user_id,
+                "user_name": user_name
+            }
+        }
+        
+        # Send to all connected users (this is a global notification)
+        for uid, websocket in self.active_connections.items():
+            try:
+                await websocket.send_text(json.dumps(end_message))
+            except Exception as e:
+                print(f"Error broadcasting video call end to user {uid}: {e}")
+                self.disconnect(uid)
 
 
 # Global connection manager instance

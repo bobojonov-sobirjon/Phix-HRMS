@@ -10,6 +10,7 @@ class Location(Base):
     name = Column(String(255), nullable=False)
     flag_image = Column(Text, nullable=True)
     code = Column(String(10), nullable=True)
+    phone_code = Column(String(10), nullable=True)
     
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())

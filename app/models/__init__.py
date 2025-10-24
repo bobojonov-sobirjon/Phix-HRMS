@@ -17,6 +17,7 @@ from .certification_center import CertificationCenter
 from .gig_job import GigJob
 from .gig_job_skill import GigJobSkill
 from .proposal import Proposal
+from .proposal_attachment import ProposalAttachment
 from .corporate_profile import CorporateProfile
 from .full_time_job import FullTimeJob
 from .full_time_job_skill import FullTimeJobSkill
@@ -45,6 +46,7 @@ __all__ = [
     "GigJob",
     "GigJobSkill",
     "Proposal",
+    "ProposalAttachment",
     "CorporateProfile",
     "FullTimeJob",
     "FullTimeJobSkill",

@@ -8,6 +8,24 @@ from .full_time_job import FullTimeJobResponse
 from .profile import UserFullResponse, UserShortDetails
 
 
+# ProposalAttachment schemas
+class ProposalAttachmentBase(BaseModel):
+    attachment: str = Field(..., description="File path")
+    size: int = Field(..., description="File size in bytes")
+    name: str = Field(..., description="Original file name")
+
+
+class ProposalAttachmentResponse(ProposalAttachmentBase):
+    id: int
+    proposal_id: int
+    created_at: datetime
+    updated_at: Optional[datetime] = None
+    
+    model_config = {
+        "from_attributes": True
+    }
+
+
 # Base schema
 class ProposalBase(BaseModel):
     cover_letter: str = Field(..., min_length=10, description="Cover letter content")
@@ -34,7 +52,6 @@ class ProposalCreateForm(BaseModel):
 
 # Create schema (for backward compatibility)
 class ProposalCreate(ProposalBase):
-    attachments: Optional[str] = Field(None, description="File attachments (JSON string)")
     gig_job_id: Optional[int] = Field(None, description="ID of the gig job (for gig jobs)")
     full_time_job_id: Optional[int] = Field(None, description="ID of the full-time job (for full-time jobs)")
     
@@ -59,7 +76,6 @@ class ProposalUpdate(BaseModel):
     cover_letter: Optional[str] = Field(None, min_length=10)
     delivery_time: Optional[int] = Field(None, ge=1)
     offer_amount: Optional[float] = Field(None, ge=0)
-    attachments: Optional[str] = None
 
 
 # Response schema
@@ -68,7 +84,7 @@ class ProposalResponse(ProposalBase):
     user_id: int
     gig_job_id: Optional[int] = None
     full_time_job_id: Optional[int] = None
-    attachments: Optional[List[str]] = Field(None, description="File attachments (array of file paths)")
+    attachments: Optional[List[ProposalAttachmentResponse]] = Field(None, description="File attachments")
     created_at: datetime
     updated_at: Optional[datetime] = None
     
@@ -83,7 +99,7 @@ class ProposalResponse(ProposalBase):
     
     @classmethod
     def from_orm(cls, obj):
-        """Custom from_orm method to parse attachments JSON string and include relationships"""
+        """Custom from_orm method to include relationships and attachments"""
         data = {
             "id": obj.id,
             "user_id": obj.user_id,
@@ -94,23 +110,18 @@ class ProposalResponse(ProposalBase):
             "offer_amount": obj.offer_amount,
             "created_at": obj.created_at,
             "updated_at": obj.updated_at,
-            "attachments": None,
+            "attachments": [],
             "user": None,
             "gig_job": None,
             "full_time_job": None
         }
         
-        # Parse attachments JSON string to array
-        if obj.attachments:
-            import json
-            try:
-                # Handle double backslashes in the JSON string
-                attachments_str = obj.attachments.replace('\\\\', '/')
-                attachments = json.loads(attachments_str)
-                # Add base URL to each attachment path
-                data["attachments"] = [f"{settings.BASE_URL}/static/{attachment}" for attachment in attachments]
-            except (json.JSONDecodeError, TypeError):
-                data["attachments"] = []
+        # Include attachments if available
+        if hasattr(obj, 'attachments') and obj.attachments:
+            data["attachments"] = [
+                ProposalAttachmentResponse.model_validate(attachment) 
+                for attachment in obj.attachments
+            ]
         
         # Include user details if available
         if hasattr(obj, 'user') and obj.user:
@@ -157,6 +168,7 @@ class ProposalResponse(ProposalBase):
                 "name": gig_job.location.name,
                 "flag_image": f"{settings.BASE_URL}{gig_job.location.flag_image}" if gig_job.location.flag_image and not gig_job.location.flag_image.startswith(('http://', 'https://')) else gig_job.location.flag_image,
                 "code": gig_job.location.code,
+                "phone_code": gig_job.location.phone_code,
                 "created_at": gig_job.location.created_at,
                 "updated_at": gig_job.location.updated_at,
                 "is_deleted": getattr(gig_job.location, 'is_deleted', False)
