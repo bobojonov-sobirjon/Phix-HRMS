@@ -17,9 +17,21 @@ depends_on = None
 
 
 def upgrade():
-    # Check if columns already exist before adding
+    # Check if table exists before making changes
     connection = op.get_bind()
     inspector = sa.inspect(connection)
+    
+    # Check if users table exists
+    if 'users' not in inspector.get_table_names():
+        print("users table does not exist, skipping migration")
+        return
+    
+    # Check if categories table exists (required for foreign keys)
+    if 'categories' not in inspector.get_table_names():
+        print("categories table does not exist, skipping migration")
+        return
+    
+    # Check if columns already exist before adding
     columns = [col['name'] for col in inspector.get_columns('users')]
     
     # Add main_category_id column to users table
@@ -43,10 +55,31 @@ def upgrade():
 
 
 def downgrade():
-    # Drop foreign key constraints
-    op.drop_constraint('fk_users_sub_category', 'users', type_='foreignkey')
-    op.drop_constraint('fk_users_main_category', 'users', type_='foreignkey')
+    # Check if table exists before making changes
+    connection = op.get_bind()
+    inspector = sa.inspect(connection)
     
-    # Drop columns
-    op.drop_column('users', 'sub_category_id')
-    op.drop_column('users', 'main_category_id')
+    # Check if users table exists
+    if 'users' not in inspector.get_table_names():
+        print("users table does not exist, skipping downgrade")
+        return
+    
+    # Check if columns exist before trying to remove them
+    columns = [col['name'] for col in inspector.get_columns('users')]
+    
+    # Drop foreign key constraints
+    try:
+        op.drop_constraint('fk_users_sub_category', 'users', type_='foreignkey')
+    except Exception:
+        pass  # Constraint doesn't exist
+    
+    try:
+        op.drop_constraint('fk_users_main_category', 'users', type_='foreignkey')
+    except Exception:
+        pass  # Constraint doesn't exist
+    
+    # Drop columns if they exist
+    if 'sub_category_id' in columns:
+        op.drop_column('users', 'sub_category_id')
+    if 'main_category_id' in columns:
+        op.drop_column('users', 'main_category_id')
