@@ -20,6 +20,21 @@ depends_on: Union[str, Sequence[str], None] = None
 
 def upgrade() -> None:
     """Upgrade schema."""
+    # Check if table exists before making changes
+    connection = op.get_bind()
+    inspector = sa.inspect(connection)
+    
+    # Check if full_time_jobs table exists
+    if 'full_time_jobs' not in inspector.get_table_names():
+        print("full_time_jobs table does not exist, skipping migration")
+        return
+    
+    # Check if column already exists
+    columns = [col['name'] for col in inspector.get_columns('full_time_jobs')]
+    if 'pay_period' in columns:
+        print("pay_period column already exists, skipping migration")
+        return
+    
     # Create the PayPeriod enum type
     pay_period_enum = postgresql.ENUM(
         'PER_HOUR', 'PER_DAY', 'PER_WEEK', 'PER_MONTH', 'PER_YEAR',
@@ -35,12 +50,27 @@ def upgrade() -> None:
 
 def downgrade() -> None:
     """Downgrade schema."""
-    # Remove the pay_period column
-    op.drop_column('full_time_jobs', 'pay_period')
+    # Check if table exists before making changes
+    connection = op.get_bind()
+    inspector = sa.inspect(connection)
+    
+    # Check if full_time_jobs table exists
+    if 'full_time_jobs' not in inspector.get_table_names():
+        print("full_time_jobs table does not exist, skipping downgrade")
+        return
+    
+    # Check if column exists before trying to remove it
+    columns = [col['name'] for col in inspector.get_columns('full_time_jobs')]
+    if 'pay_period' in columns:
+        # Remove the pay_period column
+        op.drop_column('full_time_jobs', 'pay_period')
     
     # Drop the PayPeriod enum type
-    pay_period_enum = postgresql.ENUM(
-        'PER_HOUR', 'PER_DAY', 'PER_WEEK', 'PER_MONTH', 'PER_YEAR',
-        name='payperiod'
-    )
-    pay_period_enum.drop(op.get_bind())
+    try:
+        pay_period_enum = postgresql.ENUM(
+            'PER_HOUR', 'PER_DAY', 'PER_WEEK', 'PER_MONTH', 'PER_YEAR',
+            name='payperiod'
+        )
+        pay_period_enum.drop(op.get_bind())
+    except Exception:
+        pass  # Enum doesn't exist or can't be dropped
