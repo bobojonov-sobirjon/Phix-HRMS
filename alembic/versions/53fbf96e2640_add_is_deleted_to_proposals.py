@@ -20,11 +20,41 @@ depends_on: Union[str, Sequence[str], None] = None
 
 def upgrade() -> None:
     """Upgrade schema."""
+    # Check if table exists before making changes
+    connection = op.get_bind()
+    inspector = sa.inspect(connection)
+    
+    # Check if proposals table exists
+    if 'proposals' not in inspector.get_table_names():
+        print("proposals table does not exist, skipping migration")
+        return
+    
+    # Check if column already exists
+    columns = [col['name'] for col in inspector.get_columns('proposals')]
+    if 'is_deleted' in columns:
+        print("is_deleted column already exists, skipping migration")
+        return
+    
     # Add is_deleted column to proposals table
     op.add_column('proposals', sa.Column('is_deleted', sa.Boolean(), nullable=True, server_default='false'))
 
 
 def downgrade() -> None:
     """Downgrade schema."""
+    # Check if table exists before making changes
+    connection = op.get_bind()
+    inspector = sa.inspect(connection)
+    
+    # Check if proposals table exists
+    if 'proposals' not in inspector.get_table_names():
+        print("proposals table does not exist, skipping downgrade")
+        return
+    
+    # Check if column exists before dropping
+    columns = [col['name'] for col in inspector.get_columns('proposals')]
+    if 'is_deleted' not in columns:
+        print("is_deleted column does not exist, skipping downgrade")
+        return
+    
     # Remove is_deleted column from proposals table
     op.drop_column('proposals', 'is_deleted')
