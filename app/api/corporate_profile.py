@@ -495,14 +495,96 @@ async def delete_corporate_profile(
     return MessageResponse(message="Corporate profile deleted successfully")
 
 
+@router.post("/resend-otp", response_model=SuccessResponse, tags=["Corporate Profile"])
+async def resend_corporate_otp(
+    current_user: dict = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Resend OTP code for corporate profile verification - only for the authenticated user's corporate profile"""
+    corporate_repo = CorporateProfileRepository(db)
+    
+    # Get the user's corporate profile (filtered by current_user from token)
+    profile = corporate_repo.get_by_user_id(current_user.id)
+    
+    if not profile:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Corporate profile not found for this user"
+        )
+    
+    # Verify the profile belongs to the current user (double check)
+    if profile.user_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Unauthorized: This corporate profile does not belong to you"
+        )
+    
+    # Check if profile is already verified
+    if profile.is_verified:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Corporate profile is already verified"
+        )
+    
+    # Check if there's a valid (non-expired and unused) OTP for this profile
+    existing_otp = db.query(OTP).filter(
+        OTP.email == current_user.email,
+        OTP.otp_type == "corporate_verification",
+        OTP.is_used == False
+    ).order_by(OTP.created_at.desc()).first()
+    
+    # Only generate new OTP if:
+    # 1. No OTP exists, OR
+    # 2. The existing OTP has expired
+    if existing_otp and not existing_otp.is_expired():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="A valid OTP code has already been sent. Please check your email or wait for the current code to expire before requesting a new one."
+        )
+    
+    # Generate new OTP
+    otp_code = generate_otp()
+    otp = OTP.create_otp(
+        email=current_user.email,
+        otp_code=otp_code,
+        otp_type="corporate_verification",
+        data={"profile_id": profile.id}
+    )
+    
+    db.add(otp)
+    db.commit()
+    
+    # Send verification email
+    try:
+        await send_corporate_verification_email(
+            email=current_user.email,
+            otp_code=otp_code
+        )
+    except Exception as e:
+        print(f"Failed to send corporate verification email: {e}")
+        # Return OTP in response for testing/development
+        return SuccessResponse(
+            msg="OTP code generated (email failed to send, check console for OTP)",
+            data={"otp_code": otp_code}
+        )
+    
+    return SuccessResponse(
+        msg="OTP code resent successfully",
+        data={
+            "email": current_user.email,
+            "profile_id": profile.id
+        }
+    )
+
+
 @router.post("/verify", response_model=MessageResponse, tags=["Corporate Profile"])
 async def verify_corporate_profile(
     verification: CorporateProfileVerification,
     current_user: dict = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Verify corporate profile with OTP"""
-    # Find valid OTP
+    """Verify corporate profile with OTP - only for the authenticated user's corporate profile"""
+    # Find valid OTP for this user
     otp = db.query(OTP).filter(
         OTP.email == current_user.email,
         OTP.otp_code == verification.otp_code,
@@ -526,11 +608,27 @@ async def verify_corporate_profile(
             detail="Invalid OTP data"
         )
     
-    # Verify profile
+    # Get the profile and verify it belongs to the current user
     corporate_repo = CorporateProfileRepository(db)
-    profile = corporate_repo.verify_profile(profile_id)
+    profile = corporate_repo.get_by_id(profile_id)
     
     if not profile:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Corporate profile not found"
+        )
+    
+    # Verify the profile belongs to the current user
+    if profile.user_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Unauthorized: This OTP is not for your corporate profile"
+        )
+    
+    # Verify profile
+    verified_profile = corporate_repo.verify_profile(profile_id)
+    
+    if not verified_profile:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Corporate profile not found"
