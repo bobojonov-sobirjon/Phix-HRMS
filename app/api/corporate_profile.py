@@ -526,21 +526,19 @@ async def resend_corporate_otp(
             detail="Corporate profile is already verified"
         )
     
-    # Check if there's a valid (non-expired and unused) OTP for this profile
-    existing_otp = db.query(OTP).filter(
+    # Find any existing non-used OTPs and mark them as used (invalidate old codes)
+    existing_otps = db.query(OTP).filter(
         OTP.email == current_user.email,
         OTP.otp_type == "corporate_verification",
         OTP.is_used == False
-    ).order_by(OTP.created_at.desc()).first()
+    ).all()
     
-    # Only generate new OTP if:
-    # 1. No OTP exists, OR
-    # 2. The existing OTP has expired
-    if existing_otp and not existing_otp.is_expired():
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="A valid OTP code has already been sent. Please check your email or wait for the current code to expire before requesting a new one."
-        )
+    # Mark all existing valid OTPs as used (only one valid OTP at a time)
+    for old_otp in existing_otps:
+        old_otp.is_used = True
+    
+    # Commit the invalidation of old OTPs
+    db.commit()
     
     # Generate new OTP
     otp_code = generate_otp()
