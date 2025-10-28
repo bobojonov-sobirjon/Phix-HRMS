@@ -889,11 +889,18 @@ async def get_user_profiles(
         }
         profiles.append(owned_profile)
     
-    # 3. Team Memberships (boshqa kompaniyalarda)
+    # 3. Team Memberships (boshqa kompaniyalarda - faqat owned corporate profilidan tashqarida)
     team_member_repo = TeamMemberRepository(db)
     user_team_memberships = team_member_repo.get_user_team_memberships_accepted(current_user.id)
     
+    # User's owned corporate profile ID - exclude it from team memberships
+    owned_corporate_profile_id = user_corporate_profile.id if user_corporate_profile else None
+    
     for membership in user_team_memberships:
+        # Skip if this is the user's own corporate profile (it's already added as owned profile)
+        if owned_corporate_profile_id and membership.corporate_profile_id == owned_corporate_profile_id:
+            continue
+            
         corporate_profile = db.query(CorporateProfile).filter(
             CorporateProfile.id == membership.corporate_profile_id
         ).first()
