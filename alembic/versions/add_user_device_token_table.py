@@ -35,18 +35,21 @@ def upgrade() -> None:
         print("user_device_tokens table already exists, skipping creation")
         return
     
-    # Create DeviceType enum if it doesn't exist
-    op.execute("""
-        DO $$ 
-        BEGIN 
-            CREATE TYPE devicetype AS ENUM ('ios', 'android'); 
-        EXCEPTION 
-            WHEN duplicate_object THEN null; 
-        END $$;
-    """)
+    # Check if devicetype enum exists
+    result = connection.execute(sa.text("""
+        SELECT EXISTS (
+            SELECT 1 FROM pg_type 
+            WHERE typname = 'devicetype'
+        )
+    """))
+    enum_exists = result.scalar()
     
-    # Define the enum for use in table creation
-    device_type_enum = postgresql.ENUM('ios', 'android', name='devicetype')
+    # Create DeviceType enum if it doesn't exist
+    if not enum_exists:
+        op.execute("CREATE TYPE devicetype AS ENUM ('ios', 'android')")
+    
+    # Define the enum for use in table creation (create_type=False because we already created it)
+    device_type_enum = postgresql.ENUM('ios', 'android', name='devicetype', create_type=False)
     
     # Create user_device_tokens table
     op.create_table(
