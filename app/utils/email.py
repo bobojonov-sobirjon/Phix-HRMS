@@ -27,44 +27,25 @@ def test_smtp_connection(server: str, port: int, timeout: int = 5) -> bool:
 def send_corporate_verification_email_sync(email: str, otp_code: str) -> bool:
     """Send corporate profile verification OTP code via email (synchronous version)"""
     try:
-        print("=== CORPORATE VERIFICATION EMAIL DEBUG ===")
-        print(f"Starting corporate verification email send to: {email}")
-        print(f"OTP Code: {otp_code}")
-        
         # First try Brevo if configured (free service - 300 emails/day)
         if settings.BREVO_API_KEY and settings.BREVO_FROM_EMAIL:
-            print("Trying Brevo first...")
             from .brevo_email import send_email_brevo_sync
             if send_email_brevo_sync(email, otp_code, "corporate_verification"):
                 return True
-            print("Brevo failed, trying SMTP...")
-        
-        # Fallback to SMTP
-        print(f"SMTP Settings:")
-        print(f"  Server: {settings.SMTP_SERVER}")
-        print(f"  Port: {settings.SMTP_PORT}")
-        print(f"  Username: {settings.SMTP_USERNAME}")
-        print(f"  Password: {'*' * len(settings.SMTP_PASSWORD) if settings.SMTP_PASSWORD else 'NOT SET'}")
         
         # Check if email settings are configured
         if not settings.SMTP_USERNAME or not settings.SMTP_PASSWORD:
-            print("ERROR: SMTP_USERNAME or SMTP_PASSWORD not configured!")
             return False
         
         # Use the new retry mechanism with multiple SMTP configurations
         return send_email_with_retry(email, otp_code, "corporate_verification")
         
     except Exception as e:
-        print(f"General Exception during corporate verification email sending: {e}")
-        print(f"Exception type: {type(e)}")
-        import traceback
-        print(f"Traceback: {traceback.format_exc()}")
         return False
 
 async def send_corporate_verification_email(email: str, otp_code: str) -> bool:
     """Send corporate profile verification OTP code via email (async version)"""
     try:
-        print(f"Starting async corporate verification email send to: {email}")
         # Run email sending in thread pool to avoid blocking
         loop = asyncio.get_event_loop()
         result = await loop.run_in_executor(
@@ -73,13 +54,8 @@ async def send_corporate_verification_email(email: str, otp_code: str) -> bool:
             email, 
             otp_code
         )
-        print(f"Async corporate verification email send completed with result: {result}")
         return result
     except Exception as e:
-        print(f"Exception in async corporate verification email send: {e}")
-        print(f"Exception type: {type(e)}")
-        import traceback
-        print(f"Async traceback: {traceback.format_exc()}")
         return False
 
 def send_email_with_retry(email: str, otp_code: str, email_type: str = "registration") -> bool:
@@ -111,11 +87,8 @@ def send_email_with_retry(email: str, otp_code: str, email_type: str = "registra
     ]
     
     for config in smtp_configs:
-        print(f"Trying {config['name']}...")
-        
         # Test connection first
         if not test_smtp_connection(config['server'], config['port']):
-            print(f"Connection test failed for {config['name']}")
             continue
             
         try:
@@ -167,24 +140,15 @@ def send_email_with_retry(email: str, otp_code: str, email_type: str = "registra
             # Login and send
             server.login(settings.SMTP_USERNAME, settings.SMTP_PASSWORD)
             
-            # Debug: Print the actual email content to see what's being sent
             text = msg.as_string()
-            print(f"=== EMAIL CONTENT DEBUG ===")
-            print(f"Email headers and content:")
-            print(text)
-            print("=== END EMAIL CONTENT DEBUG ===")
-            
             server.sendmail(settings.SMTP_USERNAME, email, text)
             server.quit()
             
-            print(f"Email sent successfully using {config['name']}!")
             return True
             
         except Exception as e:
-            print(f"Failed with {config['name']}: {e}")
             continue
     
-    print("All SMTP configurations failed")
     return False
 
 def generate_otp(length: int = 6) -> str:
@@ -194,18 +158,8 @@ def generate_otp(length: int = 6) -> str:
 def send_otp_email_sync(email: str, otp_code: str) -> bool:
     """Send OTP code via email (synchronous version)"""
     try:
-        print("=== PASSWORD RESET EMAIL DEBUG ===")
-        print(f"Starting password reset email send to: {email}")
-        print(f"OTP Code: {otp_code}")
-        print(f"SMTP Settings:")
-        print(f"  Server: {settings.SMTP_SERVER}")
-        print(f"  Port: {settings.SMTP_PORT}")
-        print(f"  Username: {settings.SMTP_USERNAME}")
-        print(f"  Password: {'*' * len(settings.SMTP_PASSWORD) if settings.SMTP_PASSWORD else 'NOT SET'}")
-        
         # Check if email settings are configured
         if not settings.SMTP_USERNAME or not settings.SMTP_PASSWORD:
-            print("ERROR: SMTP_USERNAME or SMTP_PASSWORD not configured!")
             return False
         
         # Create message
@@ -232,44 +186,25 @@ def send_otp_email_sync(email: str, otp_code: str) -> bool:
         
         msg.attach(MIMEText(body, 'html'))
         
-        print("Attempting to connect to SMTP server...")
-        
         # Send email with optimized error handling
         server = smtplib.SMTP(settings.SMTP_SERVER, settings.SMTP_PORT, timeout=10)
-        
-        print("SMTP connection established, starting TLS...")
         server.starttls()
-        
-        print("TLS started, attempting login...")
         server.login(settings.SMTP_USERNAME, settings.SMTP_PASSWORD)
-        
-        print("Login successful, sending email...")
         text = msg.as_string()
         server.sendmail(settings.SMTP_USERNAME, email, text)
-        
-        print("Password reset email sent successfully!")
         server.quit()
-        print("SMTP connection closed")
-        print("=== PASSWORD RESET EMAIL COMPLETE ===")
         return True
         
     except smtplib.SMTPAuthenticationError as e:
-        print(f"SMTP Authentication Error: {e}")
         return False
     except smtplib.SMTPException as e:
-        print(f"SMTP Exception: {e}")
         return False
     except Exception as e:
-        print(f"General Exception during password reset email sending: {e}")
-        print(f"Exception type: {type(e)}")
-        import traceback
-        print(f"Traceback: {traceback.format_exc()}")
         return False
 
 async def send_otp_email(email: str, otp_code: str) -> bool:
     """Send OTP code via email (async version)"""
     try:
-        print(f"Starting async password reset email send to: {email}")
         # Run email sending in thread pool to avoid blocking
         loop = asyncio.get_event_loop()
         result = await loop.run_in_executor(
@@ -278,56 +213,32 @@ async def send_otp_email(email: str, otp_code: str) -> bool:
             email, 
             otp_code
         )
-        print(f"Async password reset email send completed with result: {result}")
         return result
     except Exception as e:
-        print(f"Exception in async password reset email send: {e}")
-        print(f"Exception type: {type(e)}")
-        import traceback
-        print(f"Async traceback: {traceback.format_exc()}")
         return False
 
 def send_registration_otp_email_sync(email: str, otp_code: str) -> bool:
     """Send registration verification OTP code via email (synchronous version)"""
     try:
-        print("=== EMAIL SENDING DEBUG ===")
-        print(f"Starting email send to: {email}")
-        print(f"OTP Code: {otp_code}")
-        
         # First try Brevo if configured (free service - 300 emails/day)
         if settings.BREVO_API_KEY and settings.BREVO_FROM_EMAIL:
-            print("Trying Brevo first...")
             from .brevo_email import send_email_brevo_sync
             if send_email_brevo_sync(email, otp_code, "registration"):
                 return True
-            print("Brevo failed, trying SMTP...")
-        
-        # Fallback to SMTP
-        print(f"SMTP Settings:")
-        print(f"  Server: {settings.SMTP_SERVER}")
-        print(f"  Port: {settings.SMTP_PORT}")
-        print(f"  Username: {settings.SMTP_USERNAME}")
-        print(f"  Password: {'*' * len(settings.SMTP_PASSWORD) if settings.SMTP_PASSWORD else 'NOT SET'}")
         
         # Check if email settings are configured
         if not settings.SMTP_USERNAME or not settings.SMTP_PASSWORD:
-            print("ERROR: SMTP_USERNAME or SMTP_PASSWORD not configured!")
             return False
         
         # Use the new retry mechanism with multiple SMTP configurations
         return send_email_with_retry(email, otp_code, "registration")
         
     except Exception as e:
-        print(f"General Exception during email sending: {e}")
-        print(f"Exception type: {type(e)}")
-        import traceback
-        print(f"Traceback: {traceback.format_exc()}")
         return False
 
 async def send_registration_otp_email(email: str, otp_code: str) -> bool:
     """Send registration verification OTP code via email (async version)"""
     try:
-        print(f"Starting async email send to: {email}")
         # Run email sending in thread pool to avoid blocking
         loop = asyncio.get_event_loop()
         result = await loop.run_in_executor(
@@ -336,13 +247,8 @@ async def send_registration_otp_email(email: str, otp_code: str) -> bool:
             email, 
             otp_code
         )
-        print(f"Async email send completed with result: {result}")
         return result
     except Exception as e:
-        print(f"Exception in async email send: {e}")
-        print(f"Exception type: {type(e)}")
-        import traceback
-        print(f"Async traceback: {traceback.format_exc()}")
         return False
 
 async def send_otp_email_batch(emails_and_otps: list) -> dict:
@@ -400,10 +306,7 @@ def send_email_with_fallback(email: str, otp_code: str, email_type: str = "regis
     
     for service in email_services:
         if not service["username"] or not service["password"]:
-            print(f"Skipping {service['name']} - credentials not configured")
             continue
-            
-        print(f"Trying {service['name']} email service...")
         
         try:
             # Create message
@@ -445,54 +348,34 @@ def send_email_with_fallback(email: str, otp_code: str, email_type: str = "regis
             
             msg.attach(MIMEText(body, 'html'))
             
-            print(f"Connecting to {service['server']}:{service['port']}...")
-            
             # Try different connection methods based on port
             if service["port"] == 465:
                 # Use SSL for port 465
                 import ssl
                 server = smtplib.SMTP_SSL(service["server"], service["port"], timeout=10)
-                print("Using SSL connection...")
             else:
                 # Use STARTTLS for port 587
                 server = smtplib.SMTP(service["server"], service["port"], timeout=10)
-                print("Starting TLS...")
                 server.starttls()
             
-            print("Logging in...")
             server.login(service["username"], service["password"])
-            
-            print("Sending email...")
             text = msg.as_string()
             server.sendmail(service["username"], email, text)
-            
-            print(f"Email sent successfully via {service['name']}!")
             server.quit()
             return True
             
         except Exception as e:
-            print(f"Failed to send via {service['name']}: {e}")
-            print(f"Error type: {type(e)}")
-            if "Network is unreachable" in str(e):
-                print("This appears to be a network connectivity issue")
             continue
     
-    print("All email services failed")
     return False
 
 def send_email_simple_smtp(email: str, otp_code: str, email_type: str = "registration") -> bool:
     """Send email with SendGrid first, then fallback to SMTP"""
     try:
-        print("=== EMAIL SENDING WITH FALLBACK ===")
-        print(f"Attempting to send email to: {email}")
-        
         # Try SendGrid first (bypasses SMTP restrictions)
         if settings.SENDGRID_API_KEY:
-            print("Trying SendGrid...")
             if send_email_sendgrid(email, otp_code, email_type):
                 return True
-            else:
-                print("SendGrid failed, trying SMTP...")
         
         # Fallback to SMTP if SendGrid fails or not configured
         # Use a simple approach - try different ports and methods
@@ -505,10 +388,7 @@ def send_email_simple_smtp(email: str, otp_code: str, email_type: str = "registr
         
         for smtp_config in smtp_servers:
             if not settings.SMTP_USERNAME or not settings.SMTP_PASSWORD:
-                print("No SMTP credentials configured")
                 continue
-                
-            print(f"Trying {smtp_config['name']}...")
             
             try:
                 # Create message
@@ -553,43 +433,29 @@ def send_email_simple_smtp(email: str, otp_code: str, email_type: str = "registr
                 # Connect to SMTP server
                 if smtp_config['use_ssl']:
                     server = smtplib.SMTP_SSL(smtp_config['server'], smtp_config['port'], timeout=15)
-                    print(f"Connected via SSL to {smtp_config['server']}:{smtp_config['port']}")
                 else:
                     server = smtplib.SMTP(smtp_config['server'], smtp_config['port'], timeout=15)
-                    print(f"Connected to {smtp_config['server']}:{smtp_config['port']}")
                     server.starttls()
-                    print("TLS started")
                 
                 # Login and send
                 server.login(settings.SMTP_USERNAME, settings.SMTP_PASSWORD)
-                print("Login successful")
-                
                 text = msg.as_string()
                 server.sendmail(settings.SMTP_USERNAME, email, text)
-                print(f"Email sent successfully via {smtp_config['name']}!")
-                
                 server.quit()
                 return True
                 
             except Exception as e:
-                print(f"Failed with {smtp_config['name']}: {e}")
                 continue
         
-        print("All email methods failed")
         return False
         
     except Exception as e:
-        print(f"General error in email sending: {e}")
         return False
 
 def send_email_sendgrid(email: str, otp_code: str, email_type: str = "registration") -> bool:
     """Send email using SendGrid API (bypasses SMTP restrictions)"""
     try:
-        print("=== SENDGRID EMAIL SENDING ===")
-        print(f"Attempting to send email to: {email}")
-        
         if not settings.SENDGRID_API_KEY:
-            print("SendGrid API key not configured")
             return False
         
         # Import SendGrid (you'll need to install it: pip install sendgrid)
@@ -597,7 +463,6 @@ def send_email_sendgrid(email: str, otp_code: str, email_type: str = "registrati
             from sendgrid import SendGridAPIClient
             from sendgrid.helpers.mail import Mail
         except ImportError:
-            print("SendGrid not installed. Install with: pip install sendgrid")
             return False
         
         # Create email message
@@ -646,25 +511,16 @@ def send_email_sendgrid(email: str, otp_code: str, email_type: str = "registrati
         response = sg.send(message)
         
         if response.status_code == 202:
-            print("✓ Email sent successfully via SendGrid!")
             return True
         else:
-            print(f"✗ SendGrid failed with status code: {response.status_code}")
             return False
             
     except Exception as e:
-        print(f"SendGrid error: {e}")
         return False
 
 async def send_team_invitation_email(email: str, company_name: str, inviter_name: str, role: str) -> bool:
     """Send team invitation email to a user"""
     try:
-        print(f"=== SENDING TEAM INVITATION EMAIL ===")
-        print(f"To: {email}")
-        print(f"Company: {company_name}")
-        print(f"Inviter: {inviter_name}")
-        print(f"Role: {role}")
-        
         # Create message
         msg = MIMEMultipart()
         msg['From'] = settings.SMTP_USERNAME
@@ -695,7 +551,6 @@ async def send_team_invitation_email(email: str, company_name: str, inviter_name
         )
         
     except Exception as e:
-        print(f"Error sending team invitation email: {e}")
         return False
 
 
@@ -747,10 +602,7 @@ def send_team_invitation_email_sync(email: str, company_name: str, inviter_name:
             email_type="team_invitation"
         )
         
-        print(f"Team invitation email sent successfully to {email}")
-        
     except Exception as e:
-        print(f"Error sending team invitation email to {email}: {e}")
         raise e
 
 
@@ -769,7 +621,6 @@ async def send_team_invitation_email(email: str, company_name: str, inviter_name
                 role
             )
     except Exception as e:
-        print(f"Error sending team invitation email: {e}")
         raise e
 
 
@@ -863,8 +714,6 @@ def send_team_invitation_email_direct(email: str, company_name: str, inviter_nam
                 continue
                 
             try:
-                print(f"Trying {config['name']}...")
-                
                 # Create message
                 msg = MIMEMultipart()
                 msg['From'] = config["username"]
@@ -885,18 +734,14 @@ def send_team_invitation_email_direct(email: str, company_name: str, inviter_nam
                 server.sendmail(config["username"], email, text)
                 server.quit()
                 
-                print(f"Team invitation email sent successfully to {email} using {config['name']}")
                 return True
                 
             except Exception as e:
-                print(f"Failed with {config['name']}: {e}")
                 continue
         
-        print(f"All SMTP methods failed for team invitation email to {email}")
         return False
         
     except Exception as e:
-        print(f"Error sending team invitation email to {email}: {e}")
         return False
 
 
@@ -916,7 +761,6 @@ async def send_team_invitation_email_new(email: str, company_name: str, inviter_
                 team_member_id
             )
     except Exception as e:
-        print(f"Error sending team invitation email: {e}")
         raise e
 
 
@@ -1114,8 +958,6 @@ def send_team_invitation_email_with_buttons(email: str, company_name: str, invit
                 continue
                 
             try:
-                print(f"Trying {config['name']}...")
-                
                 # Create message
                 msg = MIMEMultipart()
                 msg['From'] = config["username"]
@@ -1136,18 +978,14 @@ def send_team_invitation_email_with_buttons(email: str, company_name: str, invit
                 server.sendmail(config["username"], email, text)
                 server.quit()
                 
-                print(f"Team invitation email sent successfully to {email} using {config['name']}")
                 return True
                 
             except Exception as e:
-                print(f"Failed with {config['name']}: {e}")
                 continue
         
-        print(f"All SMTP methods failed for team invitation email to {email}")
         return False
         
     except Exception as e:
-        print(f"Error sending team invitation email to {email}: {e}")
         return False
 
 

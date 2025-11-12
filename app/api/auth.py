@@ -198,9 +198,7 @@ async def register(user_data: RegisterOTPRequest, db: Session = Depends(get_db))
             "name": user_data.name,
             "email": user_data.email,
             "password": user_data.password,
-            "phone": user_data.phone,
-            "device_token": user_data.device_token,
-            "device_type": user_data.device_type
+            "phone": user_data.phone
         }
         
         otp = otp_repo.create_otp_with_data(user_data.email, otp_code, "registration", registration_data)
@@ -286,8 +284,9 @@ async def verify_registration_otp(otp_verify: RegisterOTPVerify, db: Session = D
         
         user_repo.assign_roles_to_user(user.id, ['user', 'admin'])
         
-        device_token_value = otp_verify.device_token or registration_data.get("device_token")
-        device_type_value = otp_verify.device_type or registration_data.get("device_type")
+        # Create device token if provided (only from request body in register-code-check)
+        device_token_value = otp_verify.device_token
+        device_type_value = otp_verify.device_type
         
         if device_token_value and device_type_value:
             try:
@@ -301,7 +300,9 @@ async def verify_registration_otp(otp_verify: RegisterOTPVerify, db: Session = D
                 db.commit()
                 db.refresh(device_token)
             except Exception as e:
+                print(f"Error creating device token: {e}")
                 db.rollback()
+                # Don't fail registration if device token creation fails
         
         access_token = create_access_token(
             data={"sub": str(user.id)}

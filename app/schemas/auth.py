@@ -51,8 +51,6 @@ class RegisterOTPRequest(BaseModel):
     email: EmailStr
     password: str
     phone: Optional[str] = None
-    device_token: Optional[str] = None
-    device_type: Optional[str] = None  # "ios" or "android"
     
     @validator('password')
     def validate_password(cls, v):
@@ -64,12 +62,6 @@ class RegisterOTPRequest(BaseModel):
     def validate_phone(cls, v):
         if v and not v.replace('+', '').replace('-', '').replace(' ', '').isdigit():
             raise ValueError('Phone number must contain only digits, spaces, hyphens, and plus sign')
-        return v
-    
-    @validator('device_type')
-    def validate_device_type(cls, v):
-        if v is not None and v not in ['ios', 'android']:
-            raise ValueError('device_type must be either "ios" or "android"')
         return v
 
 # Registration OTP Verification Schema
