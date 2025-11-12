@@ -22,6 +22,7 @@ from ..utils.social_auth import verify_social_token
 from ..models.user import User
 from ..models.role import Role
 from ..models.otp import OTP
+from ..models.user_device_token import UserDeviceToken, DeviceType
 from datetime import timedelta
 from ..config import settings
 import os
@@ -163,8 +164,7 @@ async def register(user_data: RegisterOTPRequest, db: Session = Depends(get_db))
     try:
         user_repo = UserRepository(db)
         otp_repo = OTPRepository(db)
-        
-        # Check if user already exists (including deleted users)
+
         existing_user = user_repo.db.query(User).filter(User.email == user_data.email).first()
         if existing_user:
             if existing_user.is_deleted:
@@ -178,7 +178,6 @@ async def register(user_data: RegisterOTPRequest, db: Session = Depends(get_db))
                     detail="User with this email already exists"
                 )
         
-        # Check if phone already exists (only if phone is provided)
         if user_data.phone:
             existing_phone_user = user_repo.db.query(User).filter(User.phone == user_data.phone).first()
             if existing_phone_user:
@@ -193,40 +192,29 @@ async def register(user_data: RegisterOTPRequest, db: Session = Depends(get_db))
                         detail="User with this phone number already exists"
                     )
         
-        # Generate OTP for registration
         otp_code = generate_otp(settings.OTP_LENGTH)
         
-        # Create OTP record for registration with user data
         registration_data = {
             "name": user_data.name,
             "email": user_data.email,
             "password": user_data.password,
-            "phone": user_data.phone
+            "phone": user_data.phone,
+            "device_token": user_data.device_token,
+            "device_type": user_data.device_type
         }
+        
         otp = otp_repo.create_otp_with_data(user_data.email, otp_code, "registration", registration_data)
         
-        # Print email configuration for debugging
-        print("=== EMAIL DEBUG INFO ===")
-        print(f"SMTP_SERVER: {settings.SMTP_SERVER}")
-        print(f"SMTP_PORT: {settings.SMTP_PORT}")
-        print(f"SMTP_USERNAME: {settings.SMTP_USERNAME}")
-        print(f"SMTP_PASSWORD: {'*' * len(settings.SMTP_PASSWORD) if settings.SMTP_PASSWORD else 'NOT SET'}")
-        print(f"Recipient Email: {user_data.email}")
-        print(f"OTP Code: {otp_code}")
-        print("========================")
-        
-        # Send registration OTP via email
         email_sent = await send_registration_otp_email(user_data.email, otp_code)
         
         print(f"Email sending result: {email_sent}")
         
         if not email_sent:
-            # For development/testing, return OTP in response instead of failing
             return SuccessResponse(
                 msg="Registration OTP code generated (email failed, check console for OTP)",
                 data={
                     "email": user_data.email,
-                    "otp_code": otp_code  # Include OTP in response for testing
+                    "otp_code": otp_code
                 }
             )
         
@@ -246,7 +234,6 @@ async def verify_registration_otp(otp_verify: RegisterOTPVerify, db: Session = D
         user_repo = UserRepository(db)
         otp_repo = OTPRepository(db)
         
-        # Get valid registration OTP
         otp = otp_repo.get_valid_otp_by_type(otp_verify.email, otp_verify.otp_code, "registration")
         if not otp:
             raise HTTPException(
@@ -254,7 +241,6 @@ async def verify_registration_otp(otp_verify: RegisterOTPVerify, db: Session = D
                 detail="Invalid or expired registration OTP code"
             )
         
-        # Check if user already exists (double check)
         existing_user = user_repo.db.query(User).filter(User.email == otp_verify.email).first()
         if existing_user:
             if existing_user.is_deleted:
@@ -268,7 +254,6 @@ async def verify_registration_otp(otp_verify: RegisterOTPVerify, db: Session = D
                     detail="User with this email already exists"
                 )
         
-        # Get user data from OTP
         registration_data = otp.get_data()
         if not registration_data:
             raise HTTPException(
@@ -276,8 +261,7 @@ async def verify_registration_otp(otp_verify: RegisterOTPVerify, db: Session = D
                 detail="Invalid registration data"
             )
         
-        # Check if phone already exists (only if phone is provided)
-        if registration_data["phone"]:
+        if registration_data.get("phone"):
             existing_phone_user = user_repo.db.query(User).filter(User.phone == registration_data["phone"]).first()
             if existing_phone_user:
                 if existing_phone_user.is_deleted:
@@ -291,7 +275,6 @@ async def verify_registration_otp(otp_verify: RegisterOTPVerify, db: Session = D
                         detail="User with this phone number already exists"
                     )
         
-        # Create new user with stored data
         user = user_repo.create_user(
             name=registration_data["name"],
             email=registration_data["email"],
@@ -299,13 +282,27 @@ async def verify_registration_otp(otp_verify: RegisterOTPVerify, db: Session = D
             phone=registration_data["phone"]
         )
         
-        # Mark OTP as used
         otp_repo.mark_otp_used(otp.id)
         
-        # Assign default user and admin roles
         user_repo.assign_roles_to_user(user.id, ['user', 'admin'])
         
-        # Create access token and refresh token
+        device_token_value = otp_verify.device_token or registration_data.get("device_token")
+        device_type_value = otp_verify.device_type or registration_data.get("device_type")
+        
+        if device_token_value and device_type_value:
+            try:
+                device_token = UserDeviceToken(
+                    user_id=user.id,
+                    device_token=device_token_value,
+                    device_type=DeviceType(device_type_value),
+                    is_active=True
+                )
+                db.add(device_token)
+                db.commit()
+                db.refresh(device_token)
+            except Exception as e:
+                db.rollback()
+        
         access_token = create_access_token(
             data={"sub": str(user.id)}
         )
@@ -313,7 +310,6 @@ async def verify_registration_otp(otp_verify: RegisterOTPVerify, db: Session = D
             data={"sub": str(user.id)}
         )
         
-        # Update last login
         user_repo.update_last_login(user.id)
         
         login_response = LoginResponse(
@@ -339,7 +335,6 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
     try:
         user_repo = UserRepository(db)
         
-        # Get user by email (this now excludes deleted users)
         user = user_repo.get_user_by_email(form_data.username)  # OAuth2PasswordRequestForm uses 'username' field
         if not user:
             raise HTTPException(
@@ -348,7 +343,6 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
                 headers={"WWW-Authenticate": "Bearer"},
             )
         
-        # Check if user is active
         if not user.is_active:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
@@ -356,7 +350,6 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
                 headers={"WWW-Authenticate": "Bearer"},
             )
         
-        # Verify password
         if not user.verify_password(form_data.password):
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
@@ -364,12 +357,10 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
                 headers={"WWW-Authenticate": "Bearer"},
             )
         
-        # Create access token
         access_token = create_access_token(
             data={"sub": str(user.id)}
         )
         
-        # Update last login
         user_repo.update_last_login(user.id)
         
         return Token(
@@ -388,7 +379,6 @@ async def login(user_data: UserLogin, db: Session = Depends(get_db)):
     try:
         user_repo = UserRepository(db)
         
-        # Get user by email (this now excludes deleted users)
         user = user_repo.get_user_by_email(user_data.email)
         if not user:
             raise HTTPException(
@@ -396,21 +386,18 @@ async def login(user_data: UserLogin, db: Session = Depends(get_db)):
                 detail="User does not exist"
             )
         
-        # Check if user is active
         if not user.is_active:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Account is deactivated"
             )
         
-        # Verify password
         if not user.verify_password(user_data.password):
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Invalid email or password"
             )
         
-        # Create access token and refresh token
         access_token = create_access_token(
             data={"sub": str(user.id)}
         )
@@ -418,7 +405,6 @@ async def login(user_data: UserLogin, db: Session = Depends(get_db)):
             data={"sub": str(user.id)}
         )
         
-        # Update last login
         user_repo.update_last_login(user.id)
         
         login_response = LoginResponse(
@@ -444,7 +430,6 @@ async def social_login(social_data: SocialLogin, db: Session = Depends(get_db)):
     try:
         user_repo = UserRepository(db)
         
-        # Verify social token
         social_user_info = verify_social_token(social_data.provider, social_data.access_token)
         if not social_user_info:
             raise HTTPException(
@@ -452,11 +437,9 @@ async def social_login(social_data: SocialLogin, db: Session = Depends(get_db)):
                 detail="Invalid social token"
             )
         
-        # Check if user exists by social ID
         user = user_repo.get_user_by_social_id(social_data.provider, social_user_info["id"])
         
         if not user:
-            # Check if user exists by email (including deleted users)
             user = user_repo.db.query(User).filter(User.email == social_user_info["email"]).first()
             
             if user:
@@ -465,7 +448,6 @@ async def social_login(social_data: SocialLogin, db: Session = Depends(get_db)):
                         status_code=status.HTTP_401_UNAUTHORIZED,
                         detail="User with this email was deleted and cannot login"
                     )
-                # Link social account to existing user
                 if social_data.provider == "google":
                     user.google_id = social_user_info["id"]
                 elif social_data.provider == "facebook":
@@ -476,7 +458,6 @@ async def social_login(social_data: SocialLogin, db: Session = Depends(get_db)):
                 user.is_verified = True
                 db.commit()
             else:
-                # Create new user
                 user = user_repo.create_social_user(
                     name=social_user_info["name"],
                     email=social_user_info["email"],
@@ -484,10 +465,8 @@ async def social_login(social_data: SocialLogin, db: Session = Depends(get_db)):
                     social_id=social_user_info["id"],
                     avatar_url=social_user_info.get("picture")
                 )
-                # Assign default user and admin roles
                 user_repo.assign_roles_to_user(user.id, ['user', 'admin'])
         
-        # Check if user is active
         if not user.is_active:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
@@ -528,8 +507,7 @@ async def forgot_password(otp_request: OTPRequest, db: Session = Depends(get_db)
     try:
         user_repo = UserRepository(db)
         otp_repo = OTPRepository(db)
-        
-        # Check if user exists
+         
         user = user_repo.get_user_by_email(otp_request.email)
         if not user:
             raise HTTPException(
@@ -537,22 +515,18 @@ async def forgot_password(otp_request: OTPRequest, db: Session = Depends(get_db)
                 detail="User with this email not found"
             )
         
-        # Generate OTP
         otp_code = generate_otp(settings.OTP_LENGTH)
         
-        # Create OTP record
         otp = otp_repo.create_otp(otp_request.email, otp_code)
         
-        # Send OTP via email
         email_sent = await send_otp_email(otp_request.email, otp_code)
         
         if not email_sent:
-            # For development/testing, return OTP in response instead of failing
             return SuccessResponse(
                 msg="OTP code generated (email failed, check console for OTP)",
                 data={
                     "email": otp_request.email,
-                    "otp_code": otp_code  # Include OTP in response for testing
+                    "otp_code": otp_code
                 }
             )
         
@@ -571,7 +545,6 @@ async def verify_otp(otp_verify: OTPVerify, db: Session = Depends(get_db)):
     try:
         otp_repo = OTPRepository(db)
         
-        # Get valid OTP
         otp = otp_repo.get_valid_otp(otp_verify.email, otp_verify.otp_code)
         if not otp:
             raise HTTPException(
@@ -579,7 +552,6 @@ async def verify_otp(otp_verify: OTPVerify, db: Session = Depends(get_db)):
                 detail="Invalid or expired OTP code"
             )
         
-        # Mark OTP as used
         otp_repo.mark_otp_used(otp.id)
         
         return SuccessResponse(msg="OTP verified successfully")
@@ -594,7 +566,6 @@ async def reset_password(password_reset: PasswordResetVerified, db: Session = De
     try:
         user_repo = UserRepository(db)
         
-        # Get user
         user = user_repo.get_user_by_email(password_reset.email)
         if not user:
             raise HTTPException(
@@ -602,7 +573,6 @@ async def reset_password(password_reset: PasswordResetVerified, db: Session = De
                 detail="User not found"
             )
         
-        # Check if there's a verified OTP for password reset
         verified_otp = db.query(OTP).filter(
             OTP.email == password_reset.email,
             OTP.otp_type == "password_reset",
@@ -615,7 +585,6 @@ async def reset_password(password_reset: PasswordResetVerified, db: Session = De
                 detail="No verified OTP found. Please verify OTP first using /verify-otp endpoint"
             )
         
-        # Update password
         user_repo.update_user_password(user.id, password_reset.new_password)
         
         return SuccessResponse(msg="Password reset successfully")
@@ -634,15 +603,12 @@ async def get_current_user_info(request: Request, current_user: User = Depends(g
             raise HTTPException(status_code=404, detail="User not found")
         user_data = UserFullResponse.model_validate(full_user).dict()
         base_url = str(request.base_url).rstrip("/")
-        # Fix avatar_url
         if user_data["avatar_url"]:
             user_data["avatar_url"] = f"{base_url}{user_data['avatar_url']}"
-        # Fix project images
         for project in user_data.get("projects", []):
             for img in project.get("images", []):
                 if img["image"] and not img["image"].startswith("http"):
                     img["image"] = f"{base_url}{img['image']}"
-        # Fix location flag_image and remove location_id
         if user_data.get("location"):
             if user_data["location"].get("flag_image") and not user_data["location"]["flag_image"].startswith("http"):
                 user_data["location"]["flag_image"] = f"{base_url}{user_data['location']['flag_image']}"
@@ -660,7 +626,6 @@ async def get_current_user_info(request: Request, current_user: User = Depends(g
 async def update_profile(update: UserUpdate, request: Request, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     """Update user profile fields (text fields only). Use /profile/avatar for avatar uploads. Returns full avatar_url."""
     try:
-        # Remove avatar_base64 if present
         update_dict = update.dict(exclude_unset=True)
         update_dict.pop("avatar_base64", None)
         user_repo = UserRepository(db)
@@ -727,7 +692,6 @@ async def test_token_generation(db: Session = Depends(get_db)):
     try:
         from ..utils.auth import create_access_token
         
-        # Create a test token
         test_token = create_access_token(data={"sub": "1"})
         
         return SuccessResponse(
@@ -746,7 +710,6 @@ async def refresh_token(refresh_data: RefreshTokenRequest, db: Session = Depends
     try:
         user_repo = UserRepository(db)
         
-        # Verify refresh token
         payload = verify_refresh_token(refresh_data.refresh_token)
         if not payload:
             raise HTTPException(
@@ -761,7 +724,6 @@ async def refresh_token(refresh_data: RefreshTokenRequest, db: Session = Depends
                 detail="Invalid refresh token"
             )
         
-        # Get user (this now excludes deleted users)
         user = user_repo.get_user_by_id(int(user_id))
         if not user:
             raise HTTPException(
@@ -769,14 +731,12 @@ async def refresh_token(refresh_data: RefreshTokenRequest, db: Session = Depends
                 detail="User does not exist"
             )
         
-        # Check if user is active
         if not user.is_active:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Account is deactivated"
             )
         
-        # Create new access token and refresh token
         access_token = create_access_token(
             data={"sub": str(user.id)}
         )
@@ -805,10 +765,8 @@ async def test_login(db: Session = Depends(get_db)):
     try:
         from ..utils.auth import create_access_token
         
-        # Create a test token
         test_token = create_access_token(data={"sub": "1"})
         
-        # Create a mock user response
         mock_user = {
             "id": 1,
             "name": "Test User",

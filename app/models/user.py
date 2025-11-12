@@ -59,6 +59,7 @@ class User(Base):
     team_memberships = relationship('TeamMember', foreign_keys='TeamMember.user_id', back_populates='user')
     proposals = relationship('Proposal', back_populates='user', cascade='all, delete-orphan')
     saved_jobs = relationship('SavedJob', back_populates='user', cascade='all, delete-orphan')
+    device_tokens = relationship('UserDeviceToken', back_populates='user', cascade='all, delete-orphan')
     
     def set_password(self, password: str):
         """Hash password using bcrypt"""
