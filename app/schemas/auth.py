@@ -30,6 +30,14 @@ class UserRegister(UserBase):
 class UserLogin(BaseModel):
     email: EmailStr
     password: str
+    device_token: Optional[str] = None
+    device_type: Optional[str] = None  # "ios" or "android"
+    
+    @validator('device_type')
+    def validate_device_type(cls, v):
+        if v is not None and v not in ['ios', 'android']:
+            raise ValueError('device_type must be either "ios" or "android"')
+        return v
 
 # Social Login Schema
 class SocialLogin(BaseModel):
@@ -68,14 +76,6 @@ class RegisterOTPRequest(BaseModel):
 class RegisterOTPVerify(BaseModel):
     email: EmailStr
     otp_code: str
-    device_token: Optional[str] = None
-    device_type: Optional[str] = None  # "ios" or "android"
-    
-    @validator('device_type')
-    def validate_device_type(cls, v):
-        if v is not None and v not in ['ios', 'android']:
-            raise ValueError('device_type must be either "ios" or "android"')
-        return v
 
 # Registration Response Schema
 class RegisterResponse(BaseModel):

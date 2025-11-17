@@ -199,6 +199,20 @@ class ProposalRepository:
             ).first() is not None
         return False
 
+    def mark_as_read(self, proposal_id: int) -> Optional[Proposal]:
+        """Mark proposal as read"""
+        proposal = self.db.query(Proposal).filter(Proposal.id == proposal_id).first()
+        
+        if not proposal:
+            return None
+        
+        if not proposal.is_read:
+            proposal.is_read = True
+            self.db.commit()
+            self.db.refresh(proposal)
+        
+        return proposal
+
     def get_by_file_path(self, file_path: str) -> Optional[Proposal]:
         """Get proposal by file path in attachments"""
         import json

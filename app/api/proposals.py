@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.utils.auth import get_current_user
 from app.models.user import User
+from app.models.user_device_token import UserDeviceToken
 from app.repositories.proposal_repository import ProposalRepository
 from app.repositories.proposal_attachment_repository import ProposalAttachmentRepository
 from app.repositories.gig_job_repository import GigJobRepository
@@ -18,6 +19,7 @@ from app.schemas.proposal import (
 )
 from app.repositories.full_time_job_repository import FullTimeJobRepository
 from app.pagination import PaginationParams, create_pagination_response
+from app.utils.firebase_notifications import send_push_notification_multiple
 import json
 import os
 from typing import List, Optional
@@ -27,6 +29,43 @@ router = APIRouter(prefix="/proposals", tags=["Proposals"])
 # File upload directory
 UPLOAD_DIR = "static/proposals"
 os.makedirs(UPLOAD_DIR, exist_ok=True)
+
+
+def get_user_device_tokens(db: Session, user_id: int) -> List[str]:
+    """Get all active device tokens for a user"""
+    device_tokens = db.query(UserDeviceToken).filter(
+        UserDeviceToken.user_id == user_id,
+        UserDeviceToken.is_active == True
+    ).all()
+    return [token.device_token for token in device_tokens]
+
+
+def send_proposal_notification(
+    db: Session,
+    recipient_user_id: int,
+    title: str,
+    body: str,
+    data: dict
+):
+    """Send push notification to user's devices"""
+    try:
+        device_tokens = get_user_device_tokens(db, recipient_user_id)
+        print(f"DEBUG: Found {len(device_tokens)} device token(s) for user_id={recipient_user_id}")
+        if device_tokens:
+            print(f"DEBUG: Sending notification - Title: {title}, Body: {body}")
+            result = send_push_notification_multiple(
+                device_tokens=device_tokens,
+                title=title,
+                body=body,
+                data={str(k): str(v) for k, v in data.items()}
+            )
+            print(f"DEBUG: Notification result - Success: {result.get('success_count', 0)}, Failed: {result.get('failure_count', 0)}")
+        else:
+            print(f"DEBUG: No device tokens found for user_id={recipient_user_id}")
+    except Exception as e:
+        print(f"ERROR: Failed to send notification to user_id={recipient_user_id}: {str(e)}")
+        import traceback
+        traceback.print_exc()
 
 
 def save_uploaded_files(files: List[UploadFile], user_id: int, proposal_id: int) -> List[dict]:
@@ -189,9 +228,51 @@ async def create_proposal(
     # Get the created proposal with all relationships for response
     proposal_with_details = repository.get_by_id(proposal.id)
     
-    # Determine job type for success message
+    # Determine job type and ID for success message and notification
     job_type = "gig job" if gig_job_id else "full-time job"
     job_id = gig_job_id if gig_job_id else full_time_job_id
+    
+    # Send push notification to job owner (Application notification)
+    try:
+        job_owner_id = None
+        job_title = None
+        
+        if gig_job_id:
+            # Get gig job directly from database to ensure we have author_id
+            from app.models.gig_job import GigJob
+            gig_job_model = db.query(GigJob).filter(GigJob.id == gig_job_id).first()
+            if gig_job_model:
+                job_owner_id = gig_job_model.author_id
+                job_title = gig_job_model.title
+        elif full_time_job_id:
+            full_time_job_repository = FullTimeJobRepository(db)
+            full_time_job = full_time_job_repository.get_object_by_id(full_time_job_id)
+            if full_time_job:
+                job_owner_id = full_time_job.created_by_user_id
+                job_title = full_time_job.title
+        
+        if job_owner_id and job_owner_id != current_user.id:
+            applicant_name = current_user.name or current_user.email or "Someone"
+            position_name = job_title or "position"
+            
+            title = "New Application Received"
+            body = f"{applicant_name} applied for {position_name} position"
+            
+            send_proposal_notification(
+                db=db,
+                recipient_user_id=job_owner_id,
+                title=title,
+                body=body,
+                data={
+                    "type": "application",
+                    "proposal_id": str(proposal.id),
+                    "job_id": str(job_id),
+                    "job_type": "gig" if gig_job_id else "full_time",
+                    "applicant_id": str(current_user.id)
+                }
+            )
+    except Exception:
+        pass
     
     try:
         # Create response data with expanded job details
@@ -305,6 +386,7 @@ async def get_proposal_by_id(
         )
     
     # Check if user has permission to view this proposal
+    is_job_owner = False
     if proposal.user_id != current_user.id:
         # Check if user is the author of the gig job or full-time job
         has_permission = False
@@ -314,17 +396,62 @@ async def get_proposal_by_id(
             gig_job = gig_job_repository.get_by_id(proposal.gig_job_id)
             if gig_job and gig_job['author']['id'] == current_user.id:
                 has_permission = True
+                is_job_owner = True
         elif proposal.full_time_job_id:
             full_time_job_repository = FullTimeJobRepository(db)
             full_time_job = full_time_job_repository.get_object_by_id(proposal.full_time_job_id)
             if full_time_job and full_time_job.created_by_user_id == current_user.id:
                 has_permission = True
+                is_job_owner = True
         
         if not has_permission:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="You don't have permission to view this proposal"
             )
+    
+    # If job owner is viewing the proposal and it's not read yet, mark as read and send notification
+    if is_job_owner and not proposal.is_read:
+        # Mark proposal as read
+        repository.mark_as_read(proposal_id)
+        
+        # Send push notification to proposal sender (My Proposal notification)
+        try:
+            proposal_sender_id = proposal.user_id
+            job_title = None
+            
+            if proposal.gig_job_id:
+                gig_job_repository = GigJobRepository(db)
+                gig_job = gig_job_repository.get_by_id(proposal.gig_job_id)
+                if gig_job:
+                    job_title = gig_job.get('title', 'gig job')
+            elif proposal.full_time_job_id:
+                full_time_job_repository = FullTimeJobRepository(db)
+                full_time_job = full_time_job_repository.get_object_by_id(proposal.full_time_job_id)
+                if full_time_job:
+                    job_title = full_time_job.title
+            
+            if job_title:
+                title = "Your Proposal Was Viewed"
+                body = f"Your proposal for {job_title} was viewed."
+                
+                send_proposal_notification(
+                    db=db,
+                    recipient_user_id=proposal_sender_id,
+                    title=title,
+                    body=body,
+                    data={
+                        "type": "proposal_viewed",
+                        "proposal_id": str(proposal.id),
+                        "job_id": str(proposal.gig_job_id or proposal.full_time_job_id),
+                        "job_type": "gig" if proposal.gig_job_id else "full_time"
+                    }
+                )
+        except Exception:
+            pass
+        
+        # Refresh proposal to get updated is_read status
+        proposal = repository.get_by_id(proposal_id)
     
     return ProposalResponse.from_orm(proposal)
 
@@ -604,5 +731,267 @@ async def delete_proposal(
         content={
             "status": "success",
             "msg": f"Proposal successfully deleted for {job_type} (ID: {job_id})"
+        }
+    )
+
+
+@router.get("/{proposal_id}/mark-as-read", status_code=status.HTTP_200_OK)
+async def mark_proposal_as_read(
+    proposal_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Mark a proposal as read. Only the job owner can mark proposals as read.
+    
+    - **proposal_id**: ID of the proposal to mark as read
+    """
+    repository = ProposalRepository(db)
+    proposal = repository.get_by_id(proposal_id)
+    
+    if not proposal:
+        return JSONResponse(
+            status_code=status.HTTP_404_NOT_FOUND,
+            content={
+                "status": "error",
+                "msg": "Proposal not found"
+            }
+        )
+    
+    # Check if user is the job owner
+    is_job_owner = False
+    
+    if proposal.gig_job_id:
+        # Get gig job directly from database to ensure we have author_id
+        from app.models.gig_job import GigJob
+        gig_job_model = db.query(GigJob).filter(GigJob.id == proposal.gig_job_id).first()
+        if gig_job_model and gig_job_model.author_id == current_user.id:
+            is_job_owner = True
+    elif proposal.full_time_job_id:
+        full_time_job_repository = FullTimeJobRepository(db)
+        full_time_job = full_time_job_repository.get_object_by_id(proposal.full_time_job_id)
+        if full_time_job and full_time_job.created_by_user_id == current_user.id:
+            is_job_owner = True
+    
+    if not is_job_owner:
+        return JSONResponse(
+            status_code=status.HTTP_403_FORBIDDEN,
+            content={
+                "status": "error",
+                "msg": "Only the job owner can mark proposals as read"
+            }
+        )
+    
+    # Check if already read
+    if proposal.is_read:
+        return JSONResponse(
+            status_code=status.HTTP_200_OK,
+            content={
+                "status": "success",
+                "msg": "Proposal is already marked as read",
+                "data": {
+                    "proposal_id": proposal.id,
+                    "is_read": True
+                }
+            }
+        )
+    
+    # Mark as read
+    updated_proposal = repository.mark_as_read(proposal_id)
+    
+    if not updated_proposal:
+        return JSONResponse(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            content={
+                "status": "error",
+                "msg": "Failed to mark proposal as read"
+            }
+        )
+    
+    # Send push notification to proposal sender (My Proposal notification)
+    try:
+        proposal_sender_id = proposal.user_id
+        print(f"DEBUG: Proposal sender ID: {proposal_sender_id}")
+        job_title = None
+        
+        if proposal.gig_job_id:
+            gig_job_repository = GigJobRepository(db)
+            gig_job = gig_job_repository.get_by_id(proposal.gig_job_id)
+            if gig_job:
+                job_title = gig_job.get('title', 'gig job')
+                print(f"DEBUG: Gig job title: {job_title}")
+        elif proposal.full_time_job_id:
+            full_time_job_repository = FullTimeJobRepository(db)
+            full_time_job = full_time_job_repository.get_object_by_id(proposal.full_time_job_id)
+            if full_time_job:
+                job_title = full_time_job.title
+                print(f"DEBUG: Full-time job title: {job_title}")
+        
+        if job_title:
+            title = "Your Proposal Was Viewed"
+            body = f"Your proposal for {job_title} was viewed."
+            
+            print(f"DEBUG: Sending notification to proposal sender (user_id={proposal_sender_id})")
+            send_proposal_notification(
+                db=db,
+                recipient_user_id=proposal_sender_id,
+                title=title,
+                body=body,
+                data={
+                    "type": "proposal_viewed",
+                    "proposal_id": str(proposal.id),
+                    "job_id": str(proposal.gig_job_id or proposal.full_time_job_id),
+                    "job_type": "gig" if proposal.gig_job_id else "full_time"
+                }
+            )
+        else:
+            print(f"DEBUG: Job title is None, notification not sent")
+    except Exception as e:
+        print(f"ERROR: Exception in mark-as-read notification: {str(e)}")
+        import traceback
+        traceback.print_exc()
+    
+    return JSONResponse(
+        status_code=status.HTTP_200_OK,
+        content={
+            "status": "success",
+            "msg": "Proposal marked as read successfully",
+            "data": {
+                "proposal_id": updated_proposal.id,
+                "is_read": updated_proposal.is_read
+            }
+        }
+    )
+
+
+@router.get("/mark-all-as-read", status_code=status.HTTP_200_OK)
+async def mark_all_proposals_as_read(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Mark all proposals as read for jobs owned by the current user.
+    This will mark all unread proposals for both gig jobs and full-time jobs owned by the user.
+    """
+    repository = ProposalRepository(db)
+    gig_job_repository = GigJobRepository(db)
+    full_time_job_repository = FullTimeJobRepository(db)
+    
+    # Get all gig jobs owned by current user
+    from app.models.gig_job import GigJob
+    user_gig_jobs = db.query(GigJob).filter(
+        GigJob.author_id == current_user.id,
+        GigJob.is_deleted == False
+    ).all()
+    gig_job_ids = [job.id for job in user_gig_jobs]
+    
+    # Get all full-time jobs owned by current user
+    from app.models.full_time_job import FullTimeJob
+    user_full_time_jobs = db.query(FullTimeJob).filter(
+        FullTimeJob.created_by_user_id == current_user.id
+    ).all()
+    full_time_job_ids = [job.id for job in user_full_time_jobs]
+    
+    # Get all unread proposals for user's jobs
+    from app.models.proposal import Proposal
+    from sqlalchemy import or_
+    
+    conditions = []
+    if gig_job_ids:
+        conditions.append(Proposal.gig_job_id.in_(gig_job_ids))
+    if full_time_job_ids:
+        conditions.append(Proposal.full_time_job_id.in_(full_time_job_ids))
+    
+    if not conditions:
+        # User has no jobs, return empty result
+        return JSONResponse(
+            status_code=status.HTTP_200_OK,
+            content={
+                "status": "success",
+                "msg": "No jobs found for this user",
+                "data": {
+                    "marked_count": 0,
+                    "total_proposals": 0
+                }
+            }
+        )
+    
+    unread_proposals = db.query(Proposal).filter(
+        Proposal.is_read == False,
+        Proposal.is_deleted == False,
+        or_(*conditions)
+    ).all()
+    
+    if not unread_proposals:
+        return JSONResponse(
+            status_code=status.HTTP_200_OK,
+            content={
+                "status": "success",
+                "msg": "No unread proposals found",
+                "data": {
+                    "marked_count": 0,
+                    "total_proposals": 0
+                }
+            }
+        )
+    
+    # Mark all proposals as read and send notifications
+    marked_count = 0
+    notifications_sent = 0
+    
+    for proposal in unread_proposals:
+        try:
+            # Mark as read
+            updated_proposal = repository.mark_as_read(proposal.id)
+            if updated_proposal:
+                marked_count += 1
+                
+                # Send push notification to proposal sender
+                try:
+                    proposal_sender_id = proposal.user_id
+                    job_title = None
+                    
+                    if proposal.gig_job_id:
+                        gig_job = gig_job_repository.get_by_id(proposal.gig_job_id)
+                        if gig_job:
+                            job_title = gig_job.get('title', 'gig job')
+                    elif proposal.full_time_job_id:
+                        full_time_job = full_time_job_repository.get_object_by_id(proposal.full_time_job_id)
+                        if full_time_job:
+                            job_title = full_time_job.title
+                    
+                    if job_title:
+                        title = "Your Proposal Was Viewed"
+                        body = f"Your proposal for {job_title} was viewed."
+                        
+                        send_proposal_notification(
+                            db=db,
+                            recipient_user_id=proposal_sender_id,
+                            title=title,
+                            body=body,
+                            data={
+                                "type": "proposal_viewed",
+                                "proposal_id": str(proposal.id),
+                                "job_id": str(proposal.gig_job_id or proposal.full_time_job_id),
+                                "job_type": "gig" if proposal.gig_job_id else "full_time"
+                            }
+                        )
+                        notifications_sent += 1
+                except Exception:
+                    pass
+                    
+        except Exception:
+            pass
+    
+    return JSONResponse(
+        status_code=status.HTTP_200_OK,
+        content={
+            "status": "success",
+            "msg": f"Successfully marked {marked_count} proposal(s) as read",
+            "data": {
+                "marked_count": marked_count,
+                "total_proposals": len(unread_proposals),
+                "notifications_sent": notifications_sent
+            }
         }
     )

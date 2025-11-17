@@ -19,10 +19,10 @@ from ..repositories.corporate_profile_repository import CorporateProfileReposito
 from ..utils.auth import create_access_token, create_refresh_token, verify_password, verify_refresh_token, oauth2_scheme
 from ..utils.email import generate_otp, send_otp_email, send_registration_otp_email
 from ..utils.social_auth import verify_social_token
+from ..utils.device_token_logger import create_user_device_token
 from ..models.user import User
 from ..models.role import Role
 from ..models.otp import OTP
-from ..models.user_device_token import UserDeviceToken, DeviceType
 from datetime import timedelta
 from ..config import settings
 import os
@@ -284,26 +284,6 @@ async def verify_registration_otp(otp_verify: RegisterOTPVerify, db: Session = D
         
         user_repo.assign_roles_to_user(user.id, ['user', 'admin'])
         
-        # Create device token if provided (only from request body in register-code-check)
-        device_token_value = otp_verify.device_token
-        device_type_value = otp_verify.device_type
-        
-        if device_token_value and device_type_value:
-            try:
-                device_token = UserDeviceToken(
-                    user_id=user.id,
-                    device_token=device_token_value,
-                    device_type=DeviceType(device_type_value),
-                    is_active=True
-                )
-                db.add(device_token)
-                db.commit()
-                db.refresh(device_token)
-            except Exception as e:
-                print(f"Error creating device token: {e}")
-                db.rollback()
-                # Don't fail registration if device token creation fails
-        
         access_token = create_access_token(
             data={"sub": str(user.id)}
         )
@@ -407,6 +387,14 @@ async def login(user_data: UserLogin, db: Session = Depends(get_db)):
         )
         
         user_repo.update_last_login(user.id)
+        
+        # Create device token if provided (using logging utility)
+        create_user_device_token(
+            db=db,
+            user_id=user.id,
+            device_token=user_data.device_token,
+            device_type=user_data.device_type
+        )
         
         login_response = LoginResponse(
             token=Token(

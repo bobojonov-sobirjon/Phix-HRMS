@@ -84,6 +84,7 @@ class ProposalResponse(ProposalBase):
     user_id: int
     gig_job_id: Optional[int] = None
     full_time_job_id: Optional[int] = None
+    is_read: bool = Field(default=False, description="Whether the proposal has been read by the job owner")
     attachments: Optional[List[ProposalAttachmentResponse]] = Field(None, description="File attachments")
     created_at: datetime
     updated_at: Optional[datetime] = None
@@ -108,6 +109,7 @@ class ProposalResponse(ProposalBase):
             "cover_letter": obj.cover_letter,
             "delivery_time": obj.delivery_time,
             "offer_amount": obj.offer_amount,
+            "is_read": getattr(obj, 'is_read', False),
             "created_at": obj.created_at,
             "updated_at": obj.updated_at,
             "attachments": [],
@@ -118,10 +120,25 @@ class ProposalResponse(ProposalBase):
         
         # Include attachments if available
         if hasattr(obj, 'attachments') and obj.attachments:
-            data["attachments"] = [
-                ProposalAttachmentResponse.model_validate(attachment) 
-                for attachment in obj.attachments
-            ]
+            attachment_list = []
+            for attachment in obj.attachments:
+                # Create attachment dict with BASE_URL added to attachment path
+                attachment_url = attachment.attachment
+                if attachment_url and not attachment_url.startswith(('http://', 'https://')):
+                    # Add /static/ prefix and BASE_URL
+                    attachment_url = f"{settings.BASE_URL}/static/{attachment_url}"
+                
+                attachment_dict = {
+                    "id": attachment.id,
+                    "proposal_id": attachment.proposal_id,
+                    "attachment": attachment_url,
+                    "size": attachment.size,
+                    "name": attachment.name,
+                    "created_at": attachment.created_at,
+                    "updated_at": attachment.updated_at
+                }
+                attachment_list.append(ProposalAttachmentResponse(**attachment_dict))
+            data["attachments"] = attachment_list
         
         # Include user details if available
         if hasattr(obj, 'user') and obj.user:

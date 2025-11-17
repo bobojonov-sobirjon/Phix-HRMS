@@ -46,6 +46,7 @@ class CorporateProfile(Base):
     location = relationship("Location", back_populates="corporate_profiles")
     full_time_jobs = relationship("FullTimeJob", back_populates="company", cascade="all, delete-orphan")
     team_members = relationship("TeamMember", back_populates="corporate_profile", cascade="all, delete-orphan")
+    followers = relationship("CorporateProfileFollow", back_populates="corporate_profile", cascade="all, delete-orphan")
     
     def __repr__(self):
         return f"<CorporateProfile(id={self.id}, company_name='{self.company_name}', user_id={self.user_id})>"

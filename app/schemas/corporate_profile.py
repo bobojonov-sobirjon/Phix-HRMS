@@ -104,6 +104,7 @@ class CorporateProfileResponse(CorporateProfileBase):
     location: Optional[LocationResponse] = None
     user: Optional[UserResponse] = None
     team_members: List[TeamMemberResponse] = []
+    is_followed: Optional[bool] = False
     
     class Config:
         from_attributes = True

@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form
+from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form, Header
 from sqlalchemy.orm import Session
 from typing import List, Optional
 import os
@@ -16,7 +16,7 @@ from ..schemas.corporate_profile import (
     CompanySize
 )
 from ..schemas.common import MessageResponse, SuccessResponse
-from ..utils.auth import get_current_user
+from ..utils.auth import get_current_user, verify_token
 from ..utils.email import send_email_with_retry, send_corporate_verification_email
 from ..config import settings
 from ..models.otp import OTP
@@ -24,6 +24,28 @@ import random
 import string
 
 router = APIRouter(prefix="/corporate-profile", tags=["Corporate Profile"])
+
+
+def get_current_user_optional(
+    authorization: Optional[str] = Header(None),
+    db: Session = Depends(get_db)
+) -> Optional[dict]:
+    """Get current user if authorization header is provided, otherwise return None"""
+    if not authorization or not authorization.startswith("Bearer "):
+        return None
+    
+    try:
+        token = authorization.split(" ")[1]
+        payload = verify_token(token)
+        if payload and 'sub' in payload:
+            user_id = int(payload['sub'])
+            user_repo = UserRepository(db)
+            user = user_repo.get_user_by_id(user_id)
+            if user:
+                return {"id": user.id, "name": user.name, "email": user.email}
+        return None
+    except Exception:
+        return None
 
 
 def generate_otp() -> str:
@@ -85,7 +107,7 @@ def add_base_url_to_profile(profile):
     return profile
 
 
-def convert_profile_to_response(profile_with_urls):
+def convert_profile_to_response(profile_with_urls, current_user_id: Optional[int] = None, db: Optional[Session] = None):
     """Convert CorporateProfile model to CorporateProfileResponse format"""
     from ..schemas.corporate_profile import CorporateProfileResponse, TeamMemberResponse
     
@@ -108,6 +130,23 @@ def convert_profile_to_response(profile_with_urls):
                 "rejected_at": team_member.rejected_at
             }
             team_members_data.append(team_member_data)
+    
+    # Check if current user is following this profile
+    is_followed = False
+    if current_user_id and db:
+        from ..repositories.corporate_profile_follow_repository import CorporateProfileFollowRepository
+        follow_repo = CorporateProfileFollowRepository(db)
+        is_followed = follow_repo.is_following(current_user_id, profile_with_urls.id)
+        # Debug: Check if follow exists
+        if not is_followed:
+            # Double check by querying directly
+            from ..models.corporate_profile_follow import CorporateProfileFollow
+            direct_check = db.query(CorporateProfileFollow).filter(
+                CorporateProfileFollow.user_id == current_user_id,
+                CorporateProfileFollow.corporate_profile_id == profile_with_urls.id
+            ).first()
+            if direct_check:
+                is_followed = True
     
     # Create profile data with team members
     profile_dict = {
@@ -147,7 +186,8 @@ def convert_profile_to_response(profile_with_urls):
             "current_position": profile_with_urls.user.current_position,
             "location_id": profile_with_urls.user.location_id
         } if profile_with_urls.user else None,
-        "team_members": team_members_data
+        "team_members": team_members_data,
+        "is_followed": is_followed
     }
     
     return CorporateProfileResponse(**profile_dict)
@@ -266,8 +306,8 @@ async def create_corporate_profile(
     # Get the updated profile with relationships for response
     updated_profile = corporate_repo.get_by_id(db_profile.id)
     profile_with_urls = add_base_url_to_profile(updated_profile)
-    profile_response = convert_profile_to_response(profile_with_urls)
-    
+    profile_response = convert_profile_to_response(profile_with_urls, current_user.id, db)
+
     return SuccessResponse(
         msg="Corporate profile created successfully. Please check your email for verification code.",
         data=profile_response
@@ -280,6 +320,7 @@ async def create_corporate_profile(
 async def get_corporate_profiles(
     page: int = 1,
     size: int = 10,
+    current_user: Optional[dict] = Depends(get_current_user_optional),
     db: Session = Depends(get_db)
 ):
     """Get all verified corporate profiles with pagination"""
@@ -291,7 +332,8 @@ async def get_corporate_profiles(
 
     # Add base URL to all profiles and convert to response format
     profiles_with_urls = [add_base_url_to_profile(profile) for profile in profiles]
-    profiles_response = [convert_profile_to_response(profile) for profile in profiles_with_urls]
+    current_user_id = current_user.get("id") if current_user else None
+    profiles_response = [convert_profile_to_response(profile, current_user_id, db) for profile in profiles_with_urls]
 
     return CorporateProfileListResponse(
         corporate_profiles=profiles_response,
@@ -305,6 +347,7 @@ async def get_corporate_profiles(
 async def get_active_corporate_profiles(
     page: int = 1,
     size: int = 10,
+    current_user: Optional[dict] = Depends(get_current_user_optional),
     db: Session = Depends(get_db)
 ):
     """Get only active corporate profiles"""
@@ -316,7 +359,8 @@ async def get_active_corporate_profiles(
 
     # Add base URL to all profiles and convert to response format
     profiles_with_urls = [add_base_url_to_profile(profile) for profile in profiles]
-    profiles_response = [convert_profile_to_response(profile) for profile in profiles_with_urls]
+    current_user_id = current_user.get("id") if current_user else None
+    profiles_response = [convert_profile_to_response(profile, current_user_id, db) for profile in profiles_with_urls]
 
     return CorporateProfileListResponse(
         corporate_profiles=profiles_response,
@@ -329,6 +373,7 @@ async def get_active_corporate_profiles(
 @router.get("/{profile_id}", response_model=CorporateProfileResponse, tags=["Corporate Profile"])
 async def get_corporate_profile(
     profile_id: int,
+    current_user: Optional[dict] = Depends(get_current_user_optional),
     db: Session = Depends(get_db)
 ):
     """Get corporate profile by ID"""
@@ -342,7 +387,8 @@ async def get_corporate_profile(
         )
     
     profile_with_urls = add_base_url_to_profile(profile)
-    return convert_profile_to_response(profile_with_urls)
+    current_user_id = current_user.get("id") if current_user else None
+    return convert_profile_to_response(profile_with_urls, current_user_id, db)
 
 
 @router.get("/user/me", response_model=CorporateProfileResponse, tags=["Corporate Profile"])
@@ -361,7 +407,7 @@ async def get_my_corporate_profile(
         )
     
     profile_with_urls = add_base_url_to_profile(profile)
-    return convert_profile_to_response(profile_with_urls)
+    return convert_profile_to_response(profile_with_urls, current_user.id, db)
 
 
 @router.put("/{profile_id}", response_model=CorporateProfileResponse, tags=["Corporate Profile"])
@@ -459,7 +505,7 @@ async def update_corporate_profile(
     updated_profile_with_relations = corporate_repo.get_by_id(profile_id)
     profile_with_urls = add_base_url_to_profile(updated_profile_with_relations)
     
-    return convert_profile_to_response(profile_with_urls)
+    return convert_profile_to_response(profile_with_urls, current_user.id, db)
 
 
 @router.delete("/{profile_id}", response_model=MessageResponse, tags=["Corporate Profile"])
