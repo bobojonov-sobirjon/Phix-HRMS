@@ -5,6 +5,7 @@ Handles creation of user device tokens with proper logging
 import logging
 from typing import Optional
 from sqlalchemy.orm import Session
+from sqlalchemy import cast, String
 from ..models.user_device_token import UserDeviceToken, DeviceType
 
 # Configure logger
@@ -57,9 +58,10 @@ def create_user_device_token(
             raise ValueError(f"Invalid device_type: {device_type}")
         
         # Check if device token already exists for this user and device type (regardless of is_active status)
+        # Use cast to compare enum value directly (not enum name)
         existing_token = db.query(UserDeviceToken).filter(
             UserDeviceToken.user_id == user_id,
-            UserDeviceToken.device_type == device_type_enum
+            cast(UserDeviceToken.device_type, String) == device_type_lower
         ).first()
         
         if existing_token:
