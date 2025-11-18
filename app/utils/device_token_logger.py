@@ -34,46 +34,67 @@ def create_user_device_token(
     # Check if both device_token and device_type are provided
     if not device_token or not device_type:
         logger.info(f"Device token not created for user {user_id}: missing device_token or device_type")
+        print(f"[DeviceToken] Device token not created for user {user_id}: missing device_token or device_type")
         return None
     
     # Validate device_type
     if device_type not in ['ios', 'android']:
         logger.warning(f"Invalid device_type '{device_type}' for user {user_id}. Must be 'ios' or 'android'")
+        print(f"[DeviceToken] Invalid device_type '{device_type}' for user {user_id}")
         return None
     
     try:
+        # Convert device_type string to DeviceType enum
+        device_type_enum = DeviceType(device_type)
+        
         # Check if device token already exists for this user and device type (regardless of is_active status)
         existing_token = db.query(UserDeviceToken).filter(
             UserDeviceToken.user_id == user_id,
-            UserDeviceToken.device_type == DeviceType(device_type)
+            UserDeviceToken.device_type == device_type_enum
         ).first()
         
         if existing_token:
             # Update existing device token
+            print(f"[DeviceToken] Found existing token (id={existing_token.id}) for user {user_id}, updating...")
             existing_token.device_token = device_token
             existing_token.is_active = True
+            db.flush()
             db.commit()
             db.refresh(existing_token)
             
             logger.info(f"Device token updated for user {user_id}, device_type: {device_type}")
+            print(f"[DeviceToken] Device token updated successfully for user {user_id}, device_type: {device_type}, token_id: {existing_token.id}")
             return existing_token
         else:
             # Create new device token
+            print(f"[DeviceToken] No existing token found for user {user_id}, creating new one...")
             device_token_obj = UserDeviceToken(
                 user_id=user_id,
                 device_token=device_token,
-                device_type=DeviceType(device_type),
+                device_type=device_type_enum,
                 is_active=True
             )
             db.add(device_token_obj)
+            db.flush()
             db.commit()
             db.refresh(device_token_obj)
             
             logger.info(f"Device token created successfully for user {user_id}, device_type: {device_type}")
+            print(f"[DeviceToken] Device token created successfully for user {user_id}, device_type: {device_type}, token_id: {device_token_obj.id}")
             return device_token_obj
         
+    except ValueError as ve:
+        error_msg = f"Invalid device_type value '{device_type}' for user {user_id}: {str(ve)}"
+        logger.error(error_msg)
+        print(f"[DeviceToken] ERROR: {error_msg}")
+        db.rollback()
+        return None
     except Exception as e:
-        logger.error(f"Error creating/updating device token for user {user_id}: {str(e)}")
+        error_msg = f"Error creating/updating device token for user {user_id}: {str(e)}"
+        logger.error(error_msg, exc_info=True)
+        print(f"[DeviceToken] ERROR: {error_msg}")
+        import traceback
+        print(f"[DeviceToken] Traceback: {traceback.format_exc()}")
         db.rollback()
         # Don't fail registration if device token creation fails
         return None

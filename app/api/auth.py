@@ -389,12 +389,16 @@ async def login(user_data: UserLogin, db: Session = Depends(get_db)):
         user_repo.update_last_login(user.id)
         
         # Create device token if provided (using logging utility)
-        create_user_device_token(
-            db=db,
-            user_id=user.id,
-            device_token=user_data.device_token,
-            device_type=user_data.device_type
-        )
+        if user_data.device_token and user_data.device_type:
+            print(f"[Login] Creating device token for user {user.id}, device_type: {user_data.device_type}")
+            create_user_device_token(
+                db=db,
+                user_id=user.id,
+                device_token=user_data.device_token,
+                device_type=user_data.device_type
+            )
+        else:
+            print(f"[Login] Device token not provided for user {user.id}")
         
         login_response = LoginResponse(
             token=Token(
