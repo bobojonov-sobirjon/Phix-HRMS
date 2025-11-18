@@ -44,8 +44,17 @@ def create_user_device_token(
         return None
     
     try:
-        # Convert device_type string to DeviceType enum
-        device_type_enum = DeviceType(device_type)
+        # Normalize device_type to lowercase for enum conversion
+        device_type_lower = device_type.lower()
+        
+        # Convert device_type string to DeviceType enum using the value (not the name)
+        # DeviceType.ANDROID.value = "android", DeviceType.IOS.value = "ios"
+        if device_type_lower == "android":
+            device_type_enum = DeviceType.ANDROID
+        elif device_type_lower == "ios":
+            device_type_enum = DeviceType.IOS
+        else:
+            raise ValueError(f"Invalid device_type: {device_type}")
         
         # Check if device token already exists for this user and device type (regardless of is_active status)
         existing_token = db.query(UserDeviceToken).filter(
