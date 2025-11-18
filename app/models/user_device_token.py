@@ -1,6 +1,7 @@
 from sqlalchemy import Column, Integer, String, Boolean, DateTime, ForeignKey, Enum, Text
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
+from sqlalchemy.dialects.postgresql import ENUM as PG_ENUM
 from ..database import Base
 import enum
 
@@ -20,7 +21,11 @@ class UserDeviceToken(Base):
     
     # Device information
     device_token = Column(Text, nullable=False)
-    device_type = Column(Enum(DeviceType), nullable=False)
+    # Use PostgreSQL ENUM - SQLAlchemy will use enum values when properly configured
+    device_type = Column(
+        PG_ENUM('ios', 'android', name='devicetype', create_type=False),
+        nullable=False
+    )
     
     # Status
     is_active = Column(Boolean, default=True, nullable=False)
