@@ -234,6 +234,7 @@ async def create_proposal(
     
     # Send push notification to job owner (Application notification)
     try:
+        print(f"DEBUG: Starting notification process for proposal {proposal.id}")
         job_owner_id = None
         job_title = None
         
@@ -241,15 +242,21 @@ async def create_proposal(
             # Get gig job directly from database to ensure we have author_id
             from app.models.gig_job import GigJob
             gig_job_model = db.query(GigJob).filter(GigJob.id == gig_job_id).first()
+            print(f"DEBUG: Gig job model found: {gig_job_model is not None}")
             if gig_job_model:
                 job_owner_id = gig_job_model.author_id
                 job_title = gig_job_model.title
+                print(f"DEBUG: Gig job owner_id={job_owner_id}, title={job_title}")
         elif full_time_job_id:
             full_time_job_repository = FullTimeJobRepository(db)
             full_time_job = full_time_job_repository.get_object_by_id(full_time_job_id)
+            print(f"DEBUG: Full-time job found: {full_time_job is not None}")
             if full_time_job:
                 job_owner_id = full_time_job.created_by_user_id
                 job_title = full_time_job.title
+                print(f"DEBUG: Full-time job owner_id={job_owner_id}, title={job_title}")
+        
+        print(f"DEBUG: Job owner ID: {job_owner_id}, Current user ID: {current_user.id}")
         
         if job_owner_id and job_owner_id != current_user.id:
             applicant_name = current_user.name or current_user.email or "Someone"
@@ -257,6 +264,9 @@ async def create_proposal(
             
             title = "New Application Received"
             body = f"{applicant_name} applied for {position_name} position"
+            
+            print(f"DEBUG: Sending notification to job owner (user_id={job_owner_id})")
+            print(f"DEBUG: Notification title: {title}, body: {body}")
             
             send_proposal_notification(
                 db=db,
@@ -271,8 +281,13 @@ async def create_proposal(
                     "applicant_id": str(current_user.id)
                 }
             )
-    except Exception:
-        pass
+            print(f"DEBUG: Notification sent successfully")
+        else:
+            print(f"DEBUG: Notification not sent - job_owner_id={job_owner_id}, current_user.id={current_user.id}")
+    except Exception as e:
+        print(f"ERROR: Exception in proposal creation notification: {str(e)}")
+        import traceback
+        traceback.print_exc()
     
     try:
         # Create response data with expanded job details
