@@ -42,11 +42,10 @@ def create_user_device_token(
         return None
     
     try:
-        # Check if device token already exists for this user and device type
+        # Check if device token already exists for this user and device type (regardless of is_active status)
         existing_token = db.query(UserDeviceToken).filter(
             UserDeviceToken.user_id == user_id,
-            UserDeviceToken.device_type == DeviceType(device_type),
-            UserDeviceToken.is_active == True
+            UserDeviceToken.device_type == DeviceType(device_type)
         ).first()
         
         if existing_token:
