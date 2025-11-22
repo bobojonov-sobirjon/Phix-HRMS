@@ -1,4 +1,4 @@
-from pydantic import BaseModel, EmailStr, validator
+from pydantic import BaseModel, EmailStr, validator, Field
 from typing import Optional, List
 from datetime import datetime
 from enum import Enum
@@ -105,6 +105,8 @@ class CorporateProfileResponse(CorporateProfileBase):
     user: Optional[UserResponse] = None
     team_members: List[TeamMemberResponse] = []
     is_followed: Optional[bool] = False
+    followers_count: int = Field(default=0, description="Number of followers for this corporate profile")
+    follow_relation_id: Optional[int] = Field(default=None, description="ID of the follow relationship (if user is following)")
     
     class Config:
         from_attributes = True

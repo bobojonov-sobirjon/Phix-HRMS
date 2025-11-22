@@ -43,6 +43,13 @@ class FullTimeJobRepository:
             FullTimeJob.created_by_user_id == job.created_by_user_id
         ).count()
         
+        # Count followers for the company
+        company_followers_count = 0
+        if job.company_id:
+            from ..repositories.corporate_profile_follow_repository import CorporateProfileFollowRepository
+            follow_repo = CorporateProfileFollowRepository(self.db)
+            company_followers_count = follow_repo.count_followers(job.company_id)
+        
         # Calculate relevance score if current user is provided
         relevance_score = None
         is_saved = False
@@ -92,7 +99,8 @@ class FullTimeJobRepository:
             "all_jobs_count": all_jobs_count,
             "relevance_score": relevance_score,
             "is_saved": is_saved,
-            "is_send_proposal": is_send_proposal
+            "is_send_proposal": is_send_proposal,
+            "company_followers_count": company_followers_count
         }
         
         return response_data
@@ -303,6 +311,13 @@ class FullTimeJobRepository:
             User.id == created_by_user_id
         ).first()
         
+        # Count followers for the company
+        company_followers_count = 0
+        if corporate_profile_id:
+            from ..repositories.corporate_profile_follow_repository import CorporateProfileFollowRepository
+            follow_repo = CorporateProfileFollowRepository(self.db)
+            company_followers_count = follow_repo.count_followers(corporate_profile_id)
+        
         # Create response data manually
         response_data = {
             "id": db_job.id,
@@ -331,7 +346,8 @@ class FullTimeJobRepository:
             "all_jobs_count": 0,
             "relevance_score": None,
             "is_saved": False,
-            "is_send_proposal": False
+            "is_send_proposal": False,
+            "company_followers_count": company_followers_count
         }
         
         return response_data
@@ -353,14 +369,23 @@ class FullTimeJobRepository:
         """Get full-time job object by ID (for internal use)"""
         return self.db.query(FullTimeJob).filter(FullTimeJob.id == job_id).first()
     
-    def get_by_company_id(self, company_id: int, skip: int = 0, limit: int = 100, current_user_id: Optional[int] = None) -> List[dict]:
-        """Get all jobs by company ID"""
-        jobs = self.db.query(FullTimeJob).options(
+    def get_by_company_id(self, company_id: int, skip: int = 0, limit: int = 100, current_user_id: Optional[int] = None, status: Optional[str] = None) -> List[dict]:
+        """Get all jobs by company ID, ordered by created_at DESC (recently posted first)"""
+        from sqlalchemy import desc
+        from ..models.full_time_job import JobStatus
+        
+        query = self.db.query(FullTimeJob).options(
             joinedload(FullTimeJob.skills),
             joinedload(FullTimeJob.company)
         ).filter(
             FullTimeJob.company_id == company_id
-        ).offset(skip).limit(limit).all()
+        )
+        
+        # Filter by status if provided
+        if status:
+            query = query.filter(FullTimeJob.status == JobStatus[status.upper()])
+        
+        jobs = query.order_by(desc(FullTimeJob.created_at)).offset(skip).limit(limit).all()
         
         # Prepare response data for each job
         prepared_jobs = []

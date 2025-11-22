@@ -112,6 +112,7 @@ class FullTimeJobResponse(BaseModel):
     relevance_score: Optional[float] = Field(default=None, description="Relevance score (only when token is provided)")
     is_saved: bool = Field(default=False, description="Whether the job is saved by the current user")
     is_send_proposal: bool = Field(default=False, description="Whether the current user has sent a proposal for this job")
+    company_followers_count: int = Field(default=0, description="Number of followers for the company")
     
     class Config:
         from_attributes = True

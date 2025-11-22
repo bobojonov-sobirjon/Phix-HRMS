@@ -26,11 +26,35 @@ router = APIRouter(prefix="/corporate-profile-follow", tags=["Corporate Profile 
 
 def get_user_device_tokens(db: Session, user_id: int) -> List[str]:
     """Get all active device tokens for a user"""
-    device_tokens = db.query(UserDeviceToken).filter(
-        UserDeviceToken.user_id == user_id,
-        UserDeviceToken.is_active == True
-    ).all()
-    return [token.device_token for token in device_tokens if token.device_token]
+    from sqlalchemy import text
+    # Use raw SQL to avoid enum parsing issues with uppercase values in database
+    try:
+        result = db.execute(text("""
+            SELECT device_token 
+            FROM user_device_tokens 
+            WHERE user_id = :user_id 
+            AND is_active = true
+            AND LOWER(device_type::text) IN ('ios', 'android')
+        """), {"user_id": user_id})
+        return [row[0] for row in result if row[0]]
+    except Exception as e:
+        print(f"DEBUG: Error getting device tokens: {str(e)}")
+        # Fallback to ORM query with exception handling
+        try:
+            device_tokens = db.query(UserDeviceToken).filter(
+                UserDeviceToken.user_id == user_id,
+                UserDeviceToken.is_active == True
+            ).all()
+            valid_tokens = []
+            for token in device_tokens:
+                try:
+                    if token.device_token:
+                        valid_tokens.append(token.device_token)
+                except (LookupError, KeyError, ValueError):
+                    continue
+            return valid_tokens
+        except Exception:
+            return []
 
 
 def send_follow_notification(
@@ -56,12 +80,19 @@ def send_follow_notification(
             "company_name": company_name
         }
         
-        send_push_notification_multiple(
-            device_tokens=device_tokens,
-            title=title,
-            body=body,
-            data={str(k): str(v) for k, v in data.items()}
-        )
+        try:
+            send_push_notification_multiple(
+                device_tokens=device_tokens,
+                title=title,
+                body=body,
+                data={str(k): str(v) for k, v in data.items()}
+            )
+        except FileNotFoundError as fe:
+            # Firebase service account file not found - this is OK
+            print(f"WARNING: Firebase service account file not found. Push notification skipped: {str(fe)}")
+        except Exception as fe:
+            # Other Firebase errors - log but don't fail
+            print(f"WARNING: Failed to send push notification: {str(fe)}")
         
     except Exception as e:
         # Log error but don't fail the request

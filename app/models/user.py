@@ -61,6 +61,7 @@ class User(Base):
     saved_jobs = relationship('SavedJob', back_populates='user', cascade='all, delete-orphan')
     device_tokens = relationship('UserDeviceToken', back_populates='user', cascade='all, delete-orphan')
     corporate_profile_follows = relationship('CorporateProfileFollow', back_populates='user', cascade='all, delete-orphan')
+    notifications = relationship('Notification', foreign_keys='Notification.recipient_user_id', back_populates='recipient', cascade='all, delete-orphan')
     
     def set_password(self, password: str):
         """Hash password using bcrypt"""

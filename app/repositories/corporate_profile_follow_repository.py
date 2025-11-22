@@ -167,3 +167,12 @@ class CorporateProfileFollowRepository:
         result = follow is not None
         return result
 
+    def count_followers(self, corporate_profile_id: int) -> int:
+        """Count total number of followers for a corporate profile (excluding deleted users)"""
+        return self.db.query(CorporateProfileFollow).join(User).filter(
+            and_(
+                CorporateProfileFollow.corporate_profile_id == corporate_profile_id,
+                User.is_deleted == False
+            )
+        ).count()
+

@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form, Header
+from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form, Header, Query
 from sqlalchemy.orm import Session
 from typing import List, Optional
 import os
@@ -7,6 +7,7 @@ from pathlib import Path
 from ..database import get_db
 from ..repositories.corporate_profile_repository import CorporateProfileRepository
 from ..repositories.user_repository import UserRepository
+from ..repositories.full_time_job_repository import FullTimeJobRepository
 from ..schemas.corporate_profile import (
     CorporateProfileCreate,
     CorporateProfileUpdate,
@@ -15,11 +16,13 @@ from ..schemas.corporate_profile import (
     CorporateProfileListResponse,
     CompanySize
 )
+from ..schemas.full_time_job import FullTimeJobResponse, FullTimeJobListResponse
 from ..schemas.common import MessageResponse, SuccessResponse
 from ..utils.auth import get_current_user, verify_token
 from ..utils.email import send_email_with_retry, send_corporate_verification_email
 from ..config import settings
 from ..models.otp import OTP
+from ..models.user import User
 import random
 import string
 
@@ -133,20 +136,31 @@ def convert_profile_to_response(profile_with_urls, current_user_id: Optional[int
     
     # Check if current user is following this profile
     is_followed = False
-    if current_user_id and db:
+    follow_relation_id = None
+    followers_count = 0
+    if db:
         from ..repositories.corporate_profile_follow_repository import CorporateProfileFollowRepository
         follow_repo = CorporateProfileFollowRepository(db)
-        is_followed = follow_repo.is_following(current_user_id, profile_with_urls.id)
-        # Debug: Check if follow exists
-        if not is_followed:
-            # Double check by querying directly
-            from ..models.corporate_profile_follow import CorporateProfileFollow
-            direct_check = db.query(CorporateProfileFollow).filter(
-                CorporateProfileFollow.user_id == current_user_id,
-                CorporateProfileFollow.corporate_profile_id == profile_with_urls.id
-            ).first()
-            if direct_check:
+        
+        # Get followers count
+        followers_count = follow_repo.count_followers(profile_with_urls.id)
+        
+        # Check if current user is following and get follow relation ID
+        if current_user_id:
+            follow_relation = follow_repo.get_by_user_and_profile(current_user_id, profile_with_urls.id)
+            if follow_relation:
                 is_followed = True
+                follow_relation_id = follow_relation.id
+            else:
+                # Double check by querying directly
+                from ..models.corporate_profile_follow import CorporateProfileFollow
+                direct_check = db.query(CorporateProfileFollow).filter(
+                    CorporateProfileFollow.user_id == current_user_id,
+                    CorporateProfileFollow.corporate_profile_id == profile_with_urls.id
+                ).first()
+                if direct_check:
+                    is_followed = True
+                    follow_relation_id = direct_check.id
     
     # Create profile data with team members
     profile_dict = {
@@ -187,7 +201,9 @@ def convert_profile_to_response(profile_with_urls, current_user_id: Optional[int
             "location_id": profile_with_urls.user.location_id
         } if profile_with_urls.user else None,
         "team_members": team_members_data,
-        "is_followed": is_followed
+        "is_followed": is_followed,
+        "followers_count": followers_count,
+        "follow_relation_id": follow_relation_id
     }
     
     return CorporateProfileResponse(**profile_dict)
@@ -389,6 +405,70 @@ async def get_corporate_profile(
     profile_with_urls = add_base_url_to_profile(profile)
     current_user_id = current_user.get("id") if current_user else None
     return convert_profile_to_response(profile_with_urls, current_user_id, db)
+
+
+@router.get("/{profile_id}/recently-posted-jobs", response_model=FullTimeJobListResponse, tags=["Corporate Profile"])
+async def get_recently_posted_jobs(
+    profile_id: int,
+    page: int = Query(1, ge=1, description="Page number"),
+    size: int = Query(10, ge=1, le=50, description="Page size"),
+    current_user: Optional[dict] = Depends(get_current_user_optional),
+    db: Session = Depends(get_db)
+):
+    """
+    Get recently posted full-time jobs for a company (corporate profile).
+    Returns jobs ordered by created_at DESC (most recent first).
+    Only returns ACTIVE jobs.
+    """
+    # Check if corporate profile exists
+    corporate_repo = CorporateProfileRepository(db)
+    profile = corporate_repo.get_by_id(profile_id)
+    
+    if not profile:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Corporate profile not found"
+        )
+    
+    if not profile.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Corporate profile is not active"
+        )
+    
+    # Get recently posted jobs for this company (only ACTIVE jobs)
+    job_repo = FullTimeJobRepository(db)
+    current_user_id = current_user.get("id") if current_user else None
+    skip = (page - 1) * size
+    
+    # Get jobs ordered by created_at DESC (recently posted first), only ACTIVE
+    jobs = job_repo.get_by_company_id(
+        company_id=profile_id,
+        skip=skip,
+        limit=size,
+        current_user_id=current_user_id,
+        status="ACTIVE"
+    )
+    
+    # Get total count of active jobs
+    from ..models.full_time_job import FullTimeJob, JobStatus
+    total = db.query(FullTimeJob).filter(
+        FullTimeJob.company_id == profile_id,
+        FullTimeJob.status == JobStatus.ACTIVE
+    ).count()
+    
+    # Convert dict responses to FullTimeJobResponse objects
+    response_jobs = []
+    for job in jobs:
+        response_data = FullTimeJobResponse(**job)
+        response_jobs.append(response_data)
+    
+    return FullTimeJobListResponse(
+        jobs=response_jobs,
+        total=total,
+        page=page,
+        size=size
+    )
 
 
 @router.get("/user/me", response_model=CorporateProfileResponse, tags=["Corporate Profile"])

@@ -30,6 +30,7 @@ class Proposal(Base):
     gig_job = relationship("GigJob", back_populates="proposals")
     full_time_job = relationship("FullTimeJob", back_populates="proposals")
     attachments = relationship("ProposalAttachment", back_populates="proposal")
+    notifications = relationship("Notification", back_populates="proposal", cascade="all, delete-orphan")
     
     def __repr__(self):
         return f"<Proposal(id={self.id}, user_id={self.user_id}, gig_job_id={self.gig_job_id}, full_time_job_id={self.full_time_job_id})>"

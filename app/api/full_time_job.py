@@ -384,26 +384,61 @@ async def get_my_full_time_jobs_with_filters(
 @router.get("/{job_id}", response_model=FullTimeJobResponse, tags=["Full Time Job"])
 async def get_full_time_job(
     job_id: int,
-    current_user: dict = Depends(get_current_user),
+    current_user: Optional[User] = Depends(get_current_user_optional),
     db: Session = Depends(get_db)
 ):
-    """Get full-time job by ID (requires VIEW_JOB permission)"""
+    """Get full-time job by ID. Public access for ACTIVE jobs. Owners/team members can view any status."""
     try:
-        # Check if user has permission to view this job
-        has_access, job_data, error_msg = check_job_access_permission(
-            current_user.id, job_id, Permission.VIEW_JOB, db
-        )
+        job_repo = FullTimeJobRepository(db)
+        corporate_repo = CorporateProfileRepository(db)
+        team_repo = TeamMemberRepository(db)
         
-        if not has_access:
-            if "not found" in error_msg.lower():
+        # Get job details
+        job_data = job_repo.get_by_id(job_id, current_user.id if current_user else None)
+        
+        if not job_data:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Full-time job not found"
+            )
+        
+        # Check if corporate profile exists and is active
+        corporate_profile_id = job_data['company_id']
+        profile = corporate_repo.get_by_id(corporate_profile_id)
+        
+        if not profile:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Corporate profile not found"
+            )
+        
+        if not profile.is_active:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Corporate profile is not active"
+            )
+        
+        # Check if user is owner or team member (can view any status)
+        is_owner_or_team_member = False
+        if current_user:
+            # Check if user is owner
+            if profile.user_id == current_user.id:
+                is_owner_or_team_member = True
+            else:
+                # Check if user is team member
+                team_member = team_repo.get_by_user_and_corporate_profile(
+                    current_user.id, corporate_profile_id
+                )
+                if team_member and team_member.status == TeamMemberStatus.ACCEPTED:
+                    is_owner_or_team_member = True
+        
+        # If user is not owner/team member, only allow viewing ACTIVE jobs
+        if not is_owner_or_team_member:
+            job_status = job_data.get('status', '')
+            if job_status != 'ACTIVE':
                 raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND,
-                    detail=error_msg
-                )
-            else:
-                raise HTTPException(
-                    status_code=status.HTTP_403_FORBIDDEN,
-                    detail=error_msg
+                    detail="Full-time job not found"
                 )
         
         # Convert dict response to FullTimeJobResponse object

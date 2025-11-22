@@ -21,6 +21,8 @@ import os
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 
 from app.database import Base
+# Import all models to ensure they are registered with Base.metadata
+from app.models import notification  # noqa: F401
 target_metadata = Base.metadata
 
 # other values from the config, defined by the needs of env.py,

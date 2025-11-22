@@ -198,7 +198,9 @@ async def register(user_data: RegisterOTPRequest, db: Session = Depends(get_db))
             "name": user_data.name,
             "email": user_data.email,
             "password": user_data.password,
-            "phone": user_data.phone
+            "phone": user_data.phone,
+            "device_token": user_data.device_token,
+            "device_type": user_data.device_type
         }
         
         otp = otp_repo.create_otp_with_data(user_data.email, otp_code, "registration", registration_data)
@@ -292,6 +294,23 @@ async def verify_registration_otp(otp_verify: RegisterOTPVerify, db: Session = D
         )
         
         user_repo.update_last_login(user.id)
+        
+        # Create device token if provided
+        if otp_verify.device_token and otp_verify.device_type:
+            create_user_device_token(
+                db=db,
+                user_id=user.id,
+                device_token=otp_verify.device_token,
+                device_type=otp_verify.device_type
+            )
+        # Also check registration_data for device_token (in case it was saved during register step)
+        elif registration_data.get("device_token") and registration_data.get("device_type"):
+            create_user_device_token(
+                db=db,
+                user_id=user.id,
+                device_token=registration_data.get("device_token"),
+                device_type=registration_data.get("device_type")
+            )
         
         login_response = LoginResponse(
             token=Token(

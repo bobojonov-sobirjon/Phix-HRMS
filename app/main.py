@@ -5,10 +5,11 @@ from fastapi.responses import JSONResponse
 from .api import auth, profile, contact_us, faq, skills, roles, languages, locations, user_skills, data_management
 from .api import company, education_facility, certification_center, gig_jobs, proposals
 from .api import saved_jobs
-from .api import corporate_profile, full_time_job, team_member, category, chat, corporate_profile_follow
+from .api import corporate_profile, full_time_job, team_member, category, chat, corporate_profile_follow, notifications
 from .database import engine
-from .models import user, role, user_role, skill, user_skill, education, experience, certification, project, project_image, language, location, contact_us as contact_us_model, faq as faq_model, company as company_model, education_facility as education_facility_model, certification_center as certification_center_model, gig_job, proposal, saved_job, corporate_profile as corporate_profile_model, full_time_job as full_time_job_model, team_member as team_member_model, category as category_model, chat as chat_model, corporate_profile_follow as corporate_profile_follow_model
+from .models import user, role, user_role, skill, user_skill, education, experience, certification, project, project_image, language, location, contact_us as contact_us_model, faq as faq_model, company as company_model, education_facility as education_facility_model, certification_center as certification_center_model, gig_job, proposal, saved_job, corporate_profile as corporate_profile_model, full_time_job as full_time_job_model, team_member as team_member_model, category as category_model, chat as chat_model, corporate_profile_follow as corporate_profile_follow_model, notification as notification_model
 import traceback
+import os
 
 app = FastAPI(title="Phix HRMS API", version="1.0.0")
 
@@ -69,6 +70,7 @@ app.include_router(full_time_job.router, prefix="/api/v1")
 app.include_router(team_member.router, prefix="/api/v1")
 app.include_router(category.router, prefix="/api/v1")
 app.include_router(chat.router, prefix="/api/v1/chat")
+app.include_router(notifications.router, prefix="/api/v1")
 
 # Mount static files
 app.mount("/static", StaticFiles(directory="static"), name="static")
@@ -100,6 +102,33 @@ team_member_model.Base.metadata.create_all(bind=engine)
 category_model.Base.metadata.create_all(bind=engine)
 chat_model.Base.metadata.create_all(bind=engine)
 corporate_profile_follow_model.Base.metadata.create_all(bind=engine)
+notification_model.Base.metadata.create_all(bind=engine)
+
+
+from dotenv import load_dotenv
+
+# Load .env file
+load_dotenv()
+
+# If .env doesn't exist, create it from env.example
+if not os.path.exists('.env') and os.path.exists('env.example'):
+    import shutil
+    shutil.copy('env.example', '.env')
+    
+    # Reload environment variables
+    load_dotenv()
+
+FIREBASE_TYPE = os.getenv("TYPE")
+FIREBASE_PROJECT_ID = os.getenv("PROJECT_ID")
+FIREBASE_PRIVATE_KEY_ID = os.getenv("PRIVATE_KEY_ID")
+FIREBASE_PRIVATE_KEY = os.getenv("PRIVATE_KEY")
+FIREBASE_CLIENT_EMAIL = os.getenv("CLIENT_EMAIL")
+FIREBASE_CLIENT_ID = os.getenv("CLIENT_ID")
+FIREBASE_AUTH_URI = os.getenv("AUTH_URI")
+FIREBASE_TOKEN_URI = os.getenv("TOKEN_URI")
+FIREBASE_AUTH_PROVIDER_CERT_URL = os.getenv("AUTH_PROVIDER_CERT_URL")
+FIREBASE_CLIENT_CERT_URL = os.getenv("CLIENT_CERT_URL")
+FIREBASE_UNIVERSE_DOMAIN = os.getenv("UNIVERSE_DOMAIN")
 
 @app.get("/")
 async def root():

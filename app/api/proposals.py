@@ -33,11 +33,35 @@ os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 def get_user_device_tokens(db: Session, user_id: int) -> List[str]:
     """Get all active device tokens for a user"""
-    device_tokens = db.query(UserDeviceToken).filter(
-        UserDeviceToken.user_id == user_id,
-        UserDeviceToken.is_active == True
-    ).all()
-    return [token.device_token for token in device_tokens]
+    from sqlalchemy import text
+    # Use raw SQL to avoid enum parsing issues with uppercase values in database
+    try:
+        result = db.execute(text("""
+            SELECT device_token 
+            FROM user_device_tokens 
+            WHERE user_id = :user_id 
+            AND is_active = true
+            AND LOWER(device_type::text) IN ('ios', 'android')
+        """), {"user_id": user_id})
+        return [row[0] for row in result if row[0]]
+    except Exception as e:
+        print(f"DEBUG: Error getting device tokens: {str(e)}")
+        # Fallback to ORM query with exception handling
+        try:
+            device_tokens = db.query(UserDeviceToken).filter(
+                UserDeviceToken.user_id == user_id,
+                UserDeviceToken.is_active == True
+            ).all()
+            valid_tokens = []
+            for token in device_tokens:
+                try:
+                    if token.device_token:
+                        valid_tokens.append(token.device_token)
+                except (LookupError, KeyError, ValueError):
+                    continue
+            return valid_tokens
+        except Exception:
+            return []
 
 
 def send_proposal_notification(
@@ -53,19 +77,33 @@ def send_proposal_notification(
         print(f"DEBUG: Found {len(device_tokens)} device token(s) for user_id={recipient_user_id}")
         if device_tokens:
             print(f"DEBUG: Sending notification - Title: {title}, Body: {body}")
-            result = send_push_notification_multiple(
-                device_tokens=device_tokens,
-                title=title,
-                body=body,
-                data={str(k): str(v) for k, v in data.items()}
-            )
-            print(f"DEBUG: Notification result - Success: {result.get('success_count', 0)}, Failed: {result.get('failure_count', 0)}")
+            try:
+                result = send_push_notification_multiple(
+                    device_tokens=device_tokens,
+                    title=title,
+                    body=body,
+                    data={str(k): str(v) for k, v in data.items()}
+                )
+                skipped = result.get('skipped_count', 0)
+                if skipped > 0:
+                    print(f"DEBUG: Notification result - Success: {result.get('success_count', 0)}, Failed: {result.get('failure_count', 0)}, Skipped: {skipped}")
+                else:
+                    print(f"DEBUG: Notification result - Success: {result.get('success_count', 0)}, Failed: {result.get('failure_count', 0)}")
+            except FileNotFoundError as fe:
+                # Firebase service account file not found - this is OK, notification is already saved to database
+                print(f"WARNING: Firebase service account file not found. Push notification skipped, but notification is saved to database: {str(fe)}")
+            except Exception as fe:
+                # Other Firebase errors - log but don't fail
+                print(f"WARNING: Failed to send push notification (notification saved to database): {str(fe)}")
         else:
             print(f"DEBUG: No device tokens found for user_id={recipient_user_id}")
     except Exception as e:
-        print(f"ERROR: Failed to send notification to user_id={recipient_user_id}: {str(e)}")
-        import traceback
-        traceback.print_exc()
+        # Don't fail the whole request if notification sending fails
+        print(f"WARNING: Failed to send notification to user_id={recipient_user_id}: {str(e)}")
+        # Don't print full traceback for expected errors like missing Firebase file
+        if "Firebase service account file not found" not in str(e):
+            import traceback
+            traceback.print_exc()
 
 
 def save_uploaded_files(files: List[UploadFile], user_id: int, proposal_id: int) -> List[dict]:
@@ -268,6 +306,23 @@ async def create_proposal(
             print(f"DEBUG: Sending notification to job owner (user_id={job_owner_id})")
             print(f"DEBUG: Notification title: {title}, body: {body}")
             
+            # Save notification to database
+            from app.repositories.notification_repository import NotificationRepository
+            from app.models.notification import NotificationType
+            from app.utils.websocket_manager import manager
+            notification_repo = NotificationRepository(db)
+            notification = notification_repo.create(
+                type=NotificationType.APPLICATION,
+                title=title,
+                body=body,
+                recipient_user_id=job_owner_id,
+                proposal_id=proposal.id,
+                job_id=job_id,
+                job_type="gig" if gig_job_id else "full_time",
+                applicant_id=current_user.id
+            )
+            
+            # Send push notification
             send_proposal_notification(
                 db=db,
                 recipient_user_id=job_owner_id,
@@ -450,6 +505,21 @@ async def get_proposal_by_id(
                 title = "Your Proposal Was Viewed"
                 body = f"Your proposal for {job_title} was viewed."
                 
+                # Save notification to database
+                from app.repositories.notification_repository import NotificationRepository
+                from app.models.notification import NotificationType
+                notification_repo = NotificationRepository(db)
+                notification_repo.create(
+                    type=NotificationType.PROPOSAL_VIEWED,
+                    title=title,
+                    body=body,
+                    recipient_user_id=proposal_sender_id,
+                    proposal_id=proposal.id,
+                    job_id=proposal.gig_job_id or proposal.full_time_job_id,
+                    job_type="gig" if proposal.gig_job_id else "full_time"
+                )
+                
+                # Send push notification
                 send_proposal_notification(
                     db=db,
                     recipient_user_id=proposal_sender_id,
@@ -846,6 +916,20 @@ async def mark_proposal_as_read(
             title = "Your Proposal Was Viewed"
             body = f"Your proposal for {job_title} was viewed."
             
+            # Save notification to database
+            from app.repositories.notification_repository import NotificationRepository
+            from app.models.notification import NotificationType
+            notification_repo = NotificationRepository(db)
+            notification_repo.create(
+                type=NotificationType.PROPOSAL_VIEWED,
+                title=title,
+                body=body,
+                recipient_user_id=proposal_sender_id,
+                proposal_id=proposal.id,
+                job_id=proposal.gig_job_id or proposal.full_time_job_id,
+                job_type="gig" if proposal.gig_job_id else "full_time"
+            )
+            
             print(f"DEBUG: Sending notification to proposal sender (user_id={proposal_sender_id})")
             send_proposal_notification(
                 db=db,
@@ -978,6 +1062,20 @@ async def mark_all_proposals_as_read(
                     if job_title:
                         title = "Your Proposal Was Viewed"
                         body = f"Your proposal for {job_title} was viewed."
+                        
+                        # Save notification to database
+                        from app.repositories.notification_repository import NotificationRepository
+                        from app.models.notification import NotificationType
+                        notification_repo = NotificationRepository(db)
+                        notification_repo.create(
+                            type=NotificationType.PROPOSAL_VIEWED,
+                            title=title,
+                            body=body,
+                            recipient_user_id=proposal_sender_id,
+                            proposal_id=proposal.id,
+                            job_id=proposal.gig_job_id or proposal.full_time_job_id,
+                            job_type="gig" if proposal.gig_job_id else "full_time"
+                        )
                         
                         send_proposal_notification(
                             db=db,

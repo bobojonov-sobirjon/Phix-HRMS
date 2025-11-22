@@ -733,6 +733,7 @@ async def websocket_endpoint(websocket: WebSocket, token: str = None, room_id: i
                 receiver_id = message_info.get("receiver_id")
                 message_type = message_info.get("message_type", "text")
                 content = message_info.get("content", "")
+                local_temp_id = message_info.get("local_temp_id")  # Get local_temp_id from request body
                 
                 # Handle single file (backward compatibility)
                 file_data = message_info.get("file_data")  # Base64 encoded file data
@@ -950,6 +951,10 @@ async def websocket_endpoint(websocket: WebSocket, token: str = None, room_id: i
                     "sender_details": sender_details,
                     "receiver_details": receiver_details
                 }
+                
+                # Add local_temp_id from request body if provided (for realtime matching)
+                if local_temp_id:
+                    message_response["local_temp_id"] = local_temp_id
                 
                 # Add file-related fields only if they exist
                 if message.file_name:

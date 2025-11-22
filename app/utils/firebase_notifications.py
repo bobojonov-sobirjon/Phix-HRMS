@@ -6,6 +6,10 @@ from firebase_admin import credentials, messaging
 from typing import List, Optional, Dict, Any
 import os
 from pathlib import Path
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
 
 
 # Global Firebase app instance
@@ -18,14 +22,69 @@ def initialize_firebase(service_account_path: Optional[str] = None):
     
     Args:
         service_account_path: Path to Firebase service account JSON file.
-                             If None, will look for it in common locations.
+                             If None, will try to use environment variables or look for it in common locations.
     """
     global _firebase_app
     
     if _firebase_app is not None:
         return _firebase_app
     
-    # Try to find service account file
+    # First, try to use environment variables (without FIREBASE_ prefix, as in main.py)
+    firebase_type = os.getenv("TYPE")
+    firebase_project_id = os.getenv("PROJECT_ID")
+    firebase_private_key_id = os.getenv("PRIVATE_KEY_ID")
+    firebase_private_key = os.getenv("PRIVATE_KEY")
+    firebase_client_email = os.getenv("CLIENT_EMAIL")
+    firebase_client_id = os.getenv("CLIENT_ID")
+    firebase_auth_uri = os.getenv("AUTH_URI")
+    firebase_token_uri = os.getenv("TOKEN_URI")
+    firebase_auth_provider_cert_url = os.getenv("AUTH_PROVIDER_CERT_URL")
+    firebase_client_cert_url = os.getenv("CLIENT_CERT_URL")
+    firebase_universe_domain = os.getenv("UNIVERSE_DOMAIN")
+    
+    print(f"DEBUG: Firebase env vars - Private Key: {'Found' if firebase_private_key else 'Not found'}, Client Email: {'Found' if firebase_client_email else 'Not found'}")
+    
+    if firebase_private_key and firebase_client_email:
+        # Use environment variables to create credentials
+        try:
+            # Extract project_id from client_email if not provided
+            # Format: service-account@project-id.iam.gserviceaccount.com
+            project_id = firebase_project_id
+            if not project_id and firebase_client_email and "@" in firebase_client_email:
+                try:
+                    # Extract project_id from email: service-account@project-id.iam.gserviceaccount.com
+                    email_parts = firebase_client_email.split("@")
+                    if len(email_parts) > 1:
+                        domain_parts = email_parts[1].split(".")
+                        if len(domain_parts) > 0:
+                            project_id = domain_parts[0]
+                except Exception:
+                    project_id = None
+            
+            # Build service account info dictionary
+            service_account_info = {
+                "type": firebase_type or "service_account",
+                "project_id": project_id or "",
+                "private_key_id": firebase_private_key_id or "",
+                "private_key": firebase_private_key.replace("\\n", "\n"),  # Handle escaped newlines
+                "client_email": firebase_client_email,
+                "client_id": firebase_client_id or "",
+                "auth_uri": firebase_auth_uri or "https://accounts.google.com/o/oauth2/auth",
+                "token_uri": firebase_token_uri or "https://oauth2.googleapis.com/token",
+                "auth_provider_x509_cert_url": firebase_auth_provider_cert_url or "https://www.googleapis.com/oauth2/v1/certs",
+                "client_x509_cert_url": firebase_client_cert_url or "",
+                "universe_domain": firebase_universe_domain or "googleapis.com"
+            }
+            
+            cred = credentials.Certificate(service_account_info)
+            _firebase_app = firebase_admin.initialize_app(cred)
+            print("DEBUG: Firebase initialized using environment variables")
+            return _firebase_app
+        except Exception as e:
+            print(f"WARNING: Failed to initialize Firebase using environment variables: {str(e)}")
+            # Fall through to try file-based initialization
+    
+    # If environment variables not available, try to find service account file
     if service_account_path is None:
         # Check common locations
         possible_paths = [
@@ -42,8 +101,8 @@ def initialize_firebase(service_account_path: Optional[str] = None):
         
         if service_account_path is None:
             raise FileNotFoundError(
-                "Firebase service account file not found. "
-                "Please provide the path to your Firebase service account JSON file."
+                "Firebase service account file not found and environment variables not set. "
+                "Please provide either Firebase environment variables or the path to your Firebase service account JSON file."
             )
     
     if not os.path.exists(service_account_path):
@@ -52,6 +111,7 @@ def initialize_firebase(service_account_path: Optional[str] = None):
     try:
         cred = credentials.Certificate(service_account_path)
         _firebase_app = firebase_admin.initialize_app(cred)
+        print("DEBUG: Firebase initialized using service account file")
         return _firebase_app
     except Exception as e:
         raise Exception(f"Failed to initialize Firebase: {str(e)}")
@@ -82,7 +142,14 @@ def send_push_notification(
     try:
         # Ensure Firebase is initialized
         if _firebase_app is None:
-            initialize_firebase()
+            try:
+                initialize_firebase()
+            except FileNotFoundError as e:
+                print(f"WARNING: Cannot send push notification - Firebase not initialized: {str(e)}")
+                return False
+            except Exception as e:
+                print(f"WARNING: Cannot send push notification - Firebase initialization failed: {str(e)}")
+                return False
         
         # Build notification
         notification = messaging.Notification(
@@ -161,7 +228,26 @@ def send_push_notification_multiple(
     """
     # Ensure Firebase is initialized
     if _firebase_app is None:
-        initialize_firebase()
+        try:
+            initialize_firebase()
+        except FileNotFoundError as e:
+            # If Firebase file not found, return skipped results instead of failure
+            print(f"WARNING: Cannot send push notifications - Firebase not initialized: {str(e)}")
+            return {
+                "success_count": 0,
+                "failure_count": 0,
+                "skipped_count": len(device_tokens),
+                "results": [{"token": token, "success": False, "skipped": True, "error": "Firebase not initialized"} for token in device_tokens]
+            }
+        except Exception as e:
+            # Other initialization errors
+            print(f"WARNING: Cannot send push notifications - Firebase initialization failed: {str(e)}")
+            return {
+                "success_count": 0,
+                "failure_count": 0,
+                "skipped_count": len(device_tokens),
+                "results": [{"token": token, "success": False, "skipped": True, "error": f"Firebase init error: {str(e)}"} for token in device_tokens]
+            }
     
     if not device_tokens:
         return {
@@ -173,6 +259,7 @@ def send_push_notification_multiple(
     results = {
         "success_count": 0,
         "failure_count": 0,
+        "skipped_count": 0,
         "results": []
     }
     

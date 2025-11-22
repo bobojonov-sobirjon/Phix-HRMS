@@ -26,6 +26,7 @@ from .category import Category
 from .chat import ChatRoom, ChatMessage, ChatParticipant, UserPresence
 from .saved_job import SavedJob
 from .user_device_token import UserDeviceToken, DeviceType
+from .notification import Notification, NotificationType
 
 __all__ = [
     "Certification",
@@ -60,4 +61,6 @@ __all__ = [
     "SavedJob",
     "UserDeviceToken",
     "DeviceType",
+    "Notification",
+    "NotificationType",
 ] 
