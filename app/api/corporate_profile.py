@@ -151,16 +151,6 @@ def convert_profile_to_response(profile_with_urls, current_user_id: Optional[int
             if follow_relation:
                 is_followed = True
                 follow_relation_id = follow_relation.id
-            else:
-                # Double check by querying directly
-                from ..models.corporate_profile_follow import CorporateProfileFollow
-                direct_check = db.query(CorporateProfileFollow).filter(
-                    CorporateProfileFollow.user_id == current_user_id,
-                    CorporateProfileFollow.corporate_profile_id == profile_with_urls.id
-                ).first()
-                if direct_check:
-                    is_followed = True
-                    follow_relation_id = direct_check.id
     
     # Create profile data with team members
     profile_dict = {
