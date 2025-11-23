@@ -146,16 +146,18 @@ def convert_profile_to_response(profile_with_urls, current_user_id: Optional[int
         followers_count = follow_repo.count_followers(profile_with_urls.id)
         
         # Check if current user is following and get follow relation ID
-        if current_user_id:
-            # Direct query to ensure proper filtering by user_id and corporate_profile_id
+        # If token is provided, get user.id and corporate_profile_id, then filter CorporateProfileFollow
+        if current_user_id and profile_with_urls.id:
             from ..models.corporate_profile_follow import CorporateProfileFollow
             from sqlalchemy import and_
+            # Filter CorporateProfileFollow by user_id and corporate_profile_id
             follow_relation = db.query(CorporateProfileFollow).filter(
                 and_(
                     CorporateProfileFollow.user_id == current_user_id,
                     CorporateProfileFollow.corporate_profile_id == profile_with_urls.id
                 )
             ).first()
+            # If follow relation exists, get its id
             if follow_relation:
                 is_followed = True
                 follow_relation_id = follow_relation.id
@@ -401,7 +403,11 @@ async def get_corporate_profile(
         )
     
     profile_with_urls = add_base_url_to_profile(profile)
-    current_user_id = current_user.get("id") if current_user else None
+    # Get user.id from token if token is provided
+    current_user_id = None
+    if current_user and isinstance(current_user, dict) and "id" in current_user:
+        current_user_id = current_user["id"]
+    
     return convert_profile_to_response(profile_with_urls, current_user_id, db)
 
 
