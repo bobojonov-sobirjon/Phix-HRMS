@@ -147,7 +147,15 @@ def convert_profile_to_response(profile_with_urls, current_user_id: Optional[int
         
         # Check if current user is following and get follow relation ID
         if current_user_id:
-            follow_relation = follow_repo.get_by_user_and_profile(current_user_id, profile_with_urls.id)
+            # Direct query to ensure proper filtering by user_id and corporate_profile_id
+            from ..models.corporate_profile_follow import CorporateProfileFollow
+            from sqlalchemy import and_
+            follow_relation = db.query(CorporateProfileFollow).filter(
+                and_(
+                    CorporateProfileFollow.user_id == current_user_id,
+                    CorporateProfileFollow.corporate_profile_id == profile_with_urls.id
+                )
+            ).first()
             if follow_relation:
                 is_followed = True
                 follow_relation_id = follow_relation.id
