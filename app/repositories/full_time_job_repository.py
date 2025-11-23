@@ -45,10 +45,17 @@ class FullTimeJobRepository:
         
         # Count followers for the company
         company_followers_count = 0
+        company_follow_relation_id = None
         if job.company_id:
             from ..repositories.corporate_profile_follow_repository import CorporateProfileFollowRepository
             follow_repo = CorporateProfileFollowRepository(self.db)
             company_followers_count = follow_repo.count_followers(job.company_id)
+            
+            # Check if current user is following this company
+            if current_user_id:
+                follow_relation = follow_repo.get_by_user_and_profile(current_user_id, job.company_id)
+                if follow_relation:
+                    company_follow_relation_id = follow_relation.id
         
         # Calculate relevance score if current user is provided
         relevance_score = None
@@ -100,7 +107,8 @@ class FullTimeJobRepository:
             "relevance_score": relevance_score,
             "is_saved": is_saved,
             "is_send_proposal": is_send_proposal,
-            "company_followers_count": company_followers_count
+            "company_followers_count": company_followers_count,
+            "company_follow_relation_id": company_follow_relation_id
         }
         
         return response_data
@@ -313,10 +321,12 @@ class FullTimeJobRepository:
         
         # Count followers for the company
         company_followers_count = 0
+        company_follow_relation_id = None
         if corporate_profile_id:
             from ..repositories.corporate_profile_follow_repository import CorporateProfileFollowRepository
             follow_repo = CorporateProfileFollowRepository(self.db)
             company_followers_count = follow_repo.count_followers(corporate_profile_id)
+            # Note: In create_with_context, we don't have current_user_id, so follow_relation_id will be None
         
         # Create response data manually
         response_data = {
@@ -347,7 +357,8 @@ class FullTimeJobRepository:
             "relevance_score": None,
             "is_saved": False,
             "is_send_proposal": False,
-            "company_followers_count": company_followers_count
+            "company_followers_count": company_followers_count,
+            "company_follow_relation_id": company_follow_relation_id
         }
         
         return response_data

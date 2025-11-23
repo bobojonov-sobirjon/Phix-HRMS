@@ -113,6 +113,7 @@ class FullTimeJobResponse(BaseModel):
     is_saved: bool = Field(default=False, description="Whether the job is saved by the current user")
     is_send_proposal: bool = Field(default=False, description="Whether the current user has sent a proposal for this job")
     company_followers_count: int = Field(default=0, description="Number of followers for the company")
+    company_follow_relation_id: Optional[int] = Field(default=None, description="ID of the follow relationship if current user is following the company")
     
     class Config:
         from_attributes = True
