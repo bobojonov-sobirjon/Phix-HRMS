@@ -98,6 +98,7 @@ class FullTimeJobResponse(BaseModel):
     status: str = "ACTIVE"
     company_id: int
     company_name: str
+    company_logo_url: Optional[str] = Field(None, description="Company logo URL")
     category_id: int
     category_name: str
     subcategory_id: Optional[int] = None

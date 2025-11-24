@@ -5,6 +5,7 @@ from ..models.full_time_job import FullTimeJob
 from ..models.corporate_profile import CorporateProfile
 from ..models.skill import Skill
 from ..schemas.full_time_job import FullTimeJobCreate, FullTimeJobUpdate
+from ..config import settings
 
 
 class FullTimeJobRepository:
@@ -77,6 +78,15 @@ class FullTimeJobRepository:
                 Proposal.is_deleted == False
             ).first() is not None
         
+        # Prepare company logo URL with base URL
+        company_logo_url = None
+        if job.company and job.company.logo_url:
+            logo_url = job.company.logo_url
+            if logo_url and not logo_url.startswith('http'):
+                company_logo_url = f"{settings.BASE_URL}{logo_url}"
+            else:
+                company_logo_url = logo_url
+        
         # Create response data
         response_data = {
             "id": job.id,
@@ -93,6 +103,7 @@ class FullTimeJobRepository:
             "status": job.status,
             "company_id": job.company_id,
             "company_name": job.company.company_name if job.company else None,
+            "company_logo_url": company_logo_url,
             "category_id": job.category_id,
             "category_name": job.category.name if job.category else "",
             "subcategory_id": job.subcategory_id,
@@ -192,6 +203,15 @@ class FullTimeJobRepository:
                 "is_deleted": skill.is_deleted
             })
         
+        # Prepare company logo URL with base URL
+        company_logo_url = None
+        if job.company and job.company.logo_url:
+            logo_url = job.company.logo_url
+            if logo_url and not logo_url.startswith('http'):
+                company_logo_url = f"{settings.BASE_URL}{logo_url}"
+            else:
+                company_logo_url = logo_url
+        
         # Create response data
         response_data = {
             "id": job.id,
@@ -208,6 +228,7 @@ class FullTimeJobRepository:
             "status": job.status.value,
             "company_id": job.company_id,
             "company_name": job.company.company_name if job.company else "",
+            "company_logo_url": company_logo_url,
             "category_id": job.category_id,
             "category_name": job.category.name if job.category else "",
             "subcategory_id": job.subcategory_id,
@@ -328,6 +349,15 @@ class FullTimeJobRepository:
             company_followers_count = follow_repo.count_followers(corporate_profile_id)
             # Note: In create_with_context, we don't have current_user_id, so follow_relation_id will be None
         
+        # Prepare company logo URL with base URL
+        company_logo_url = None
+        if company and company.logo_url:
+            logo_url = company.logo_url
+            if logo_url and not logo_url.startswith('http'):
+                company_logo_url = f"{settings.BASE_URL}{logo_url}"
+            else:
+                company_logo_url = logo_url
+        
         # Create response data manually
         response_data = {
             "id": db_job.id,
@@ -343,6 +373,7 @@ class FullTimeJobRepository:
             "status": db_job.status.value,
             "company_id": corporate_profile_id,
             "company_name": company.company_name if company else "",
+            "company_logo_url": company_logo_url,
             "category_id": db_job.category_id,
             "category_name": category.name if category else "",
             "subcategory_id": db_job.subcategory_id,
