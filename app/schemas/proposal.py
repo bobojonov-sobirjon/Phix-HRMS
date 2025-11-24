@@ -252,6 +252,36 @@ class ProposalResponse(ProposalBase):
                     "is_deleted": getattr(skill, 'is_deleted', False)
                 })
         
+        # Get category name from relationship
+        category_name = 'Unknown Category'
+        if hasattr(full_time_job, 'category') and full_time_job.category:
+            category_name = full_time_job.category.name
+        
+        # Get subcategory name from relationship
+        subcategory_name = None
+        if hasattr(full_time_job, 'subcategory') and full_time_job.subcategory:
+            subcategory_name = full_time_job.subcategory.name
+        
+        # Get company name from relationship
+        company_name = 'Unknown Company'
+        if hasattr(full_time_job, 'company') and full_time_job.company:
+            company_name = full_time_job.company.company_name
+        
+        # Get created_by_user_name from relationship
+        created_by_user_name = 'Unknown User'
+        created_by_user_id = 0
+        if hasattr(full_time_job, 'created_by_user') and full_time_job.created_by_user:
+            created_by_user_name = full_time_job.created_by_user.name
+            created_by_user_id = full_time_job.created_by_user.id
+        
+        # Get created_by_role
+        created_by_role = 'UNKNOWN'
+        if hasattr(full_time_job, 'created_by_role') and full_time_job.created_by_role:
+            if hasattr(full_time_job.created_by_role, 'value'):
+                created_by_role = full_time_job.created_by_role.value
+            else:
+                created_by_role = str(full_time_job.created_by_role)
+        
         return {
             "id": full_time_job.id,
             "title": full_time_job.title,
@@ -263,19 +293,26 @@ class ProposalResponse(ProposalBase):
             "experience_level": cls._normalize_enum_value(full_time_job.experience_level, 'ExperienceLevel'),
             "min_salary": full_time_job.min_salary,
             "max_salary": full_time_job.max_salary,
+            "pay_period": cls._normalize_enum_value(getattr(full_time_job, 'pay_period', None), 'PayPeriod') or "PER_MONTH",
             "status": cls._normalize_enum_value(full_time_job.status, 'JobStatus'),
             "company_id": full_time_job.company_id,
-            "company_name": getattr(full_time_job, 'company_name', 'Unknown Company'),
+            "company_name": company_name,
             "category_id": full_time_job.category_id,
-            "category_name": getattr(full_time_job, 'category_name', 'Unknown Category'),
+            "category_name": category_name,
             "subcategory_id": full_time_job.subcategory_id,
-            "subcategory_name": getattr(full_time_job, 'subcategory_name', None),
-            "created_by_user_id": getattr(full_time_job, 'created_by_user_id', 0),
-            "created_by_user_name": getattr(full_time_job, 'created_by_user_name', 'Unknown User'),
-            "created_by_role": getattr(full_time_job, 'created_by_role', 'UNKNOWN'),
+            "subcategory_name": subcategory_name,
+            "created_by_user_id": created_by_user_id if created_by_user_id else full_time_job.created_by_user_id,
+            "created_by_user_name": created_by_user_name,
+            "created_by_role": created_by_role,
             "created_at": full_time_job.created_at,
             "updated_at": full_time_job.updated_at,
-            "skills": skills_data
+            "skills": skills_data,
+            "all_jobs_count": 0,
+            "relevance_score": None,
+            "is_saved": False,
+            "is_send_proposal": False,
+            "company_followers_count": 0,
+            "company_follow_relation_id": None
         }
     
     @classmethod

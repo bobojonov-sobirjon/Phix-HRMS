@@ -147,20 +147,21 @@ def convert_profile_to_response(profile_with_urls, current_user_id: Optional[int
         
         # Check if current user is following and get follow relation ID
         # If token is provided, get user.id and corporate_profile_id, then filter CorporateProfileFollow
-        if current_user_id and profile_with_urls.id:
+        if current_user_id is not None and profile_with_urls.id:
             from ..models.corporate_profile_follow import CorporateProfileFollow
             from sqlalchemy import and_
             # Filter CorporateProfileFollow by user_id and corporate_profile_id
+            # Get user_id from token and corporate_profile_id from profile, then check if follow exists
             follow_relation = db.query(CorporateProfileFollow).filter(
                 and_(
-                    CorporateProfileFollow.user_id == current_user_id,
-                    CorporateProfileFollow.corporate_profile_id == profile_with_urls.id
+                    CorporateProfileFollow.user_id == int(current_user_id),
+                    CorporateProfileFollow.corporate_profile_id == int(profile_with_urls.id)
                 )
             ).first()
             # If follow relation exists, get its id
             if follow_relation:
                 is_followed = True
-                follow_relation_id = follow_relation.id
+                follow_relation_id = int(follow_relation.id)
     
     # Create profile data with team members
     profile_dict = {
@@ -404,9 +405,15 @@ async def get_corporate_profile(
     
     profile_with_urls = add_base_url_to_profile(profile)
     # Get user.id from token if token is provided
+    # Token bo'lsa, user.id ni olish kerak
     current_user_id = None
-    if current_user and isinstance(current_user, dict) and "id" in current_user:
-        current_user_id = current_user["id"]
+    if current_user:
+        # current_user dict bo'lishi kerak va "id" key bo'lishi kerak
+        if isinstance(current_user, dict) and "id" in current_user:
+            current_user_id = int(current_user["id"])
+        elif hasattr(current_user, "id"):
+            # Agar current_user obyekt bo'lsa
+            current_user_id = int(current_user.id)
     
     return convert_profile_to_response(profile_with_urls, current_user_id, db)
 

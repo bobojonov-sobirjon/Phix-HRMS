@@ -26,6 +26,7 @@ class ProposalRepository:
 
     def get_by_id(self, proposal_id: int) -> Optional[Proposal]:
         """Get proposal by ID with relationships"""
+        from app.models.corporate_profile import CorporateProfile
         return self.db.query(Proposal).options(
             joinedload(Proposal.user).joinedload(User.location),
             joinedload(Proposal.user).joinedload(User.main_category),
@@ -37,11 +38,14 @@ class ProposalRepository:
             joinedload(Proposal.gig_job).joinedload(GigJob.skills),
             joinedload(Proposal.full_time_job).joinedload(FullTimeJob.category),
             joinedload(Proposal.full_time_job).joinedload(FullTimeJob.subcategory),
+            joinedload(Proposal.full_time_job).joinedload(FullTimeJob.company),
+            joinedload(Proposal.full_time_job).joinedload(FullTimeJob.created_by_user),
             joinedload(Proposal.full_time_job).joinedload(FullTimeJob.skills)
         ).filter(Proposal.id == proposal_id).first()
 
     def get_user_proposals(self, user_id: int, pagination: PaginationParams) -> tuple[List[Proposal], int]:
         """Get paginated proposals submitted by a specific user with relationships"""
+        from app.models.corporate_profile import CorporateProfile
         query = self.db.query(Proposal).options(
             joinedload(Proposal.user).joinedload(User.location),
             joinedload(Proposal.user).joinedload(User.main_category),
@@ -53,6 +57,8 @@ class ProposalRepository:
             joinedload(Proposal.gig_job).joinedload(GigJob.skills),
             joinedload(Proposal.full_time_job).joinedload(FullTimeJob.category),
             joinedload(Proposal.full_time_job).joinedload(FullTimeJob.subcategory),
+            joinedload(Proposal.full_time_job).joinedload(FullTimeJob.company),
+            joinedload(Proposal.full_time_job).joinedload(FullTimeJob.created_by_user),
             joinedload(Proposal.full_time_job).joinedload(FullTimeJob.skills)
         ).filter(Proposal.user_id == user_id)
         
@@ -89,6 +95,7 @@ class ProposalRepository:
 
     def get_user_full_time_job_proposals(self, user_id: int, pagination: PaginationParams) -> tuple[List[Proposal], int]:
         """Get paginated full-time job proposals submitted by a specific user with relationships"""
+        from app.models.corporate_profile import CorporateProfile
         query = self.db.query(Proposal).options(
             joinedload(Proposal.user).joinedload(User.location),
             joinedload(Proposal.user).joinedload(User.main_category),
@@ -96,6 +103,8 @@ class ProposalRepository:
             joinedload(Proposal.user).joinedload(User.skills),
             joinedload(Proposal.full_time_job).joinedload(FullTimeJob.category),
             joinedload(Proposal.full_time_job).joinedload(FullTimeJob.subcategory),
+            joinedload(Proposal.full_time_job).joinedload(FullTimeJob.company),
+            joinedload(Proposal.full_time_job).joinedload(FullTimeJob.created_by_user),
             joinedload(Proposal.full_time_job).joinedload(FullTimeJob.skills)
         ).filter(
             and_(Proposal.user_id == user_id, Proposal.full_time_job_id.isnot(None))
@@ -111,6 +120,7 @@ class ProposalRepository:
 
     def get_gig_job_proposals(self, gig_job_id: int, pagination: PaginationParams) -> tuple[List[Proposal], int]:
         """Get paginated proposals for a specific gig job with relationships"""
+        from app.models.corporate_profile import CorporateProfile
         query = self.db.query(Proposal).options(
             joinedload(Proposal.user).joinedload(User.location),
             joinedload(Proposal.user).joinedload(User.main_category),
@@ -122,6 +132,8 @@ class ProposalRepository:
             joinedload(Proposal.gig_job).joinedload(GigJob.skills),
             joinedload(Proposal.full_time_job).joinedload(FullTimeJob.category),
             joinedload(Proposal.full_time_job).joinedload(FullTimeJob.subcategory),
+            joinedload(Proposal.full_time_job).joinedload(FullTimeJob.company),
+            joinedload(Proposal.full_time_job).joinedload(FullTimeJob.created_by_user),
             joinedload(Proposal.full_time_job).joinedload(FullTimeJob.skills)
         ).filter(Proposal.gig_job_id == gig_job_id)
         
@@ -135,6 +147,7 @@ class ProposalRepository:
 
     def get_full_time_job_proposals(self, full_time_job_id: int, pagination: PaginationParams) -> tuple[List[Proposal], int]:
         """Get paginated proposals for a specific full-time job with relationships"""
+        from app.models.corporate_profile import CorporateProfile
         query = self.db.query(Proposal).options(
             joinedload(Proposal.user).joinedload(User.location),
             joinedload(Proposal.user).joinedload(User.main_category),
@@ -146,6 +159,8 @@ class ProposalRepository:
             joinedload(Proposal.gig_job).joinedload(GigJob.skills),
             joinedload(Proposal.full_time_job).joinedload(FullTimeJob.category),
             joinedload(Proposal.full_time_job).joinedload(FullTimeJob.subcategory),
+            joinedload(Proposal.full_time_job).joinedload(FullTimeJob.company),
+            joinedload(Proposal.full_time_job).joinedload(FullTimeJob.created_by_user),
             joinedload(Proposal.full_time_job).joinedload(FullTimeJob.skills)
         ).filter(Proposal.full_time_job_id == full_time_job_id)
         
