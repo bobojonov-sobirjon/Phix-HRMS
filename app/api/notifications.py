@@ -15,6 +15,7 @@ from app.schemas.profile import UserShortDetails
 from app.models.notification import NotificationType
 from app.pagination import PaginationParams, create_pagination_response
 from app.config import settings
+from app.models.user import User
 
 router = APIRouter(prefix="/notifications", tags=["Notifications"])
 
@@ -181,9 +182,87 @@ async def get_notification_counts(
         notification_type=NotificationType.PROPOSAL_VIEWED
     )
     
+    chat_messages_unread = repository.get_unread_count(
+        user_id=current_user.id,
+        notification_type=NotificationType.CHAT_MESSAGE
+    )
+    
     return NotificationCountResponse(
         applications_unread=applications_unread,
-        my_proposals_unread=my_proposals_unread
+        my_proposals_unread=my_proposals_unread,
+        chat_messages_unread=chat_messages_unread
+    )
+
+
+@router.get("/chat-messages", response_model=NotificationListResponse)
+async def get_chat_messages(
+    page: int = Query(1, ge=1, description="Page number"),
+    size: int = Query(10, ge=1, le=100, description="Page size"),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Get chat message notifications (when someone sends you a chat message).
+    
+    These are notifications sent to users when they receive chat messages.
+    """
+    repository = NotificationRepository(db)
+    pagination = PaginationParams(page=page, size=size)
+    
+    notifications, total = repository.get_chat_messages(
+        user_id=current_user.id,
+        pagination=pagination
+    )
+    
+    # Get unread count
+    unread_count = repository.get_unread_count(
+        user_id=current_user.id,
+        notification_type=NotificationType.CHAT_MESSAGE
+    )
+    
+    # Convert to response format
+    notification_responses = []
+    for notification in notifications:
+        sender_name = None
+        if notification.sender:
+            sender_name = notification.sender.name
+        
+        # Prepare recipient user details
+        recipient_user_details = None
+        if notification.recipient:
+            user_data = UserShortDetails.model_validate(notification.recipient).model_dump()
+            # Format avatar_url if needed
+            if user_data.get("avatar_url") and not user_data["avatar_url"].startswith(('http://', 'https://')):
+                user_data["avatar_url"] = f"{settings.BASE_URL}{user_data['avatar_url']}"
+            recipient_user_details = user_data
+        
+        notification_responses.append(NotificationResponse(
+            id=notification.id,
+            type=notification.type.value,
+            title=notification.title,
+            body=notification.body,
+            recipient_user_id=notification.recipient_user_id,
+            proposal_id=notification.proposal_id,
+            job_id=notification.job_id,
+            job_type=notification.job_type,
+            applicant_id=notification.applicant_id,
+            applicant_name=None,
+            room_id=notification.room_id,
+            message_id=notification.message_id,
+            sender_id=notification.sender_id,
+            sender_name=sender_name,
+            is_read=notification.is_read,
+            created_at=notification.created_at,
+            proposal=None,
+            recipient_user=recipient_user_details
+        ))
+    
+    return NotificationListResponse(
+        notifications=notification_responses,
+        total=total,
+        page=page,
+        size=size,
+        unread_count=unread_count
     )
 
 

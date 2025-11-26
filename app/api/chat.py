@@ -20,9 +20,112 @@ from ..utils.file_upload import file_upload_manager
 from ..utils.auth import get_current_user
 from ..utils.agora_tokens import generate_rtc_token
 from ..models.user import User
+from ..models.user_device_token import UserDeviceToken
+from ..utils.firebase_notifications import send_push_notification_multiple
 import uuid
 
 router = APIRouter(tags=["Chat"])
+
+# Helper function to get user device tokens
+def get_user_device_tokens(db: Session, user_id: int) -> List[str]:
+    """Get all active device tokens for a user"""
+    from sqlalchemy import text
+    try:
+        result = db.execute(text("""
+            SELECT device_token 
+            FROM user_device_tokens 
+            WHERE user_id = :user_id 
+            AND is_active = true
+            AND LOWER(device_type::text) IN ('ios', 'android')
+        """), {"user_id": user_id})
+        return [row[0] for row in result if row[0]]
+    except Exception as e:
+        # Minimal error log, without verbose debug tag
+        print(f"Chat notification error getting device tokens: {str(e)}")
+        try:
+            device_tokens = db.query(UserDeviceToken).filter(
+                UserDeviceToken.user_id == user_id,
+                UserDeviceToken.is_active == True
+            ).all()
+            valid_tokens = []
+            for token in device_tokens:
+                try:
+                    if token.device_token:
+                        valid_tokens.append(token.device_token)
+                except (LookupError, KeyError, ValueError):
+                    continue
+            return valid_tokens
+        except Exception:
+            return []
+
+# Helper function to send chat push notification
+def send_chat_notification(
+    db: Session,
+    recipient_user_id: int,
+    sender_name: str,
+    message_content: str,
+    message_type: str,
+    room_id: int,
+    message_id: int,
+    sender_id: int
+):
+    """Send push notification for chat message"""
+    try:
+        device_tokens = get_user_device_tokens(db, recipient_user_id)
+        print(f"[Chat Notification] Found {len(device_tokens)} device token(s) for user_id={recipient_user_id}")
+
+        if device_tokens:
+            # Create notification title and body based on message type
+            if message_type == "text":
+                title = f"New message from {sender_name}"
+                body = message_content[:100] if message_content else "New message"  # Limit body length
+            elif message_type == "image":
+                title = f"New image from {sender_name}"
+                body = f"{sender_name} sent an image"
+            elif message_type == "voice":
+                title = f"New voice message from {sender_name}"
+                body = f"{sender_name} sent a voice message"
+            elif message_type == "file":
+                title = f"New file from {sender_name}"
+                body = f"{sender_name} sent a file"
+            else:
+                title = f"New message from {sender_name}"
+                body = f"{sender_name} sent a message"
+
+            print(f"[Chat Notification] Sending notification - Title: {title}, Body: {body}, Type: {message_type}")
+
+            try:
+                result = send_push_notification_multiple(
+                    device_tokens=device_tokens,
+                    title=title,
+                    body=body,
+                    # FCM data payload keys: avoid reserved names like "message_type"
+                    data={
+                        "type": "chat_message",
+                        "room_id": str(room_id),
+                        "message_id": str(message_id),
+                        "sender_id": str(sender_id),
+                        "chat_message_type": message_type
+                    },
+                    sound="default"
+                )
+                skipped = result.get('skipped_count', 0)
+                failed = result.get('failure_count', 0)
+                success = result.get('success_count', 0)
+
+                print(f"[Chat Notification] Result - Success: {success}, Failed: {failed}, Skipped: {skipped}")
+
+                # If there are failures, log detailed errors for debugging
+                if failed > 0:
+                    for item in result.get("results", []):
+                        if not item.get("success"):
+                            print(f"[Chat Notification] Device token error: token={item.get('token')}, error={item.get('error')}")
+            except FileNotFoundError as fe:
+                print(f"[Chat Notification] WARNING: Firebase service account file not found. Push notification skipped, but notification is saved to database: {str(fe)}")
+            except Exception as fe:
+                print(f"[Chat Notification] WARNING: Failed to send push notification (notification saved to database): {str(fe)}")
+    except Exception as e:
+        print(f"[Chat Notification] WARNING: Failed to send notification to user_id={recipient_user_id}: {str(e)}")
 
 # User Search Endpoints
 @router.get("/search-users", response_model=UserSearchListResponse)
@@ -676,22 +779,101 @@ async def toggle_message_like(
         message_id=message_id
     )
 
-# WebSocket Endpoint
-@router.websocket("/ws")
-async def websocket_endpoint(websocket: WebSocket, token: str = None, room_id: int = None):
-    """WebSocket endpoint for real-time chat with authentication and room_id"""
-    from ..utils.websocket_auth import authenticate_websocket
+# WebSocket Endpoint Handler (shared function)
+async def _websocket_endpoint_handler(websocket: WebSocket):
+    """WebSocket endpoint handler for real-time chat with authentication and room_id"""
+    import logging
+    import traceback
+    logger = logging.getLogger(__name__)
     
-    # WebSocket connection ni accept qiling
-    await websocket.accept()
-    
-    # Authenticate user
-    user = await authenticate_websocket(websocket)
-    if not user:
-        return  # Connection already closed by authentication function
-    
-    user_id = user.id
-    user_name = user.name
+    try:
+        token = websocket.query_params.get("token")
+        room_id = websocket.query_params.get("room_id")
+        
+        # If token not found, try to parse from query string manually
+        if not token:
+            query_string = websocket.url.query
+            # Parse query string manually
+            if query_string:
+                params = {}
+                for param in query_string.split("&"):
+                    if "=" in param:
+                        key, value = param.split("=", 1)
+                        params[key] = value
+                    elif "-" in param:
+                        # Handle malformed query params (token- instead of token=)
+                        if param.startswith("token-"):
+                            token = param.replace("token-", "", 1)
+                if not token:
+                    token = params.get("token")
+                if not room_id:
+                    room_id = params.get("room_id")
+        
+        if room_id:
+            try:
+                room_id = int(room_id)
+            except:
+                room_id = None
+        
+        from ..utils.websocket_auth import authenticate_websocket
+        from ..utils.auth import verify_token
+        from ..database import SessionLocal
+        from ..models.user import User
+        
+        await websocket.accept()
+        
+        if not token:
+            await websocket.close(code=4001, reason="Missing authentication token")
+            return
+        
+        payload = verify_token(token)
+        
+        if not payload:
+            await websocket.close(code=4001, reason="Invalid or expired token")
+            return
+        
+        # Check token type (optional, for backward compatibility)
+        token_type = payload.get("type")
+        
+        if token_type and token_type != "access":
+            await websocket.close(code=4001, reason="Invalid token type")
+            return
+        
+        user_id = payload.get("sub") or payload.get("user_id")
+        
+        if not user_id:
+            await websocket.close(code=4001, reason="Invalid token payload - no user_id")
+            return
+        
+        # Get user from database
+        db = SessionLocal()
+        user = None
+        try:
+            user = db.query(User).filter(User.id == int(user_id)).first()
+            
+            if not user:
+                await websocket.close(code=4001, reason="User not found")
+                return
+            
+            if not user.is_active:
+                await websocket.close(code=4001, reason="User account is inactive")
+                return
+        finally:
+            db.close()
+        
+        user_id = user.id
+        user_name = user.name
+        
+    except Exception as e:
+        # Compact auth error; traceback still printed for server logs
+        print(f"WebSocket auth error ({type(e).__name__}): {str(e)}")
+        traceback.print_exc()
+        # Close connection if authentication failed
+        try:
+            await websocket.close(code=4000, reason=f"Authentication error: {str(e)}")
+        except Exception as close_error:
+            print(f"WebSocket error while closing connection: {close_error}")
+        return
     
     await manager.connect(websocket, user_id)
     
@@ -715,7 +897,72 @@ async def websocket_endpoint(websocket: WebSocket, token: str = None, room_id: i
         while True:
             # Receive message from client
             data = await websocket.receive_text()
-            message_data = json.loads(data)
+            
+            # Clean JSON string - remove trailing commas and comments
+            try:
+                import re
+                original_data = data
+                # Step 1: Remove multi-line comments (/* ... */) first
+                # This regex handles comments that span multiple lines
+                data = re.sub(r'/\*.*?\*/', '', data, flags=re.DOTALL)
+                
+                # Step 2: Remove single-line comments (// ...)
+                # This regex matches // followed by any characters until end of line
+                # We need to be careful not to match // inside strings
+                # Strategy: Remove // comments that are not inside quoted strings
+                lines = data.split('\n')
+                cleaned_lines = []
+                in_string = False
+                escape_next = False
+                
+                for line in lines:
+                    cleaned_line = ""
+                    i = 0
+                    while i < len(line):
+                        char = line[i]
+                        
+                        if escape_next:
+                            cleaned_line += char
+                            escape_next = False
+                            i += 1
+                            continue
+                        
+                        if char == '\\':
+                            cleaned_line += char
+                            escape_next = True
+                            i += 1
+                            continue
+                        
+                        if char == '"' and not escape_next:
+                            in_string = not in_string
+                            cleaned_line += char
+                            i += 1
+                            continue
+                        
+                        # If we find // and we're not in a string, remove rest of line
+                        if not in_string and i < len(line) - 1 and line[i:i+2] == '//':
+                            break  # Skip rest of line
+                        
+                        cleaned_line += char
+                        i += 1
+                    
+                    cleaned_lines.append(cleaned_line)
+                
+                data = '\n'.join(cleaned_lines)
+                # Step 3: Remove trailing commas before closing braces/brackets
+                # Remove trailing commas in objects: }, -> }
+                data = re.sub(r',(\s*[}\]])', r'\1', data)
+                # Step 4: Clean up any extra whitespace that might cause issues
+                # Remove whitespace before closing braces/brackets after commas were removed
+                data = re.sub(r'\s+([}\]])', r'\1', data)
+
+                message_data = json.loads(data)
+            except json.JSONDecodeError as e:
+                await websocket.send_text(json.dumps({
+                    "type": "error",
+                    "message": f"Invalid JSON format: {str(e)}"
+                }))
+                continue
             
             # Handle different message types
             if message_data.get("type") == "typing":
@@ -757,150 +1004,156 @@ async def websocket_endpoint(websocket: WebSocket, token: str = None, room_id: i
                     }))
                     continue
                 
-                # Verify user has access to the room
-                room = chat_repo.get_room(message_room_id, user_id)
-                if not room:
-                    await websocket.send_text(json.dumps({
-                        "type": "error",
-                        "message": "Room not found"
-                    }))
-                    continue
+                # Create database session for message operations
+                from ..database import SessionLocal
+                message_db = SessionLocal()
+                try:
+                    chat_repo = ChatRepository(message_db)
                 
-                # Verify receiver is in the room
-                other_user = chat_repo.get_room_other_user(room.id, user_id)
-                if not other_user or other_user.id != receiver_id:
-                    await websocket.send_text(json.dumps({
-                        "type": "error",
-                        "message": "Invalid receiver"
-                    }))
-                    continue
-                
-                # Handle file upload for image, file, and voice messages
-                processed_files_data = None
-                
-                # File size limits (in bytes)
-                MAX_IMAGE_SIZE = 10 * 1024 * 1024  # 10MB
-                MAX_FILE_SIZE = 50 * 1024 * 1024   # 50MB
-                MAX_VOICE_SIZE = 50 * 1024 * 1024  # 50MB
-                
-                # Handle files - all file data must be in files_data array
-                if message_type in ["image", "file", "voice"] and files_data:
-                    try:
-                        import base64
-                        import os
-                        from datetime import datetime
-                        
-                        processed_files = []
-                        
-                        for file_info in files_data:
-                            file_data_item = file_info.get("file_data")
-                            file_name_item = file_info.get("file_name")
-                            file_size_item = file_info.get("file_size")
-                            mime_type_item = file_info.get("mime_type")
-                            duration_item = file_info.get("duration")  # Duration in seconds (for voice/audio messages)
-                            
-                            if not file_data_item or not file_name_item:
-                                continue
-                            
-                            # Decode base64 file data with padding fix
-                            try:
-                                # Remove any whitespace or newlines
-                                file_data_item = file_data_item.strip()
-                                
-                                # Fix padding if needed
-                                missing_padding = len(file_data_item) % 4
-                                if missing_padding:
-                                    file_data_item += '=' * (4 - missing_padding)
-                                
-                                # Decode base64
-                                file_bytes = base64.b64decode(file_data_item, validate=True)
-                            except Exception as decode_error:
-                                await websocket.send_text(json.dumps({
-                                    "type": "error",
-                                    "message": f"Invalid base64 data for file '{file_name_item}': {str(decode_error)}"
-                                }))
-                                continue
-                            
-                            # Validate file size
-                            max_size = MAX_IMAGE_SIZE if message_type == "image" else (MAX_VOICE_SIZE if message_type == "voice" else MAX_FILE_SIZE)
-                            if len(file_bytes) > max_size:
-                                size_mb = max_size / (1024 * 1024)
-                                await websocket.send_text(json.dumps({
-                                    "type": "error",
-                                    "message": f"File '{file_name_item}' too large. Maximum size: {size_mb:.1f}MB"
-                                }))
-                                continue
-                            
-                            # Create appropriate directory
-                            if message_type == "image":
-                                upload_dir = "static/chat_files/images"
-                            elif message_type == "voice":
-                                upload_dir = "static/chat_files/voices"
-                            else:  # file
-                                upload_dir = "static/chat_files/files"
-                            
-                            os.makedirs(upload_dir, exist_ok=True)
-                            
-                            # Generate unique filename
-                            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-                            unique_filename = f"{user_id}_{timestamp}_{len(processed_files)}_{file_name_item}"
-                            file_path_item = os.path.join(upload_dir, unique_filename)
-                            
-                            # Save file
-                            with open(file_path_item, "wb") as f:
-                                f.write(file_bytes)
-                            
-                            # Add to processed files
-                            file_data = {
-                                "file_name": file_name_item,
-                                "file_path": file_path_item,
-                                "file_size": file_size_item or len(file_bytes),
-                                "mime_type": mime_type_item
-                            }
-                            
-                            # Add duration for voice/audio messages
-                            if message_type == "voice" and duration_item is not None:
-                                file_data["duration"] = int(duration_item)
-                            
-                            processed_files.append(file_data)
-                        
-                        processed_files_data = processed_files if processed_files else None
-                        
-                        # For backward compatibility, set single file fields if only one file
-                        # Also set duration for voice messages
-                        duration = None
-                        if processed_files_data and len(processed_files_data) == 1:
-                            single_file = processed_files_data[0]
-                            file_name = single_file["file_name"]
-                            file_path = single_file["file_path"]
-                            file_size = single_file["file_size"]
-                            mime_type = single_file["mime_type"]
-                            duration = single_file.get("duration")  # Duration for voice messages
-                        
-                    except Exception as e:
+                    # Verify user has access to the room
+                    room = chat_repo.get_room(message_room_id, user_id)
+                    if not room:
                         await websocket.send_text(json.dumps({
                             "type": "error",
-                            "message": f"File upload failed: {str(e)}"
+                            "message": "Room not found"
+                        }))
+                        continue
+                    
+                    # Verify receiver is in the room
+                    other_user = chat_repo.get_room_other_user(room.id, user_id)
+                    if not other_user or other_user.id != receiver_id:
+                        await websocket.send_text(json.dumps({
+                            "type": "error",
+                            "message": "Invalid receiver"
                         }))
                         continue
                 
-                # Create message in database
-                # For backward compatibility, set single file fields if only one file
-                file_name = None
-                file_path = None
-                file_size = None
-                mime_type = None
-                duration = None
+                    # Handle file upload for image, file, and voice messages
+                    processed_files_data = None
+                    
+                    # File size limits (in bytes)
+                    MAX_IMAGE_SIZE = 10 * 1024 * 1024  # 10MB
+                    MAX_FILE_SIZE = 50 * 1024 * 1024   # 50MB
+                    MAX_VOICE_SIZE = 50 * 1024 * 1024  # 50MB
+                    
+                    # Handle files - all file data must be in files_data array
+                    if message_type in ["image", "file", "voice"] and files_data:
+                        try:
+                            import base64
+                            import os
+                            from datetime import datetime
+                            
+                            processed_files = []
+                            
+                            for file_info in files_data:
+                                file_data_item = file_info.get("file_data")
+                                file_name_item = file_info.get("file_name")
+                                file_size_item = file_info.get("file_size")
+                                mime_type_item = file_info.get("mime_type")
+                                duration_item = file_info.get("duration")  # Duration in seconds (for voice/audio messages)
+                                
+                                if not file_data_item or not file_name_item:
+                                    continue
+                                
+                                # Decode base64 file data with padding fix
+                                try:
+                                    # Remove any whitespace or newlines
+                                    file_data_item = file_data_item.strip()
+                                    
+                                    # Fix padding if needed
+                                    missing_padding = len(file_data_item) % 4
+                                    if missing_padding:
+                                        file_data_item += '=' * (4 - missing_padding)
+                                    
+                                    # Decode base64
+                                    file_bytes = base64.b64decode(file_data_item, validate=True)
+                                except Exception as decode_error:
+                                    await websocket.send_text(json.dumps({
+                                        "type": "error",
+                                        "message": f"Invalid base64 data for file '{file_name_item}': {str(decode_error)}"
+                                    }))
+                                    continue
+                                
+                                # Validate file size
+                                max_size = MAX_IMAGE_SIZE if message_type == "image" else (MAX_VOICE_SIZE if message_type == "voice" else MAX_FILE_SIZE)
+                                if len(file_bytes) > max_size:
+                                    size_mb = max_size / (1024 * 1024)
+                                    await websocket.send_text(json.dumps({
+                                        "type": "error",
+                                        "message": f"File '{file_name_item}' too large. Maximum size: {size_mb:.1f}MB"
+                                    }))
+                                    continue
+                                
+                                # Create appropriate directory
+                                if message_type == "image":
+                                    upload_dir = "static/chat_files/images"
+                                elif message_type == "voice":
+                                    upload_dir = "static/chat_files/voices"
+                                else:  # file
+                                    upload_dir = "static/chat_files/files"
+                                
+                                os.makedirs(upload_dir, exist_ok=True)
+                                
+                                # Generate unique filename
+                                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                                unique_filename = f"{user_id}_{timestamp}_{len(processed_files)}_{file_name_item}"
+                                file_path_item = os.path.join(upload_dir, unique_filename)
+                                
+                                # Save file
+                                with open(file_path_item, "wb") as f:
+                                    f.write(file_bytes)
+                                
+                                # Add to processed files
+                                file_data = {
+                                    "file_name": file_name_item,
+                                    "file_path": file_path_item,
+                                    "file_size": file_size_item or len(file_bytes),
+                                    "mime_type": mime_type_item
+                                }
+                                
+                                # Add duration for voice/audio messages
+                                if message_type == "voice" and duration_item is not None:
+                                    file_data["duration"] = int(duration_item)
+                                
+                                processed_files.append(file_data)
+                            
+                            processed_files_data = processed_files if processed_files else None
+                            
+                            # For backward compatibility, set single file fields if only one file
+                            # Also set duration for voice messages
+                            duration = None
+                            if processed_files_data and len(processed_files_data) == 1:
+                                single_file = processed_files_data[0]
+                                file_name = single_file["file_name"]
+                                file_path = single_file["file_path"]
+                                file_size = single_file["file_size"]
+                                mime_type = single_file["mime_type"]
+                                duration = single_file.get("duration")  # Duration for voice messages
+                            
+                        except Exception as e:
+                            await websocket.send_text(json.dumps({
+                                "type": "error",
+                                "message": f"File upload failed: {str(e)}"
+                            }))
+                            continue
                 
-                if processed_files_data and len(processed_files_data) == 1:
-                    single_file = processed_files_data[0]
-                    file_name = single_file["file_name"]
-                    file_path = single_file["file_path"]
-                    file_size = single_file["file_size"]
-                    mime_type = single_file["mime_type"]
-                    duration = single_file.get("duration")  # Duration for voice messages
-                
-                message = chat_repo.create_message(
+                    # Create message in database
+                    # For backward compatibility, set single file fields if only one file
+                    file_name = None
+                    file_path = None
+                    file_size = None
+                    mime_type = None
+                    duration = None
+                    
+                    if processed_files_data and len(processed_files_data) == 1:
+                        single_file = processed_files_data[0]
+                        file_name = single_file["file_name"]
+                        file_path = single_file["file_path"]
+                        file_size = single_file["file_size"]
+                        mime_type = single_file["mime_type"]
+                        duration = single_file.get("duration")  # Duration for voice messages
+                    
+                    message = chat_repo.create_message(
                     room_id=message_room_id,
                     sender_id=user_id,
                     receiver_id=receiver_id,
@@ -914,71 +1167,129 @@ async def websocket_endpoint(websocket: WebSocket, token: str = None, room_id: i
                     files_data=processed_files_data
                 )
                 
-                # Build full URLs for files - all files in files_data array
-                files_data_with_urls = None
-                
-                if message.files_data:
-                    from ..config import settings
-                    files_data_with_urls = []
-                    for file_data in message.files_data:
-                        clean_path = file_data["file_path"].replace("\\", "/")
-                        file_data_with_url = {
-                            "file_name": file_data["file_name"],
-                            "file_path": f"{settings.BASE_URL}/{clean_path}",
-                            "file_size": file_data["file_size"],
-                            "mime_type": file_data["mime_type"]
+                    # Build full URLs for files - all files in files_data array
+                    files_data_with_urls = None
+                    
+                    if message.files_data:
+                        from ..config import settings
+                        files_data_with_urls = []
+                        for file_data in message.files_data:
+                            clean_path = file_data["file_path"].replace("\\", "/")
+                            file_data_with_url = {
+                                "file_name": file_data["file_name"],
+                                "file_path": f"{settings.BASE_URL}/{clean_path}",
+                                "file_size": file_data["file_size"],
+                                "mime_type": file_data["mime_type"]
+                            }
+                            # Add duration for voice/audio messages
+                            if "duration" in file_data and file_data["duration"] is not None:
+                                file_data_with_url["duration"] = int(file_data["duration"])
+                            files_data_with_urls.append(file_data_with_url)
+                    
+                    # Get sender details
+                    sender_details = None
+                    if message.sender:
+                        is_online = chat_repo.is_user_online(message.sender.id)
+                        sender_details = {
+                            "id": message.sender.id,
+                            "name": message.sender.name,
+                            "email": message.sender.email,
+                            "avatar_url": message.sender.avatar_url,
+                            "is_online": is_online
                         }
-                        # Add duration for voice/audio messages
-                        if "duration" in file_data and file_data["duration"] is not None:
-                            file_data_with_url["duration"] = int(file_data["duration"])
-                        files_data_with_urls.append(file_data_with_url)
-                
-                # Get sender details
-                sender_details = None
-                if message.sender:
-                    is_online = chat_repo.is_user_online(message.sender.id)
-                    sender_details = {
-                        "id": message.sender.id,
-                        "name": message.sender.name,
-                        "email": message.sender.email,
-                        "avatar_url": message.sender.avatar_url,
-                        "is_online": is_online
+                    
+                    # Get receiver details
+                    receiver_details = None
+                    if message.receiver:
+                        is_online = chat_repo.is_user_online(message.receiver.id)
+                        receiver_details = {
+                            "id": message.receiver.id,
+                            "name": message.receiver.name,
+                            "email": message.receiver.email,
+                            "avatar_url": message.receiver.avatar_url,
+                            "is_online": is_online
+                        }
+                    
+                    # Create response based on message type
+                    message_response = {
+                        "id": message.id,
+                        "content": message.content,
+                        "message_type": message.message_type,
+                        "created_at": message.created_at.isoformat(),
+                        "is_read": message.is_read,
+                        "is_deleted": message.is_deleted,
+                        "sender_details": sender_details,
+                        "receiver_details": receiver_details,
+                        "local_temp_id": local_temp_id if local_temp_id else None,  # Har doim bo'ladi
+                        "files_data": files_data_with_urls if files_data_with_urls else None,  # Har doim bo'ladi
+                        "duration": message.duration if message.duration else None  # Duration for voice messages (backward compatibility)
                     }
+                    
+                    # Create notification for receiver and always send push notification
+                    try:
+                        from ..repositories.notification_repository import NotificationRepository
+                        from ..models.notification import NotificationType
+                        from ..database import SessionLocal
+                        
+                        # Create a new database session for notification
+                        notification_db = SessionLocal()
+                        try:
+                            notification_repo = NotificationRepository(notification_db)
+                            
+                            # Create notification title and body
+                            sender_name = user_name
+                            if message_type == "text":
+                                notification_title = f"New message from {sender_name}"
+                                notification_body = content[:100] if content else "New message"
+                            elif message_type == "image":
+                                notification_title = f"New image from {sender_name}"
+                                notification_body = f"{sender_name} sent an image"
+                            elif message_type == "voice":
+                                notification_title = f"New voice message from {sender_name}"
+                                notification_body = f"{sender_name} sent a voice message"
+                            elif message_type == "file":
+                                notification_title = f"New file from {sender_name}"
+                                notification_body = f"{sender_name} sent a file"
+                            else:
+                                notification_title = f"New message from {sender_name}"
+                                notification_body = f"{sender_name} sent a message"
+                            
+                            # Create notification in database
+                            notification_repo.create(
+                                type=NotificationType.CHAT_MESSAGE,
+                                title=notification_title,
+                                body=notification_body,
+                                recipient_user_id=receiver_id,
+                                room_id=message_room_id,
+                                message_id=message.id,
+                                sender_id=user_id
+                            )
+                            
+                            # Send push notification
+                            send_chat_notification(
+                                db=notification_db,
+                                recipient_user_id=receiver_id,
+                                sender_name=sender_name,
+                                message_content=content or "",
+                                message_type=message_type,
+                                room_id=message_room_id,
+                                message_id=message.id,
+                                sender_id=user_id
+                            )
+                        finally:
+                            notification_db.close()
+                    except Exception as e:
+                        print(f"Chat notification: failed to create/send notification: {str(e)}")
                 
-                # Get receiver details
-                receiver_details = None
-                if message.receiver:
-                    is_online = chat_repo.is_user_online(message.receiver.id)
-                    receiver_details = {
-                        "id": message.receiver.id,
-                        "name": message.receiver.name,
-                        "email": message.receiver.email,
-                        "avatar_url": message.receiver.avatar_url,
-                        "is_online": is_online
-                    }
-                
-                # Create response based on message type
-                message_response = {
-                    "id": message.id,
-                    "content": message.content,
-                    "message_type": message.message_type,
-                    "created_at": message.created_at.isoformat(),
-                    "is_read": message.is_read,
-                    "is_deleted": message.is_deleted,
-                    "sender_details": sender_details,
-                    "receiver_details": receiver_details,
-                    "local_temp_id": local_temp_id if local_temp_id else None,  # Har doim bo'ladi
-                    "files_data": files_data_with_urls if files_data_with_urls else None,  # Har doim bo'ladi
-                    "duration": message.duration if message.duration else None  # Duration for voice messages (backward compatibility)
-                }
-                
-                # Broadcast message to all users in the room
-                await manager.broadcast_new_message(
-                    message_response,
-                    message_room_id,
-                    user_id,
-                    receiver_id
-                )
+                    # Broadcast message to all users in the room
+                    await manager.broadcast_new_message(
+                        message_response,
+                        message_room_id,
+                        user_id,
+                        receiver_id
+                    )
+                finally:
+                    message_db.close()
     
     except WebSocketDisconnect:
         manager.disconnect(user_id)
@@ -1164,6 +1475,17 @@ async def websocket_test_endpoint(websocket: WebSocket):
             print(f"Test user {user_id} disconnected")
         except:
             pass
+
+# Register WebSocket endpoints (both with and without trailing slash)
+@router.websocket("/ws")
+async def websocket_endpoint(websocket: WebSocket):
+    """WebSocket endpoint /ws"""
+    await _websocket_endpoint_handler(websocket)
+
+@router.websocket("/ws/")
+async def websocket_endpoint_with_slash(websocket: WebSocket):
+    """WebSocket endpoint /ws/"""
+    await _websocket_endpoint_handler(websocket)
 
 @router.post("/video-call/token", response_model=VideoCallTokenResponse)
 async def generate_video_call_token(

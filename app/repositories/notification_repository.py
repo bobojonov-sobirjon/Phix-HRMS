@@ -6,6 +6,7 @@ from app.models.user import User
 from app.models.proposal import Proposal
 from app.models.gig_job import GigJob
 from app.models.full_time_job import FullTimeJob
+from app.models.chat import ChatRoom, ChatMessage
 from app.pagination import PaginationParams
 
 
@@ -22,7 +23,10 @@ class NotificationRepository:
         proposal_id: Optional[int] = None,
         job_id: Optional[int] = None,
         job_type: Optional[str] = None,
-        applicant_id: Optional[int] = None
+        applicant_id: Optional[int] = None,
+        room_id: Optional[int] = None,
+        message_id: Optional[int] = None,
+        sender_id: Optional[int] = None
     ) -> Notification:
         """Create a new notification"""
         notification = Notification(
@@ -34,6 +38,9 @@ class NotificationRepository:
             job_id=job_id,
             job_type=job_type,
             applicant_id=applicant_id,
+            room_id=room_id,
+            message_id=message_id,
+            sender_id=sender_id,
             is_read=False
         )
         self.db.add(notification)
@@ -71,6 +78,7 @@ class NotificationRepository:
             joinedload(Notification.proposal).joinedload(Proposal.full_time_job).joinedload(FullTimeJob.subcategory),
             joinedload(Notification.proposal).joinedload(Proposal.full_time_job).joinedload(FullTimeJob.skills),
             joinedload(Notification.applicant),
+            joinedload(Notification.sender),  # For chat messages
             joinedload(Notification.recipient).joinedload(User.location),
             joinedload(Notification.recipient).joinedload(User.main_category),
             joinedload(Notification.recipient).joinedload(User.sub_category),
@@ -119,6 +127,19 @@ class NotificationRepository:
         return self.get_user_notifications(
             user_id=user_id,
             notification_type=NotificationType.PROPOSAL_VIEWED,
+            is_read=False,  # Only return unread notifications
+            pagination=pagination
+        )
+
+    def get_chat_messages(
+        self,
+        user_id: int,
+        pagination: PaginationParams
+    ) -> tuple[List[Notification], int]:
+        """Get chat message notifications (when user receives chat messages)"""
+        return self.get_user_notifications(
+            user_id=user_id,
+            notification_type=NotificationType.CHAT_MESSAGE,
             is_read=False,  # Only return unread notifications
             pagination=pagination
         )

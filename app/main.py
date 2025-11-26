@@ -2,6 +2,8 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import JSONResponse
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.requests import Request as StarletteRequest
 from .api import auth, profile, contact_us, faq, skills, roles, languages, locations, user_skills, data_management
 from .api import company, education_facility, certification_center, gig_jobs, proposals
 from .api import saved_jobs
@@ -11,7 +13,21 @@ from .models import user, role, user_role, skill, user_skill, education, experie
 import traceback
 import os
 
-app = FastAPI(title="Phix HRMS API", version="1.0.0")
+app = FastAPI(title="Phix HRMS API", version="1.0.0", redirect_slashes=False)
+
+# Request logging middleware
+class RequestLoggingMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: StarletteRequest, call_next):
+        # Log all incoming requests, especially WebSocket upgrade requests
+        if request.url.path.startswith("/api/chat/ws") or request.url.path.startswith("/api/v1/chat/ws"):
+            print(f"[Request Log] WebSocket connection attempt: {request.method} {request.url.path}")
+            print(f"[Request Log] Query params: {request.url.query}")
+            print(f"[Request Log] Headers: {dict(request.headers)}")
+        
+        response = await call_next(request)
+        return response
+
+app.add_middleware(RequestLoggingMiddleware)
 
 # CORS middleware
 app.add_middleware(
@@ -70,6 +86,8 @@ app.include_router(full_time_job.router, prefix="/api/v1")
 app.include_router(team_member.router, prefix="/api/v1")
 app.include_router(category.router, prefix="/api/v1")
 app.include_router(chat.router, prefix="/api/v1/chat")
+# Also register chat router without /v1 for backward compatibility
+app.include_router(chat.router, prefix="/api/chat")
 app.include_router(notifications.router, prefix="/api/v1")
 
 # Mount static files
@@ -129,6 +147,20 @@ FIREBASE_TOKEN_URI = os.getenv("TOKEN_URI")
 FIREBASE_AUTH_PROVIDER_CERT_URL = os.getenv("AUTH_PROVIDER_CERT_URL")
 FIREBASE_CLIENT_CERT_URL = os.getenv("CLIENT_CERT_URL")
 FIREBASE_UNIVERSE_DOMAIN = os.getenv("UNIVERSE_DOMAIN")
+
+@app.on_event("startup")
+async def startup_event():
+    """Log all registered routes on startup"""
+    print("\n" + "="*80)
+    print("Registered Routes:")
+    print("="*80)
+    for route in app.routes:
+        if hasattr(route, "path") and hasattr(route, "methods"):
+            methods = ", ".join(route.methods) if route.methods else "WebSocket"
+            print(f"  {methods:15} {route.path}")
+        elif hasattr(route, "path"):
+            print(f"  {'WebSocket':15} {route.path}")
+    print("="*80 + "\n")
 
 @app.get("/")
 async def root():

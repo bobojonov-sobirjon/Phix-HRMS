@@ -42,7 +42,8 @@ def initialize_firebase(service_account_path: Optional[str] = None):
     firebase_client_cert_url = os.getenv("CLIENT_CERT_URL")
     firebase_universe_domain = os.getenv("UNIVERSE_DOMAIN")
     
-    print(f"DEBUG: Firebase env vars - Private Key: {'Found' if firebase_private_key else 'Not found'}, Client Email: {'Found' if firebase_client_email else 'Not found'}")
+    # Debug log removed for production; uncomment if low-level Firebase env debugging is needed
+    # print(f"DEBUG: Firebase env vars - Private Key: {'Found' if firebase_private_key else 'Not found'}, Client Email: {'Found' if firebase_client_email else 'Not found'}")
     
     if firebase_private_key and firebase_client_email:
         # Use environment variables to create credentials
@@ -78,7 +79,6 @@ def initialize_firebase(service_account_path: Optional[str] = None):
             
             cred = credentials.Certificate(service_account_info)
             _firebase_app = firebase_admin.initialize_app(cred)
-            print("DEBUG: Firebase initialized using environment variables")
             return _firebase_app
         except Exception as e:
             print(f"WARNING: Failed to initialize Firebase using environment variables: {str(e)}")
@@ -111,7 +111,6 @@ def initialize_firebase(service_account_path: Optional[str] = None):
     try:
         cred = credentials.Certificate(service_account_path)
         _firebase_app = firebase_admin.initialize_app(cred)
-        print("DEBUG: Firebase initialized using service account file")
         return _firebase_app
     except Exception as e:
         raise Exception(f"Failed to initialize Firebase: {str(e)}")
@@ -195,10 +194,9 @@ def send_push_notification(
     except messaging.UnregisteredError:
         print(f"Device token is unregistered: {device_token}")
         return False
-    except messaging.InvalidArgumentError as e:
-        print(f"Invalid argument error: {str(e)}")
-        return False
     except Exception as e:
+        # Covers invalid arguments and other Firebase errors for SDK versions
+        # where messaging.InvalidArgumentError is not available
         print(f"Error sending push notification: {str(e)}")
         return False
 
@@ -318,14 +316,9 @@ def send_push_notification_multiple(
                 "success": False,
                 "error": "Device token is unregistered"
             })
-        except messaging.InvalidArgumentError as e:
-            results["failure_count"] += 1
-            results["results"].append({
-                "token": token,
-                "success": False,
-                "error": f"Invalid argument: {str(e)}"
-            })
         except Exception as e:
+            # Covers invalid arguments and other Firebase errors for SDK versions
+            # where messaging.InvalidArgumentError is not available
             results["failure_count"] += 1
             results["results"].append({
                 "token": token,

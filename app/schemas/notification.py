@@ -7,6 +7,7 @@ from enum import Enum
 class NotificationType(str, Enum):
     APPLICATION = "application"
     PROPOSAL_VIEWED = "proposal_viewed"
+    CHAT_MESSAGE = "chat_message"
 
 
 class NotificationBase(BaseModel):
@@ -17,6 +18,9 @@ class NotificationBase(BaseModel):
     job_id: Optional[int] = None
     job_type: Optional[str] = None
     applicant_id: Optional[int] = None
+    room_id: Optional[int] = None  # For chat messages
+    message_id: Optional[int] = None  # For chat messages
+    sender_id: Optional[int] = None  # For chat messages
 
 
 class NotificationResponse(BaseModel):
@@ -30,6 +34,10 @@ class NotificationResponse(BaseModel):
     job_type: Optional[str] = None
     applicant_id: Optional[int] = None
     applicant_name: Optional[str] = None
+    room_id: Optional[int] = None  # For chat messages
+    message_id: Optional[int] = None  # For chat messages
+    sender_id: Optional[int] = None  # For chat messages
+    sender_name: Optional[str] = None  # For chat messages
     is_read: bool
     created_at: datetime
     proposal: Optional[dict] = Field(None, description="Full proposal details")
@@ -50,4 +58,5 @@ class NotificationListResponse(BaseModel):
 class NotificationCountResponse(BaseModel):
     applications_unread: int = Field(default=0, description="Unread application notifications")
     my_proposals_unread: int = Field(default=0, description="Unread proposal viewed notifications")
+    chat_messages_unread: int = Field(default=0, description="Unread chat message notifications")
 
