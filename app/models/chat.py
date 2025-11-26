@@ -53,6 +53,7 @@ class ChatMessage(Base):
     file_path = Column(String(500), nullable=True)  # Path to stored file (for backward compatibility)
     file_size = Column(Integer, nullable=True)  # File size in bytes (for backward compatibility)
     mime_type = Column(String(100), nullable=True)  # MIME type (for backward compatibility)
+    duration = Column(Integer, nullable=True)  # Duration in seconds (for voice messages)
     files_data = Column(JSON, nullable=True)  # JSON array of file objects for multiple files
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     is_read = Column(Boolean, default=False)

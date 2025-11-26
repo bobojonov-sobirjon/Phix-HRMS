@@ -310,6 +310,9 @@ async def get_room(
                     "file_size": file_data["file_size"],
                     "mime_type": file_data["mime_type"]
                 }
+                # Add duration for voice/audio messages
+                if "duration" in file_data and file_data["duration"] is not None:
+                    file_data_with_url["duration"] = file_data["duration"]
                 files_data_with_urls.append(file_data_with_url)
         
         # Get sender details
@@ -348,18 +351,19 @@ async def get_room(
             "is_liked": is_liked,
             "like_count": like_count,
             "sender_details": sender_details,
-            "receiver_details": receiver_details
+            "receiver_details": receiver_details,
+            "local_temp_id": None,  # Har doim bo'lishi kerak (GET endpoint'da har doim null)
+            "files_data": files_data_with_urls if files_data_with_urls else None,  # Har doim bo'lishi kerak
+            "duration": message.duration if message.duration else None  # Duration for voice messages (backward compatibility)
         }
         
-        # Add file-related fields only if they exist
+        # Add file-related fields only if they exist (backward compatibility)
         if message.file_name:
             message_response["file_name"] = message.file_name
         if file_url:
             message_response["file_path"] = file_url
         if message.file_size:
             message_response["file_size"] = message.file_size
-        if files_data_with_urls:
-            message_response["files_data"] = files_data_with_urls
             
         message_responses.append(message_response)
     
@@ -434,6 +438,9 @@ async def get_room_messages(
                     "file_size": file_data["file_size"],
                     "mime_type": file_data["mime_type"]
                 }
+                # Add duration for voice/audio messages
+                if "duration" in file_data and file_data["duration"] is not None:
+                    file_data_with_url["duration"] = file_data["duration"]
                 files_data_with_urls.append(file_data_with_url)
         
         # Get sender details
@@ -472,18 +479,18 @@ async def get_room_messages(
             "is_liked": is_liked,
             "like_count": like_count,
             "sender_details": sender_details,
-            "receiver_details": receiver_details
+            "receiver_details": receiver_details,
+            "local_temp_id": None,  # Har doim bo'lishi kerak (GET endpoint'da har doim null)
+            "files_data": files_data_with_urls if files_data_with_urls else None  # Har doim bo'lishi kerak
         }
         
-        # Add file-related fields only if they exist
+        # Add file-related fields only if they exist (backward compatibility)
         if message.file_name:
             message_data["file_name"] = message.file_name
         if file_url:
             message_data["file_path"] = file_url
         if message.file_size:
             message_data["file_size"] = message.file_size
-        if files_data_with_urls:
-            message_data["files_data"] = files_data_with_urls
             
         message_responses.append(ChatMessageResponse(**message_data))
     
@@ -572,6 +579,9 @@ async def update_message(
                 "file_size": file_data["file_size"],
                 "mime_type": file_data["mime_type"]
             }
+            # Add duration for voice/audio messages
+            if "duration" in file_data and file_data["duration"] is not None:
+                file_data_with_url["duration"] = int(file_data["duration"])
             files_data_with_urls.append(file_data_with_url)
     
     # Get sender details
@@ -608,18 +618,19 @@ async def update_message(
         "is_deleted": updated_message.is_deleted,
         "is_sender": True,  # Bu message yuboruvchi uchun
         "sender_details": sender_details,
-        "receiver_details": receiver_details
+        "receiver_details": receiver_details,
+        "local_temp_id": None,  # Har doim bo'lishi kerak (update endpoint'da har doim null)
+        "files_data": files_data_with_urls if files_data_with_urls else None,  # Har doim bo'lishi kerak
+        "duration": updated_message.duration if updated_message.duration else None  # Duration for voice messages (backward compatibility)
     }
     
-    # Add file-related fields only if they exist
+    # Add file-related fields only if they exist (backward compatibility)
     if updated_message.file_name:
         message_response["file_name"] = updated_message.file_name
     if file_url:
         message_response["file_path"] = file_url
     if updated_message.file_size:
         message_response["file_size"] = updated_message.file_size
-    if files_data_with_urls:
-        message_response["files_data"] = files_data_with_urls
     
     # Broadcast updated message to all users in the room
     await manager.broadcast_message_update(
@@ -735,13 +746,8 @@ async def websocket_endpoint(websocket: WebSocket, token: str = None, room_id: i
                 content = message_info.get("content", "")
                 local_temp_id = message_info.get("local_temp_id")  # Get local_temp_id from request body
                 
-                # Handle single file (backward compatibility)
-                file_data = message_info.get("file_data")  # Base64 encoded file data
-                file_name = message_info.get("file_name")
-                file_size = message_info.get("file_size")
-                mime_type = message_info.get("mime_type")
-                
-                # Handle multiple files
+                # Handle files - all file data must be in files_data array
+                # files_data: [{"file_data": "", "file_name": "", "file_size": "", "mime_type": ""}, ...]
                 files_data = message_info.get("files_data", [])  # Array of file objects
                 
                 if not message_room_id or not receiver_id:
@@ -770,10 +776,14 @@ async def websocket_endpoint(websocket: WebSocket, token: str = None, room_id: i
                     continue
                 
                 # Handle file upload for image, file, and voice messages
-                file_path = None
                 processed_files_data = None
                 
-                # Handle multiple files (new approach)
+                # File size limits (in bytes)
+                MAX_IMAGE_SIZE = 10 * 1024 * 1024  # 10MB
+                MAX_FILE_SIZE = 50 * 1024 * 1024   # 50MB
+                MAX_VOICE_SIZE = 50 * 1024 * 1024  # 50MB
+                
+                # Handle files - all file data must be in files_data array
                 if message_type in ["image", "file", "voice"] and files_data:
                     try:
                         import base64
@@ -787,12 +797,39 @@ async def websocket_endpoint(websocket: WebSocket, token: str = None, room_id: i
                             file_name_item = file_info.get("file_name")
                             file_size_item = file_info.get("file_size")
                             mime_type_item = file_info.get("mime_type")
+                            duration_item = file_info.get("duration")  # Duration in seconds (for voice/audio messages)
                             
                             if not file_data_item or not file_name_item:
                                 continue
                             
-                            # Decode base64 file data
-                            file_bytes = base64.b64decode(file_data_item)
+                            # Decode base64 file data with padding fix
+                            try:
+                                # Remove any whitespace or newlines
+                                file_data_item = file_data_item.strip()
+                                
+                                # Fix padding if needed
+                                missing_padding = len(file_data_item) % 4
+                                if missing_padding:
+                                    file_data_item += '=' * (4 - missing_padding)
+                                
+                                # Decode base64
+                                file_bytes = base64.b64decode(file_data_item, validate=True)
+                            except Exception as decode_error:
+                                await websocket.send_text(json.dumps({
+                                    "type": "error",
+                                    "message": f"Invalid base64 data for file '{file_name_item}': {str(decode_error)}"
+                                }))
+                                continue
+                            
+                            # Validate file size
+                            max_size = MAX_IMAGE_SIZE if message_type == "image" else (MAX_VOICE_SIZE if message_type == "voice" else MAX_FILE_SIZE)
+                            if len(file_bytes) > max_size:
+                                size_mb = max_size / (1024 * 1024)
+                                await websocket.send_text(json.dumps({
+                                    "type": "error",
+                                    "message": f"File '{file_name_item}' too large. Maximum size: {size_mb:.1f}MB"
+                                }))
+                                continue
                             
                             # Create appropriate directory
                             if message_type == "image":
@@ -806,7 +843,6 @@ async def websocket_endpoint(websocket: WebSocket, token: str = None, room_id: i
                             
                             # Generate unique filename
                             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-                            file_extension = os.path.splitext(file_name_item)[1] if file_name_item else ""
                             unique_filename = f"{user_id}_{timestamp}_{len(processed_files)}_{file_name_item}"
                             file_path_item = os.path.join(upload_dir, unique_filename)
                             
@@ -815,62 +851,31 @@ async def websocket_endpoint(websocket: WebSocket, token: str = None, room_id: i
                                 f.write(file_bytes)
                             
                             # Add to processed files
-                            processed_files.append({
+                            file_data = {
                                 "file_name": file_name_item,
                                 "file_path": file_path_item,
                                 "file_size": file_size_item or len(file_bytes),
                                 "mime_type": mime_type_item
-                            })
+                            }
+                            
+                            # Add duration for voice/audio messages
+                            if message_type == "voice" and duration_item is not None:
+                                file_data["duration"] = int(duration_item)
+                            
+                            processed_files.append(file_data)
                         
-                        processed_files_data = processed_files
+                        processed_files_data = processed_files if processed_files else None
                         
                         # For backward compatibility, set single file fields if only one file
-                        if len(processed_files) == 1:
-                            single_file = processed_files[0]
+                        # Also set duration for voice messages
+                        duration = None
+                        if processed_files_data and len(processed_files_data) == 1:
+                            single_file = processed_files_data[0]
                             file_name = single_file["file_name"]
                             file_path = single_file["file_path"]
                             file_size = single_file["file_size"]
                             mime_type = single_file["mime_type"]
-                        
-                    except Exception as e:
-                        await websocket.send_text(json.dumps({
-                            "type": "error",
-                            "message": f"Multiple file upload failed: {str(e)}"
-                        }))
-                        continue
-                
-                # Handle single file (backward compatibility)
-                elif message_type in ["image", "file", "voice"] and file_data:
-                    try:
-                        import base64
-                        import os
-                        from datetime import datetime
-                        
-                        # Decode base64 file data
-                        file_bytes = base64.b64decode(file_data)
-                        
-                        # Create appropriate directory
-                        if message_type == "image":
-                            upload_dir = "static/chat_files/images"
-                        elif message_type == "voice":
-                            upload_dir = "static/chat_files/voices"
-                        else:  # file
-                            upload_dir = "static/chat_files/files"
-                        
-                        os.makedirs(upload_dir, exist_ok=True)
-                        
-                        # Generate unique filename
-                        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-                        file_extension = os.path.splitext(file_name)[1] if file_name else ""
-                        unique_filename = f"{user_id}_{timestamp}_{file_name}"
-                        file_path = os.path.join(upload_dir, unique_filename)
-                        
-                        # Save file
-                        with open(file_path, "wb") as f:
-                            f.write(file_bytes)
-                        
-                        # Update file_name to include path
-                        file_name = unique_filename
+                            duration = single_file.get("duration")  # Duration for voice messages
                         
                     except Exception as e:
                         await websocket.send_text(json.dumps({
@@ -880,6 +885,21 @@ async def websocket_endpoint(websocket: WebSocket, token: str = None, room_id: i
                         continue
                 
                 # Create message in database
+                # For backward compatibility, set single file fields if only one file
+                file_name = None
+                file_path = None
+                file_size = None
+                mime_type = None
+                duration = None
+                
+                if processed_files_data and len(processed_files_data) == 1:
+                    single_file = processed_files_data[0]
+                    file_name = single_file["file_name"]
+                    file_path = single_file["file_path"]
+                    file_size = single_file["file_size"]
+                    mime_type = single_file["mime_type"]
+                    duration = single_file.get("duration")  # Duration for voice messages
+                
                 message = chat_repo.create_message(
                     room_id=message_room_id,
                     sender_id=user_id,
@@ -890,18 +910,12 @@ async def websocket_endpoint(websocket: WebSocket, token: str = None, room_id: i
                     file_path=file_path,
                     file_size=file_size,
                     mime_type=mime_type,
+                    duration=duration,
                     files_data=processed_files_data
                 )
                 
-                # Build full URLs for files
-                file_url = None
+                # Build full URLs for files - all files in files_data array
                 files_data_with_urls = None
-                
-                if message.file_path:
-                    from ..config import settings
-                    # Replace backslashes with forward slashes for web URLs
-                    clean_path = message.file_path.replace("\\", "/")
-                    file_url = f"{settings.BASE_URL}/{clean_path}"
                 
                 if message.files_data:
                     from ..config import settings
@@ -914,6 +928,9 @@ async def websocket_endpoint(websocket: WebSocket, token: str = None, room_id: i
                             "file_size": file_data["file_size"],
                             "mime_type": file_data["mime_type"]
                         }
+                        # Add duration for voice/audio messages
+                        if "duration" in file_data and file_data["duration"] is not None:
+                            file_data_with_url["duration"] = int(file_data["duration"])
                         files_data_with_urls.append(file_data_with_url)
                 
                 # Get sender details
@@ -949,22 +966,11 @@ async def websocket_endpoint(websocket: WebSocket, token: str = None, room_id: i
                     "is_read": message.is_read,
                     "is_deleted": message.is_deleted,
                     "sender_details": sender_details,
-                    "receiver_details": receiver_details
+                    "receiver_details": receiver_details,
+                    "local_temp_id": local_temp_id if local_temp_id else None,  # Har doim bo'ladi
+                    "files_data": files_data_with_urls if files_data_with_urls else None,  # Har doim bo'ladi
+                    "duration": message.duration if message.duration else None  # Duration for voice messages (backward compatibility)
                 }
-                
-                # Add local_temp_id from request body if provided (for realtime matching)
-                if local_temp_id:
-                    message_response["local_temp_id"] = local_temp_id
-                
-                # Add file-related fields only if they exist
-                if message.file_name:
-                    message_response["file_name"] = message.file_name
-                if file_url:
-                    message_response["file_path"] = file_url
-                if message.file_size:
-                    message_response["file_size"] = message.file_size
-                if files_data_with_urls:
-                    message_response["files_data"] = files_data_with_urls
                 
                 # Broadcast message to all users in the room
                 await manager.broadcast_new_message(

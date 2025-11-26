@@ -20,12 +20,11 @@ The chat system provides real-time messaging capabilities with support for text 
 - **Message deletion** (soft delete)
 
 ### File Upload Features
-- **Single file upload** (backward compatibility)
-- **Multiple file upload** (new feature)
+- **Multiple file upload** via `files_data` array
 - **Image support**: JPEG, PNG, GIF, WebP
 - **File support**: PDF, DOC, DOCX, XLS, XLSX, TXT, ZIP, RAR
 - **Voice message support**: MP3, WAV
-- **File size limits**: 10MB for images, 50MB for files
+- **File size limits**: 10MB for images, 50MB for files and voice messages
 - **Automatic file organization** by type
 
 ## API Endpoints
@@ -91,6 +90,50 @@ GET /api/chat/rooms/{room_id}
 GET /api/chat/rooms/{room_id}/messages?page=1&per_page=50
 ```
 
+**Response:**
+```json
+{
+  "messages": [
+    {
+      "id": 123,
+      "content": "Hello!",
+      "message_type": "text",
+      "local_temp_id": null,  // Har doim bo'ladi (GET endpoint'da har doim null)
+      "files_data": null,  // Har doim bo'ladi (file bo'lsa array, aks holda null)
+      "created_at": "2024-01-01T12:00:00Z",
+      "is_read": false,
+      "is_deleted": false,
+      "is_sender": true,
+      "is_liked": false,
+      "like_count": 0,
+      "sender_details": {
+        "id": 1,
+        "name": "John Doe",
+        "email": "john@example.com",
+        "avatar_url": "https://example.com/avatar.jpg",
+        "is_online": true
+      },
+      "receiver_details": {
+        "id": 2,
+        "name": "Jane Smith",
+        "email": "jane@example.com",
+        "avatar_url": "https://example.com/avatar2.jpg",
+        "is_online": false
+      }
+    }
+  ],
+  "total": 100,
+  "has_more": true,
+  "page": 1,
+  "per_page": 50,
+  "total_pages": 2
+}
+```
+
+**Important Notes:**
+- `local_temp_id` har doim response'da bo'ladi (GET endpoint'da har doim `null`)
+- `files_data` har doim response'da bo'ladi (file bo'lsa array, aks holda `null`)
+
 #### Mark Messages as Read
 ```http
 POST /api/chat/rooms/{room_id}/read
@@ -143,7 +186,10 @@ const ws = new WebSocket('ws://localhost:8000/api/chat/ws?token=<jwt_token>&room
 }
 ```
 
-#### Send Single File Message
+#### Send File Message (Single or Multiple)
+Barcha file ma'lumotlari `files_data` array ichida yuboriladi. Bitta file bo'lsa ham array ichida bo'ladi.
+
+**Request Structure:**
 ```json
 {
   "type": "send_message",
@@ -152,15 +198,44 @@ const ws = new WebSocket('ws://localhost:8000/api/chat/ws?token=<jwt_token>&room
     "receiver_id": 2,
     "message_type": "image",
     "content": "Check out this image!",
-    "file_data": "base64_encoded_file_data",
-    "file_name": "image.jpg",
-    "file_size": 1024000,
-    "mime_type": "image/jpeg"
+    "local_temp_id": "temp_123",  // Optional: for client-side message matching
+    "files_data": [
+      {
+        "file_data": "base64_encoded_file_data",
+        "file_name": "photo1.jpg",
+        "file_size": 1024000,
+        "mime_type": "image/jpeg",
+        "duration": null  // Optional: for voice/audio messages (duration in seconds)
+      }
+    ]
   }
 }
 ```
 
-#### Send Multiple Files Message
+**Voice/Audio Message Example:**
+```json
+{
+  "type": "send_message",
+  "data": {
+    "room_id": 1,
+    "receiver_id": 2,
+    "message_type": "voice",
+    "content": "Voice message",
+    "local_temp_id": "temp_789",
+    "files_data": [
+      {
+        "file_data": "base64_encoded_audio_data",
+        "file_name": "voice_message.mp3",
+        "file_size": 512000,
+        "mime_type": "audio/mpeg",
+        "duration": 30  // Duration in seconds (required for voice/audio messages)
+      }
+    ]
+  }
+}
+```
+
+**Multiple Files Example:**
 ```json
 {
   "type": "send_message",
@@ -169,23 +244,33 @@ const ws = new WebSocket('ws://localhost:8000/api/chat/ws?token=<jwt_token>&room
     "receiver_id": 2,
     "message_type": "image",
     "content": "Here are some photos!",
+    "local_temp_id": "temp_456",
     "files_data": [
       {
         "file_data": "base64_encoded_file1",
         "file_name": "photo1.jpg",
         "file_size": 1024000,
-        "mime_type": "image/jpeg"
+        "mime_type": "image/jpeg",
+        "duration": null  // Optional: for voice/audio messages (duration in seconds)
       },
       {
         "file_data": "base64_encoded_file2",
         "file_name": "photo2.jpg",
         "file_size": 2048000,
-        "mime_type": "image/jpeg"
+        "mime_type": "image/jpeg",
+        "duration": null  // Optional: for voice/audio messages (duration in seconds)
       }
     ]
   }
 }
 ```
+
+**Important Notes:**
+- Barcha file ma'lumotlari `files_data` array ichida bo'lishi kerak
+- Bitta file bo'lsa ham array ichida yuboriladi
+- `file_data`, `file_name`, `file_size`, `mime_type` alohida fieldlar sifatida yuborilmaydi
+- `duration` - voice/audio message'lar uchun majburiy (sekundlarda)
+- `local_temp_id` - ixtiyoriy, client-side message matching uchun
 
 #### Typing Indicator
 ```json
@@ -217,7 +302,10 @@ const ws = new WebSocket('ws://localhost:8000/api/chat/ws?token=<jwt_token>&room
 
 ### WebSocket Responses
 
-#### New Message
+#### New Message Response
+Barcha file ma'lumotlari `files_data` array ichida qaytariladi. `local_temp_id` va `files_data` har doim response'da bo'ladi.
+
+**Text Message:**
 ```json
 {
   "type": "new_message",
@@ -225,10 +313,8 @@ const ws = new WebSocket('ws://localhost:8000/api/chat/ws?token=<jwt_token>&room
     "id": 123,
     "content": "Hello!",
     "message_type": "text",
-    "file_name": null,
-    "file_path": null,
-    "file_size": null,
-    "files_data": null,
+    "local_temp_id": "temp_123",  // Har doim bo'ladi (request'da yuborilgan bo'lsa value, aks holda null)
+    "files_data": null,  // Har doim bo'ladi (file bo'lsa array, aks holda null)
     "created_at": "2024-01-01T12:00:00Z",
     "is_read": false,
     "is_deleted": false,
@@ -238,12 +324,19 @@ const ws = new WebSocket('ws://localhost:8000/api/chat/ws?token=<jwt_token>&room
       "email": "john@example.com",
       "avatar_url": "https://example.com/avatar.jpg",
       "is_online": true
+    },
+    "receiver_details": {
+      "id": 2,
+      "name": "Jane Smith",
+      "email": "jane@example.com",
+      "avatar_url": "https://example.com/avatar2.jpg",
+      "is_online": false
     }
   }
 }
 ```
 
-#### Multiple Files Message
+**File Message (Single or Multiple):**
 ```json
 {
   "type": "new_message",
@@ -251,21 +344,21 @@ const ws = new WebSocket('ws://localhost:8000/api/chat/ws?token=<jwt_token>&room
     "id": 124,
     "content": "Here are some photos!",
     "message_type": "image",
-    "file_name": null,
-    "file_path": null,
-    "file_size": null,
-    "files_data": [
+    "local_temp_id": "temp_456",  // Har doim bo'ladi (request'da yuborilgan bo'lsa value, aks holda null)
+    "files_data": [  // Har doim bo'ladi (file bo'lsa array, aks holda null)
       {
         "file_name": "photo1.jpg",
-        "file_path": "http://localhost:8000/static/chat_files/images/uuid_photo1.jpg",
+        "file_path": "https://api.example.com/static/chat_files/images/user_1_20240101_120000_0_photo1.jpg",
         "file_size": 1024000,
-        "mime_type": "image/jpeg"
+        "mime_type": "image/jpeg",
+        "duration": null  // Duration faqat voice/audio message'lar uchun (sekundlarda)
       },
       {
         "file_name": "photo2.jpg",
-        "file_path": "http://localhost:8000/static/chat_files/images/uuid_photo2.jpg",
+        "file_path": "https://api.example.com/static/chat_files/images/user_1_20240101_120000_1_photo2.jpg",
         "file_size": 2048000,
-        "mime_type": "image/jpeg"
+        "mime_type": "image/jpeg",
+        "duration": null  // Duration faqat voice/audio message'lar uchun (sekundlarda)
       }
     ],
     "created_at": "2024-01-01T12:00:00Z",
@@ -277,10 +370,67 @@ const ws = new WebSocket('ws://localhost:8000/api/chat/ws?token=<jwt_token>&room
       "email": "john@example.com",
       "avatar_url": "https://example.com/avatar.jpg",
       "is_online": true
+    },
+    "receiver_details": {
+      "id": 2,
+      "name": "Jane Smith",
+      "email": "jane@example.com",
+      "avatar_url": "https://example.com/avatar2.jpg",
+      "is_online": false
     }
   }
 }
 ```
+
+**Voice/Audio Message Response:**
+```json
+{
+  "type": "new_message",
+  "data": {
+    "id": 125,
+    "content": "Voice message",
+    "message_type": "voice",
+    "local_temp_id": "temp_789",  // Har doim bo'ladi (request'da yuborilgan bo'lsa value, aks holda null)
+    "files_data": [  // Har doim bo'ladi (file bo'lsa array, aks holda null)
+      {
+        "file_name": "voice_message.mp3",
+        "file_path": "https://api.example.com/static/chat_files/voices/user_1_20240101_120000_0_voice_message.mp3",
+        "file_size": 512000,
+        "mime_type": "audio/mpeg",
+        "duration": 30  // Duration in seconds (voice/audio messages uchun)
+      }
+    ],
+    "duration": 30,  // Har doim bo'ladi (voice message bo'lsa value, aks holda null)
+    "created_at": "2024-01-01T12:00:00Z",
+    "is_read": false,
+    "is_deleted": false,
+    "sender_details": {
+      "id": 1,
+      "name": "John Doe",
+      "email": "john@example.com",
+      "avatar_url": "https://example.com/avatar.jpg",
+      "is_online": true
+    },
+    "receiver_details": {
+      "id": 2,
+      "name": "Jane Smith",
+      "email": "jane@example.com",
+      "avatar_url": "https://example.com/avatar2.jpg",
+      "is_online": false
+    }
+  }
+}
+```
+
+**Important Notes:**
+- `local_temp_id` har doim response'da bo'ladi (request'da yuborilgan bo'lsa value, aks holda `null`)
+- `files_data` har doim response'da bo'ladi (file bo'lsa array, aks holda `null`)
+- `duration` har doim response'da bo'ladi (voice message bo'lsa sekundlarda, aks holda `null`)
+- Voice/audio message'lar uchun `duration` majburiy (sekundlarda)
+- Barcha file ma'lumotlari `files_data` array ichida qaytariladi
+- Bitta file bo'lsa ham array ichida bo'ladi
+- `file_path` to'liq URL sifatida qaytariladi
+- `files_data` ichidagi har bir file uchun ham `duration` bo'lishi mumkin (voice/audio uchun)
 
 #### Typing Indicator
 ```json
@@ -327,10 +477,8 @@ const ws = new WebSocket('ws://localhost:8000/api/chat/ws?token=<jwt_token>&room
     "id": 123,
     "content": "Updated message",
     "message_type": "text",
-    "file_name": null,
-    "file_path": null,
-    "file_size": null,
-    "files_data": null,
+    "local_temp_id": null,  // Har doim bo'ladi (update endpoint'da har doim null)
+    "files_data": null,  // Har doim bo'ladi (file bo'lsa array, aks holda null)
     "created_at": "2024-01-01T12:00:00Z",
     "is_read": false,
     "is_deleted": false,
@@ -340,6 +488,13 @@ const ws = new WebSocket('ws://localhost:8000/api/chat/ws?token=<jwt_token>&room
       "email": "john@example.com",
       "avatar_url": "https://example.com/avatar.jpg",
       "is_online": true
+    },
+    "receiver_details": {
+      "id": 2,
+      "name": "Jane Smith",
+      "email": "jane@example.com",
+      "avatar_url": "https://example.com/avatar2.jpg",
+      "is_online": false
     }
   }
 }
@@ -422,8 +577,8 @@ static/
 ```
 
 ### File Naming Convention
-- **Single files**: `{user_id}_{timestamp}_{original_filename}`
-- **Multiple files**: `{user_id}_{timestamp}_{index}_{original_filename}`
+- **All files**: `{user_id}_{timestamp}_{index}_{original_filename}`
+- Index starts from 0 for multiple files
 
 ### File Size Limits
 - **Images**: 10MB maximum
@@ -512,30 +667,41 @@ class ChatClient {
         this.ws.send(JSON.stringify(message));
     }
 
-    sendMultipleFiles(files, receiverId, messageType = 'image') {
+    sendFiles(files, receiverId, messageType = 'image', content = '', localTempId = null) {
+        // Send single or multiple files - all files in files_data array
         const filesData = [];
+        let processedCount = 0;
         
-        for (let i = 0; i < files.length; i++) {
-            const file = files[i];
+        if (files.length === 0) return;
+        
+        files.forEach((file, index) => {
             const reader = new FileReader();
             
             reader.onload = (e) => {
-                filesData.push({
-                    file_data: e.target.result.split(',')[1], // Remove data:image/jpeg;base64, prefix
+                // Remove data:image/jpeg;base64, prefix if present
+                const base64Data = e.target.result.includes(',') 
+                    ? e.target.result.split(',')[1] 
+                    : e.target.result;
+                
+                filesData[index] = {
+                    file_data: base64Data,
                     file_name: file.name,
                     file_size: file.size,
                     mime_type: file.type
-                });
-
+                };
+                
+                processedCount++;
+                
                 // Send message when all files are processed
-                if (filesData.length === files.length) {
+                if (processedCount === files.length) {
                     const message = {
                         type: 'send_message',
                         data: {
                             room_id: this.roomId,
                             receiver_id: receiverId,
                             message_type: messageType,
-                            content: `Sent ${files.length} files`,
+                            content: content || `Sent ${files.length} file${files.length > 1 ? 's' : ''}`,
+                            local_temp_id: localTempId,
                             files_data: filesData
                         }
                     };
@@ -543,8 +709,12 @@ class ChatClient {
                 }
             };
             
+            reader.onerror = () => {
+                console.error('Error reading file:', file.name);
+            };
+            
             reader.readAsDataURL(file);
-        }
+        });
     }
 
     sendTypingIndicator(isTyping) {
@@ -618,18 +788,25 @@ const ChatRoom = ({ roomId, token, receiverId }) => {
         }
     };
 
-    const sendMultipleFiles = () => {
+    const sendFiles = () => {
         if (selectedFiles.length === 0) return;
 
         // Convert files to base64 and send via WebSocket
+        // All files must be in files_data array (single or multiple)
         const filesData = [];
         let processedCount = 0;
+        const localTempId = `temp_${Date.now()}`; // Generate temp ID for client-side matching
 
         selectedFiles.forEach((file, index) => {
             const reader = new FileReader();
             reader.onload = (e) => {
+                // Remove data:image/jpeg;base64, prefix if present
+                const base64Data = e.target.result.includes(',') 
+                    ? e.target.result.split(',')[1] 
+                    : e.target.result;
+                
                 filesData[index] = {
-                    file_data: e.target.result.split(',')[1], // Remove data:image/jpeg;base64, prefix
+                    file_data: base64Data,
                     file_name: file.name,
                     file_size: file.size,
                     mime_type: file.type
@@ -638,13 +815,19 @@ const ChatRoom = ({ roomId, token, receiverId }) => {
 
                 // Send when all files are processed
                 if (processedCount === selectedFiles.length) {
+                    // Determine message type based on first file
+                    const messageType = file.type.startsWith('image/') ? 'image' 
+                        : file.type.startsWith('audio/') ? 'voice' 
+                        : 'file';
+                    
                     wsRef.current.send(JSON.stringify({
                         type: 'send_message',
                         data: {
                             room_id: roomId,
                             receiver_id: receiverId,
-                            message_type: 'image',
-                            content: `Sent ${selectedFiles.length} files`,
+                            message_type: messageType,
+                            content: `Sent ${selectedFiles.length} file${selectedFiles.length > 1 ? 's' : ''}`,
+                            local_temp_id: localTempId,
                             files_data: filesData
                         }
                     }));
@@ -652,6 +835,11 @@ const ChatRoom = ({ roomId, token, receiverId }) => {
                     setSelectedFiles([]);
                 }
             };
+            
+            reader.onerror = () => {
+                console.error('Error reading file:', file.name);
+            };
+            
             reader.readAsDataURL(file);
         });
     };
@@ -669,23 +857,22 @@ const ChatRoom = ({ roomId, token, receiverId }) => {
                         <div className="message-content">
                             {message.content && <p>{message.content}</p>}
                             
-                            {/* Single file display */}
-                            {message.file_path && (
-                                <div className="file-attachment">
-                                    <a href={message.file_path} target="_blank" rel="noopener noreferrer">
-                                        {message.file_name}
-                                    </a>
-                                </div>
-                            )}
-                            
-                            {/* Multiple files display */}
+                            {/* Files display - all files in files_data array */}
                             {message.files_data && message.files_data.length > 0 && (
-                                <div className="multiple-files">
+                                <div className="files-container">
                                     {message.files_data.map((file, index) => (
                                         <div key={index} className="file-attachment">
-                                            <a href={file.file_path} target="_blank" rel="noopener noreferrer">
-                                                {file.file_name}
-                                            </a>
+                                            {file.mime_type?.startsWith('image/') ? (
+                                                <img 
+                                                    src={file.file_path} 
+                                                    alt={file.file_name}
+                                                    style={{ maxWidth: '200px', maxHeight: '200px' }}
+                                                />
+                                            ) : (
+                                                <a href={file.file_path} target="_blank" rel="noopener noreferrer">
+                                                    📎 {file.file_name} ({(file.file_size / 1024).toFixed(2)} KB)
+                                                </a>
+                                            )}
                                         </div>
                                     ))}
                                 </div>
@@ -724,7 +911,7 @@ const ChatRoom = ({ roomId, token, receiverId }) => {
                 {selectedFiles.length > 0 && (
                     <div className="selected-files">
                         <p>Selected files: {selectedFiles.length}</p>
-                        <button onClick={sendMultipleFiles}>Send Files</button>
+                        <button onClick={sendFiles}>Send Files</button>
                         <button onClick={() => setSelectedFiles([])}>Clear</button>
                     </div>
                 )}

@@ -96,6 +96,7 @@ class FileData(BaseModel):
     file_path: str
     file_size: int
     mime_type: str
+    duration: Optional[int] = None  # Duration in seconds (for voice/audio messages)
 
 # Message Schemas
 class ChatMessageResponse(BaseModel):
@@ -105,7 +106,9 @@ class ChatMessageResponse(BaseModel):
     file_name: Optional[str] = None  # For backward compatibility
     file_path: Optional[str] = None  # For backward compatibility
     file_size: Optional[int] = None  # For backward compatibility
-    files_data: Optional[List[FileData]] = None  # For multiple files
+    duration: Optional[int] = None  # Duration in seconds (for voice/audio messages)
+    files_data: Optional[List[FileData]] = None  # Har doim bo'ladi (file bo'lsa array, aks holda null)
+    local_temp_id: Optional[str] = None  # Har doim bo'ladi (request'da yuborilgan bo'lsa value, aks holda null)
     created_at: datetime
     is_read: bool
     is_deleted: bool
