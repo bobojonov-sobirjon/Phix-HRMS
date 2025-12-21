@@ -1,7 +1,9 @@
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.orm import Session
-from app.database import get_db
+from app.db.database import get_db
 from app.utils.auth import get_current_user
+from app.utils.decorators import handle_errors
+from app.utils.response_helpers import not_found_error, bad_request_error
 from app.models.user import User
 from app.repositories.saved_job_repository import SavedJobRepository
 from app.schemas.saved_job import (
@@ -17,6 +19,7 @@ router = APIRouter(prefix="/saved-jobs", tags=["Saved Jobs"])
 
 
 @router.post("/", status_code=status.HTTP_201_CREATED, response_model=SavedJobResponse)
+@handle_errors
 async def save_job(
     saved_job_data: SavedJobCreate,
     db: Session = Depends(get_db),
@@ -30,15 +33,12 @@ async def save_job(
     
     Note: Either gig_job_id or full_time_job_id must be provided, but not both.
     """
+    repository = SavedJobRepository(db)
     try:
-        repository = SavedJobRepository(db)
         saved_job = repository.create(saved_job_data, current_user.id)
         return SavedJobResponse.from_orm(saved_job)
     except ValueError as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e)
-        )
+        raise bad_request_error(str(e))
 
 
 @router.get("/", response_model=SavedJobDetailedListResponse)
@@ -70,6 +70,7 @@ async def get_my_saved_jobs(
 
 
 @router.get("/gig-jobs", response_model=SavedJobDetailedListResponse)
+@handle_errors
 async def get_my_saved_gig_jobs(
     page: int = Query(1, ge=1, description="Page number"),
     size: int = Query(10, ge=1, le=100, description="Page size"),
@@ -82,28 +83,19 @@ async def get_my_saved_gig_jobs(
     - **page**: Page number (default: 1)
     - **size**: Page size (default: 10, max: 100)
     """
-    try:
-        repository = SavedJobRepository(db)
-        pagination = PaginationParams(page=page, size=size)
-        
-        saved_jobs, total = repository.get_user_saved_gig_jobs(current_user.id, pagination)
-        
-        # Convert saved jobs to detailed response format
-        saved_job_responses = [SavedJobDetailedResponse.from_orm(saved_job, db, current_user.id) for saved_job in saved_jobs]
-        
-        return create_pagination_response(
-            items=saved_job_responses,
-            total=total,
-            pagination=pagination
-        )
-    except Exception as e:
-        import traceback
-        print(f"Error in get_my_saved_gig_jobs: {str(e)}")
-        print(traceback.format_exc())
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Internal server error: {str(e)}"
-        )
+    repository = SavedJobRepository(db)
+    pagination = PaginationParams(page=page, size=size)
+    
+    saved_jobs, total = repository.get_user_saved_gig_jobs(current_user.id, pagination)
+    
+    # Convert saved jobs to detailed response format
+    saved_job_responses = [SavedJobDetailedResponse.from_orm(saved_job, db, current_user.id) for saved_job in saved_jobs]
+    
+    return create_pagination_response(
+        items=saved_job_responses,
+        total=total,
+        pagination=pagination
+    )
 
 
 @router.get("/full-time-jobs", response_model=SavedJobDetailedListResponse)
@@ -135,6 +127,7 @@ async def get_my_saved_full_time_jobs(
 
 
 @router.delete("/{saved_job_id}")
+@handle_errors
 async def unsave_job(
     saved_job_id: int,
     db: Session = Depends(get_db),
@@ -149,15 +142,13 @@ async def unsave_job(
     success = repository.delete(saved_job_id, current_user.id)
     
     if not success:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Saved job not found or you don't have permission to delete it"
-        )
+        raise not_found_error("Saved job not found or you don't have permission to delete it")
     
     return {"status": "success", "msg": "Job unsaved successfully"}
 
 
 @router.delete("/gig-job/{gig_job_id}")
+@handle_errors
 async def unsave_gig_job(
     gig_job_id: int,
     db: Session = Depends(get_db),
@@ -172,15 +163,13 @@ async def unsave_gig_job(
     success = repository.delete_by_job(current_user.id, gig_job_id=gig_job_id)
     
     if not success:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Gig job is not saved or you don't have permission to unsave it"
-        )
+        raise not_found_error("Gig job is not saved or you don't have permission to unsave it")
     
     return {"status": "success", "msg": "Gig job unsaved successfully"}
 
 
 @router.delete("/full-time-job/{full_time_job_id}")
+@handle_errors
 async def unsave_full_time_job(
     full_time_job_id: int,
     db: Session = Depends(get_db),
@@ -195,9 +184,6 @@ async def unsave_full_time_job(
     success = repository.delete_by_job(current_user.id, full_time_job_id=full_time_job_id)
     
     if not success:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Full-time job is not saved or you don't have permission to unsave it"
-        )
+        raise not_found_error("Full-time job is not saved or you don't have permission to unsave it")
     
     return {"status": "success", "msg": "Full-time job unsaved successfully"}

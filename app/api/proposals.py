@@ -1,8 +1,16 @@
-from fastapi import APIRouter, Depends, HTTPException, Query, status, UploadFile, File, Form
+from fastapi import APIRouter, Depends, Query, status, UploadFile, File, Form
 from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
-from app.database import get_db
+from app.db.database import get_db
 from app.utils.auth import get_current_user
+from app.utils.decorators import handle_errors
+from app.utils.response_helpers import (
+    success_response,
+    not_found_error,
+    bad_request_error,
+    forbidden_error,
+    validate_entity_exists
+)
 from app.models.user import User
 from app.models.user_device_token import UserDeviceToken
 from app.repositories.proposal_repository import ProposalRepository
@@ -436,6 +444,7 @@ async def get_my_full_time_job_proposals(
 
 
 @router.get("/{proposal_id}", response_model=ProposalResponse)
+@handle_errors
 async def get_proposal_by_id(
     proposal_id: int,
     db: Session = Depends(get_db),
@@ -448,12 +457,7 @@ async def get_proposal_by_id(
     """
     repository = ProposalRepository(db)
     proposal = repository.get_by_id(proposal_id)
-    
-    if not proposal:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Proposal not found"
-        )
+    validate_entity_exists(proposal, "Proposal")
     
     # Check if user has permission to view this proposal
     is_job_owner = False
@@ -475,10 +479,7 @@ async def get_proposal_by_id(
                 is_job_owner = True
         
         if not has_permission:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="You don't have permission to view this proposal"
-            )
+            raise forbidden_error("You don't have permission to view this proposal")
     
     # If job owner is viewing the proposal and it's not read yet, mark as read and send notification
     if is_job_owner and not proposal.is_read:
@@ -542,6 +543,7 @@ async def get_proposal_by_id(
 
 
 @router.get("/gig-job/{gig_job_id}", response_model=ProposalListResponse)
+@handle_errors
 async def get_gig_job_proposals(
     gig_job_id: int,
     page: int = Query(1, ge=1, description="Page number"),
@@ -558,19 +560,11 @@ async def get_gig_job_proposals(
     """
     gig_job_repository = GigJobRepository(db)
     gig_job = gig_job_repository.get_by_id(gig_job_id)
-    
-    if not gig_job:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Gig job not found"
-        )
+    validate_entity_exists(gig_job, "Gig job")
     
     # Check if user is the author of the gig job
     if gig_job['author']['id'] != current_user.id:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="You can only view proposals for your own gig jobs"
-        )
+        raise forbidden_error("You can only view proposals for your own gig jobs")
     
     repository = ProposalRepository(db)
     pagination = PaginationParams(page=page, size=size)
@@ -588,6 +582,7 @@ async def get_gig_job_proposals(
 
 
 @router.get("/full-time-job/{full_time_job_id}", response_model=ProposalListResponse)
+@handle_errors
 async def get_full_time_job_proposals(
     full_time_job_id: int,
     page: int = Query(1, ge=1, description="Page number"),
@@ -604,19 +599,11 @@ async def get_full_time_job_proposals(
     """
     full_time_job_repository = FullTimeJobRepository(db)
     full_time_job = full_time_job_repository.get_object_by_id(full_time_job_id)
-    
-    if not full_time_job:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Full-time job not found"
-        )
+    validate_entity_exists(full_time_job, "Full-time job")
     
     # Check if user is the author of the full-time job
     if full_time_job.created_by_user_id != current_user.id:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="You can only view proposals for your own full-time jobs"
-        )
+        raise forbidden_error("You can only view proposals for your own full-time jobs")
     
     repository = ProposalRepository(db)
     pagination = PaginationParams(page=page, size=size)
@@ -634,6 +621,7 @@ async def get_full_time_job_proposals(
 
 
 @router.put("/{proposal_id}")
+@handle_errors
 async def update_proposal(
     proposal_id: int,
     cover_letter: Optional[str] = Form(None, min_length=10, description="Cover letter content"),
@@ -657,24 +645,11 @@ async def update_proposal(
     
     # Get existing proposal
     existing_proposal = repository.get_by_id(proposal_id)
-    if not existing_proposal:
-        return JSONResponse(
-            status_code=status.HTTP_404_NOT_FOUND,
-            content={
-                "status": "error",
-                "msg": "Proposal not found"
-            }
-        )
+    validate_entity_exists(existing_proposal, "Proposal")
     
     # Check if user has permission to update
     if existing_proposal.user_id != current_user.id:
-        return JSONResponse(
-            status_code=status.HTTP_403_FORBIDDEN,
-            content={
-                "status": "error",
-                "msg": "You don't have permission to update this proposal"
-            }
-        )
+        raise forbidden_error("You don't have permission to update this proposal")
     
     # Prepare update data
     update_data = {}
@@ -758,6 +733,7 @@ async def update_proposal(
 
 
 @router.delete("/{proposal_id}")
+@handle_errors
 async def delete_proposal(
     proposal_id: int,
     db: Session = Depends(get_db),
@@ -773,24 +749,11 @@ async def delete_proposal(
     
     # Get existing proposal to determine job type
     existing_proposal = repository.get_by_id(proposal_id)
-    if not existing_proposal:
-        return JSONResponse(
-            status_code=status.HTTP_404_NOT_FOUND,
-            content={
-                "status": "error",
-                "msg": "Proposal not found"
-            }
-        )
+    validate_entity_exists(existing_proposal, "Proposal")
     
     # Check if user has permission to delete
     if existing_proposal.user_id != current_user.id:
-        return JSONResponse(
-            status_code=status.HTTP_403_FORBIDDEN,
-            content={
-                "status": "error",
-                "msg": "You don't have permission to delete this proposal"
-            }
-        )
+        raise forbidden_error("You don't have permission to delete this proposal")
     
     # Delete attachments first
     attachment_repository.delete_by_proposal_id(proposal_id)

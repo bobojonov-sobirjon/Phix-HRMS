@@ -1,7 +1,7 @@
 from fastapi import APIRouter, HTTPException, Body, Depends
 from sqlalchemy.orm import Session
 from typing import Dict, Any, List
-from ..database import get_db
+from ..db.database import get_db
 from ..models.company import Company
 from ..models.education_facility import EducationFacility
 from ..models.certification_center import CertificationCenter

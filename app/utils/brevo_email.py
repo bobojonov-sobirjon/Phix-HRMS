@@ -5,7 +5,7 @@ Free email service - 300 emails/day
 import os
 import sib_api_v3_sdk
 from sib_api_v3_sdk.rest import ApiException
-from ..config import settings
+from ..core.config import settings
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
 from typing import Optional

@@ -1,45 +1,43 @@
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from ..models.role import Role
+from .base_repository import BaseRepository
 
-class RoleRepository:
+
+class RoleRepository(BaseRepository[Role]):
+    """Repository for Role model"""
+    
     def __init__(self, db: Session):
-        self.db = db
+        super().__init__(db, Role)
     
     def create_role(self, name: str) -> Role:
-        role = Role(name=name)
-        self.db.add(role)
-        self.db.commit()
-        self.db.refresh(role)
-        return role
+        """Create a new role"""
+        return self.create({"name": name})
     
     def get_role_by_name(self, name: str) -> Optional[Role]:
-        return self.db.query(Role).filter(Role.name == name).first()
+        """Get role by name"""
+        roles = self.search("name", name, case_sensitive=True)
+        return roles[0] if roles else None
     
     def get_role_by_id(self, role_id: int) -> Optional[Role]:
-        return self.db.query(Role).filter(Role.id == role_id).first()
+        """Get role by ID"""
+        return self.get_by_id(role_id, include_deleted=False)
     
     def get_all_roles(self) -> List[Role]:
-        return self.db.query(Role).all()
+        """Get all roles"""
+        return self.get_all(include_deleted=False)
     
     def update_role(self, role_id: int, name: str) -> Optional[Role]:
-        role = self.get_role_by_id(role_id)
-        if role:
-            role.name = name
-            self.db.commit()
-            self.db.refresh(role)
-        return role
+        """Update role"""
+        return self.update(role_id, {"name": name}, exclude_unset=False)
     
     def delete_role(self, role_id: int) -> bool:
-        role = self.get_role_by_id(role_id)
-        if role:
-            self.db.delete(role)
-            self.db.commit()
-            return True
-        return False 
-
+        """Hard delete role (roles don't have is_deleted)"""
+        return self.delete(role_id, hard_delete=True)
+    
     def seed_initial_roles(self):
+        """Seed initial roles"""
         roles = ['user', 'admin']
         for role_name in roles:
             if not self.get_role_by_name(role_name):
-                self.create_role(role_name) 
+                self.create_role(role_name)

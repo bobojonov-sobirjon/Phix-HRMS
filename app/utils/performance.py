@@ -4,7 +4,7 @@ import asyncio
 from typing import Dict, Any, Optional
 from sqlalchemy import event
 from sqlalchemy.engine import Engine
-from ..database import engine
+from ..db.database import engine
 
 class PerformanceMonitor:
     """Performance monitoring utility for tracking system metrics"""

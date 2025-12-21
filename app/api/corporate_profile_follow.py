@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
 from typing import List, Optional
-from ..database import get_db
+from ..db.database import get_db
 from ..repositories.corporate_profile_follow_repository import CorporateProfileFollowRepository
 from ..repositories.corporate_profile_repository import CorporateProfileRepository
 from ..schemas.corporate_profile_follow import (
@@ -15,7 +15,7 @@ from ..schemas.corporate_profile_follow import (
 from ..schemas.common import MessageResponse, SuccessResponse
 from ..utils.auth import get_current_user
 from ..pagination import PaginationParams, create_pagination_response
-from ..config import settings
+from ..core.config import settings
 from ..schemas.corporate_profile import CorporateProfileResponse
 from ..utils.firebase_notifications import send_push_notification_multiple
 from ..models.user_device_token import UserDeviceToken
@@ -364,7 +364,7 @@ async def get_corporate_profile_followers(
     
     # Convert follows to detailed response format
     from ..schemas.profile import UserFullResponse
-    from ..config import settings
+    from ..core.config import settings
     
     follower_responses = []
     for follow in follows:

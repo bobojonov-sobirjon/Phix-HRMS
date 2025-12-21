@@ -2,7 +2,7 @@ from pydantic import BaseModel, Field
 from typing import Optional, List
 from datetime import datetime
 from fastapi import UploadFile
-from app.config import settings
+from app.core.config import settings
 from .gig_job import GigJobResponse
 from .full_time_job import FullTimeJobResponse
 from .profile import UserFullResponse, UserShortDetails

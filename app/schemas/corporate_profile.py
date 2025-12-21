@@ -12,10 +12,30 @@ class CompanySize(str, Enum):
     ENTERPRISE = "1000+"
 
 
+# Company schema for response
+class CompanyResponse(BaseModel):
+    id: int
+    name: str
+    icon: Optional[str] = None
+    country: Optional[str] = None
+    
+    class Config:
+        from_attributes = True
+
+
+# Category schema for response
+class CategoryResponse(BaseModel):
+    id: int
+    name: str
+    description: Optional[str] = None
+    is_active: bool
+    
+    class Config:
+        from_attributes = True
+
+
 # Base schema
 class CorporateProfileBase(BaseModel):
-    company_name: str
-    industry: str
     phone_number: str
     country_code: str = "+1"
     location_id: int
@@ -23,6 +43,8 @@ class CorporateProfileBase(BaseModel):
     website_url: Optional[str] = None
     company_size: CompanySize
     logo_url: Optional[str] = None
+    category_id: Optional[int] = None
+    company_id: Optional[int] = None
 
 
 # Create schema
@@ -32,8 +54,6 @@ class CorporateProfileCreate(CorporateProfileBase):
 
 # Update schema
 class CorporateProfileUpdate(BaseModel):
-    company_name: Optional[str] = None
-    industry: Optional[str] = None
     phone_number: Optional[str] = None
     country_code: Optional[str] = None
     location_id: Optional[int] = None
@@ -41,6 +61,8 @@ class CorporateProfileUpdate(BaseModel):
     website_url: Optional[str] = None
     company_size: Optional[CompanySize] = None
     logo_url: Optional[str] = None
+    category_id: Optional[int] = None
+    company_id: Optional[int] = None
 
 
 # Location schema for response
@@ -103,6 +125,8 @@ class CorporateProfileResponse(CorporateProfileBase):
     updated_at: Optional[datetime] = None
     location: Optional[LocationResponse] = None
     user: Optional[UserResponse] = None
+    company: Optional[CompanyResponse] = None
+    category: Optional[CategoryResponse] = None
     team_members: List[TeamMemberResponse] = []
     is_followed: Optional[bool] = False
     followers_count: int = Field(default=0, description="Number of followers for this corporate profile")

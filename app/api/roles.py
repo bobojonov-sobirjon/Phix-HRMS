@@ -1,8 +1,10 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 from typing import List
-from ..database import get_db
+from ..db.database import get_db
 from ..repositories.role_repository import RoleRepository
+from ..utils.decorators import handle_errors
+from ..utils.response_helpers import success_response, not_found_error, bad_request_error, validate_entity_exists
 from ..schemas.common import SuccessResponse
 from pydantic import BaseModel
 
@@ -19,82 +21,70 @@ class RoleResponse(BaseModel):
 router = APIRouter(prefix='/roles', tags=['Roles'])
 
 @router.post('/', response_model=SuccessResponse)
-def create_role(role_data: RoleCreate, db: Session = Depends(get_db)):
-    try:
-        repo = RoleRepository(db)
-        existing = repo.get_role_by_name(role_data.name)
-        if existing:
-            raise HTTPException(status_code=400, detail='Role already exists')
-        role = repo.create_role(role_data.name)
-        # Convert SQLAlchemy model to Pydantic response model
-        role_response = RoleResponse.model_validate(role)
-        return SuccessResponse(
-            msg="Role created successfully",
-            data=role_response
-        )
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+@handle_errors
+async def create_role(role_data: RoleCreate, db: Session = Depends(get_db)):
+    """Create a new role"""
+    repo = RoleRepository(db)
+    existing = repo.get_role_by_name(role_data.name)
+    if existing:
+        raise bad_request_error('Role already exists')
+    role = repo.create_role(role_data.name)
+    # Convert SQLAlchemy model to Pydantic response model
+    role_response = RoleResponse.model_validate(role)
+    return success_response(
+        data=role_response,
+        message="Role created successfully"
+    )
 
 @router.get('/', response_model=SuccessResponse)
-def get_roles(db: Session = Depends(get_db)):
-    try:
-        repo = RoleRepository(db)
-        roles = repo.get_all_roles()
-        # Convert SQLAlchemy models to Pydantic response models
-        role_responses = [RoleResponse.model_validate(role) for role in roles]
-        return SuccessResponse(
-            msg="Roles retrieved successfully",
-            data=role_responses
-        )
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+@handle_errors
+async def get_roles(db: Session = Depends(get_db)):
+    """Get all roles"""
+    repo = RoleRepository(db)
+    roles = repo.get_all_roles()
+    # Convert SQLAlchemy models to Pydantic response models
+    role_responses = [RoleResponse.model_validate(role) for role in roles]
+    return success_response(
+        data=role_responses,
+        message="Roles retrieved successfully"
+    )
 
 @router.get('/{role_id}', response_model=SuccessResponse)
-def get_role(role_id: int, db: Session = Depends(get_db)):
-    try:
-        repo = RoleRepository(db)
-        role = repo.get_role_by_id(role_id)
-        if not role:
-            raise HTTPException(status_code=404, detail='Role not found')
-        # Convert SQLAlchemy model to Pydantic response model
-        role_response = RoleResponse.model_validate(role)
-        return SuccessResponse(
-            msg="Role retrieved successfully",
-            data=role_response
-        )
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+@handle_errors
+async def get_role(role_id: int, db: Session = Depends(get_db)):
+    """Get role by ID"""
+    repo = RoleRepository(db)
+    role = repo.get_role_by_id(role_id)
+    validate_entity_exists(role, "Role")
+    # Convert SQLAlchemy model to Pydantic response model
+    role_response = RoleResponse.model_validate(role)
+    return success_response(
+        data=role_response,
+        message="Role retrieved successfully"
+    )
 
 @router.put('/{role_id}', response_model=SuccessResponse)
-def update_role(role_id: int, role_data: RoleCreate, db: Session = Depends(get_db)):
-    try:
-        repo = RoleRepository(db)
-        role = repo.update_role(role_id, role_data.name)
-        if not role:
-            raise HTTPException(status_code=404, detail='Role not found')
-        # Convert SQLAlchemy model to Pydantic response model
-        role_response = RoleResponse.model_validate(role)
-        return SuccessResponse(
-            msg="Role updated successfully",
-            data=role_response
-        )
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+@handle_errors
+async def update_role(role_id: int, role_data: RoleCreate, db: Session = Depends(get_db)):
+    """Update role"""
+    repo = RoleRepository(db)
+    role = repo.update_role(role_id, role_data.name)
+    validate_entity_exists(role, "Role")
+    # Convert SQLAlchemy model to Pydantic response model
+    role_response = RoleResponse.model_validate(role)
+    return success_response(
+        data=role_response,
+        message="Role updated successfully"
+    )
 
 @router.delete('/{role_id}', response_model=SuccessResponse)
-def delete_role(role_id: int, db: Session = Depends(get_db)):
-    try:
-        repo = RoleRepository(db)
-        if not repo.delete_role(role_id):
-            raise HTTPException(status_code=404, detail='Role not found')
-        return SuccessResponse(msg="Role deleted successfully")
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e)) 
+@handle_errors
+async def delete_role(role_id: int, db: Session = Depends(get_db)):
+    """Delete role"""
+    repo = RoleRepository(db)
+    if not repo.delete_role(role_id):
+        raise not_found_error('Role not found')
+    return success_response(
+        data=None,
+        message="Role deleted successfully"
+    )

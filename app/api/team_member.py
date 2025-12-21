@@ -1,7 +1,7 @@
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.orm import Session
 from typing import List
-from app.database import get_db
+from app.db.database import get_db
 from app.repositories.team_member_repository import TeamMemberRepository
 from app.repositories.corporate_profile_repository import CorporateProfileRepository
 from app.schemas.team_member import (
@@ -15,6 +15,14 @@ from app.schemas.team_member import (
 )
 from app.schemas.common import SuccessResponse
 from app.utils.auth import get_current_user
+from app.utils.decorators import handle_errors
+from app.utils.response_helpers import (
+    success_response,
+    not_found_error,
+    bad_request_error,
+    forbidden_error,
+    validate_entity_exists
+)
 from app.models.user import User
 from app.models.team_member import TeamMemberStatus
 from app.utils.email import send_team_invitation_email_new
@@ -60,6 +68,7 @@ async def search_users(
 
 
 @router.post("/invite", response_model=SuccessResponse)
+@handle_errors
 async def invite_team_member(
     team_member: TeamMemberCreate,
     corporate_profile_id: int = Query(..., description="Corporate profile ID"),
@@ -70,12 +79,10 @@ async def invite_team_member(
     # Verify user has access to this corporate profile
     corporate_profile_repo = CorporateProfileRepository(db)
     corporate_profile = corporate_profile_repo.get_by_id(corporate_profile_id)
-    
-    if not corporate_profile:
-        raise HTTPException(status_code=404, detail="Corporate profile not found")
+    validate_entity_exists(corporate_profile, "Corporate profile")
     
     if corporate_profile.user_id != current_user.id:
-        raise HTTPException(status_code=403, detail="Access denied")
+        raise forbidden_error("Access denied")
     
     team_member_repo = TeamMemberRepository(db)
     
@@ -87,21 +94,23 @@ async def invite_team_member(
         # Send invitation email with team member ID
         await send_team_invitation_email_new(
             email=team_member.email,
-            company_name=corporate_profile.company_name,
+            company_name=corporate_profile.company.name if corporate_profile.company else "Company",
             inviter_name=current_user.name,
             role=team_member.role.value,
             team_member_id=new_team_member.id
         )
         
-        return SuccessResponse(
-            msg="Invitation sent successfully"
+        return success_response(
+            data={"team_member_id": new_team_member.id},
+            message="Invitation sent successfully"
         )
         
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise bad_request_error(str(e))
 
 
 @router.get("/list", response_model=TeamMemberListResponse)
+@handle_errors
 async def get_team_members(
     corporate_profile_id: int = Query(..., description="Corporate profile ID"),
     skip: int = Query(0, ge=0),
@@ -113,12 +122,10 @@ async def get_team_members(
     # Verify user has access to this corporate profile
     corporate_profile_repo = CorporateProfileRepository(db)
     corporate_profile = corporate_profile_repo.get_by_id(corporate_profile_id)
-    
-    if not corporate_profile:
-        raise HTTPException(status_code=404, detail="Corporate profile not found")
+    validate_entity_exists(corporate_profile, "Corporate profile")
     
     if corporate_profile.user_id != current_user.id:
-        raise HTTPException(status_code=403, detail="Access denied")
+        raise forbidden_error("Access denied")
     
     team_member_repo = TeamMemberRepository(db)
     team_members = team_member_repo.get_team_members(corporate_profile_id, skip, limit)
@@ -156,6 +163,7 @@ async def get_team_members(
 
 
 @router.put("/{team_member_id}/role", response_model=TeamMemberResponse)
+@handle_errors
 async def update_team_member_role(
     team_member_id: int,
     role_update: TeamMemberUpdate,
@@ -167,25 +175,21 @@ async def update_team_member_role(
     # Verify user has access to this corporate profile
     corporate_profile_repo = CorporateProfileRepository(db)
     corporate_profile = corporate_profile_repo.get_by_id(corporate_profile_id)
-    
-    if not corporate_profile:
-        raise HTTPException(status_code=404, detail="Corporate profile not found")
+    validate_entity_exists(corporate_profile, "Corporate profile")
     
     if corporate_profile.user_id != current_user.id:
-        raise HTTPException(status_code=403, detail="Access denied")
+        raise forbidden_error("Access denied")
     
     team_member_repo = TeamMemberRepository(db)
     updated_member = team_member_repo.update_team_member_role(team_member_id, role_update)
-    
-    if not updated_member:
-        raise HTTPException(status_code=404, detail="Team member not found")
+    validate_entity_exists(updated_member, "Team member")
     
     # Get user details for response
     user = db.query(User).filter(User.id == updated_member.user_id).first()
     invited_by_user = db.query(User).filter(User.id == updated_member.invited_by_user_id).first()
     
     if not user or not invited_by_user:
-        raise HTTPException(status_code=500, detail="Error retrieving user information")
+        raise bad_request_error("Error retrieving user information")
     
     return TeamMemberResponse(
         id=updated_member.id,
@@ -204,6 +208,7 @@ async def update_team_member_role(
 
 
 @router.put("/{team_member_id}/status")
+@handle_errors
 async def update_invitation_status(
     team_member_id: int,
     status_update: StatusUpdateRequest,
@@ -213,28 +218,26 @@ async def update_invitation_status(
     """Update invitation status (accept/reject)"""
     team_member_repo = TeamMemberRepository(db)
     team_member = team_member_repo.get_team_member_by_id(team_member_id)
-    
-    if not team_member:
-        raise HTTPException(status_code=404, detail="Team member invitation not found")
+    validate_entity_exists(team_member, "Team member invitation")
     
     if team_member.user_id != current_user.id:
-        raise HTTPException(status_code=403, detail="Access denied")
+        raise forbidden_error("Access denied")
     
     if team_member.status != TeamMemberStatus.PENDING:
-        raise HTTPException(status_code=400, detail="Invitation has already been processed")
+        raise bad_request_error("Invitation has already been processed")
     
     updated_member = team_member_repo.update_team_member_status(team_member_id, status_update.status)
-    
-    if not updated_member:
-        raise HTTPException(status_code=500, detail="Error updating invitation status")
+    validate_entity_exists(updated_member, "Team member")
     
     status_text = "accepted" if status_update.status else "rejected"
-    return SuccessResponse(
-        msg=f"Invitation {status_text} successfully"
+    return success_response(
+        data={"team_member_id": team_member_id, "status": status_text},
+        message=f"Invitation {status_text} successfully"
     )
 
 
 @router.delete("/{team_member_id}")
+@handle_errors
 async def remove_team_member(
     team_member_id: int,
     corporate_profile_id: int = Query(..., description="Corporate profile ID"),
@@ -245,25 +248,25 @@ async def remove_team_member(
     # Verify user has access to this corporate profile
     corporate_profile_repo = CorporateProfileRepository(db)
     corporate_profile = corporate_profile_repo.get_by_id(corporate_profile_id)
-    
-    if not corporate_profile:
-        raise HTTPException(status_code=404, detail="Corporate profile not found")
+    validate_entity_exists(corporate_profile, "Corporate profile")
     
     if corporate_profile.user_id != current_user.id:
-        raise HTTPException(status_code=403, detail="Access denied")
+        raise forbidden_error("Access denied")
     
     team_member_repo = TeamMemberRepository(db)
     success = team_member_repo.remove_team_member(team_member_id)
     
     if not success:
-        raise HTTPException(status_code=404, detail="Team member not found")
+        raise not_found_error("Team member not found")
     
-    return SuccessResponse(
-        msg="Team member removed successfully"
+    return success_response(
+        data=None,
+        message="Team member removed successfully"
     )
 
 
 @router.get("/pending-invitations", response_model=List[TeamMemberResponse])
+@handle_errors
 async def get_pending_invitations(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
@@ -303,6 +306,7 @@ async def get_pending_invitations(
 
 
 @router.get("/accept-invitation")
+@handle_errors
 async def accept_invitation(
     team_member_id: int = Query(..., description="Team member invitation ID"),
     db: Session = Depends(get_db)
@@ -310,18 +314,14 @@ async def accept_invitation(
     """Accept team member invitation (no authentication required)"""
     team_member_repo = TeamMemberRepository(db)
     team_member = team_member_repo.get_team_member_by_id(team_member_id)
-    
-    if not team_member:
-        raise HTTPException(status_code=404, detail="Team member invitation not found")
+    validate_entity_exists(team_member, "Team member invitation")
     
     if team_member.status != TeamMemberStatus.PENDING:
-        raise HTTPException(status_code=400, detail="Invitation has already been processed")
+        raise bad_request_error("Invitation has already been processed")
     
     # Accept the invitation
     updated_member = team_member_repo.update_team_member_status(team_member_id, True)
-    
-    if not updated_member:
-        raise HTTPException(status_code=500, detail="Error accepting invitation")
+    validate_entity_exists(updated_member, "Team member")
     
     # Return HTML response for better user experience
     html_response = """
@@ -353,6 +353,7 @@ async def accept_invitation(
 
 
 @router.get("/reject-invitation")
+@handle_errors
 async def reject_invitation(
     team_member_id: int = Query(..., description="Team member invitation ID"),
     db: Session = Depends(get_db)
@@ -360,18 +361,14 @@ async def reject_invitation(
     """Reject team member invitation (no authentication required)"""
     team_member_repo = TeamMemberRepository(db)
     team_member = team_member_repo.get_team_member_by_id(team_member_id)
-    
-    if not team_member:
-        raise HTTPException(status_code=404, detail="Team member invitation not found")
+    validate_entity_exists(team_member, "Team member invitation")
     
     if team_member.status != TeamMemberStatus.PENDING:
-        raise HTTPException(status_code=400, detail="Invitation has already been processed")
+        raise bad_request_error("Invitation has already been processed")
     
     # Reject the invitation
     updated_member = team_member_repo.update_team_member_status(team_member_id, False)
-    
-    if not updated_member:
-        raise HTTPException(status_code=500, detail="Error rejecting invitation")
+    validate_entity_exists(updated_member, "Team member")
     
     # Return HTML response for better user experience
     html_response = """

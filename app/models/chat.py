@@ -1,7 +1,7 @@
 from sqlalchemy import Column, Integer, String, Boolean, DateTime, Text, ForeignKey, JSON, Enum, LargeBinary, UniqueConstraint
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
-from ..database import Base
+from ..db.database import Base
 import enum
 
 class MessageType(str, enum.Enum):

@@ -4,7 +4,7 @@ from typing import List, Optional
 import json
 from datetime import datetime
 
-from ..database import get_db
+from ..db.database import get_db
 from ..repositories.chat_repository import ChatRepository
 from ..schemas.chat import (
     UserSearchResponse, UserSearchListResponse,
@@ -18,7 +18,7 @@ from ..schemas.chat import (
 from ..utils.websocket_manager import manager
 from ..utils.file_upload import file_upload_manager
 from ..utils.auth import get_current_user
-from ..utils.agora_tokens import generate_rtc_token
+from ..utils.agora_tokens_standalone import generate_rtc_token
 from ..models.user import User
 from ..models.user_device_token import UserDeviceToken
 from ..utils.firebase_notifications import send_push_notification_multiple
@@ -41,7 +41,8 @@ def get_user_device_tokens(db: Session, user_id: int) -> List[str]:
         return [row[0] for row in result if row[0]]
     except Exception as e:
         # Minimal error log, without verbose debug tag
-        print(f"Chat notification error getting device tokens: {str(e)}")
+        from ..core.logging_config import logger
+        logger.error(f"Chat notification error getting device tokens: {str(e)}", exc_info=True)
         try:
             device_tokens = db.query(UserDeviceToken).filter(
                 UserDeviceToken.user_id == user_id,
@@ -397,13 +398,13 @@ async def get_room(
         files_data_with_urls = None
         
         if message.file_path:
-            from ..config import settings
+            from ..core.config import settings
             # Replace backslashes with forward slashes for web URLs
             clean_path = message.file_path.replace("\\", "/")
             file_url = f"{settings.BASE_URL}/{clean_path}"
         
         if message.files_data:
-            from ..config import settings
+            from ..core.config import settings
             files_data_with_urls = []
             for file_data in message.files_data:
                 clean_path = file_data["file_path"].replace("\\", "/")
@@ -525,13 +526,13 @@ async def get_room_messages(
         files_data_with_urls = None
         
         if message.file_path:
-            from ..config import settings
+            from ..core.config import settings
             # Replace backslashes with forward slashes for web URLs
             clean_path = message.file_path.replace("\\", "/")
             file_url = f"{settings.BASE_URL}/{clean_path}"
         
         if message.files_data:
-            from ..config import settings
+            from ..core.config import settings
             files_data_with_urls = []
             for file_data in message.files_data:
                 clean_path = file_data["file_path"].replace("\\", "/")
@@ -666,13 +667,13 @@ async def update_message(
     files_data_with_urls = None
     
     if updated_message.file_path:
-        from ..config import settings
+        from ..core.config import settings
         # Replace backslashes with forward slashes for web URLs
         clean_path = updated_message.file_path.replace("\\", "/")
         file_url = f"{settings.BASE_URL}/{clean_path}"
     
     if updated_message.files_data:
-        from ..config import settings
+        from ..core.config import settings
         files_data_with_urls = []
         for file_data in updated_message.files_data:
             clean_path = file_data["file_path"].replace("\\", "/")
@@ -817,7 +818,7 @@ async def _websocket_endpoint_handler(websocket: WebSocket):
         
         from ..utils.websocket_auth import authenticate_websocket
         from ..utils.auth import verify_token
-        from ..database import SessionLocal
+        from ..db.database import SessionLocal
         from ..models.user import User
         
         await websocket.accept()
@@ -882,7 +883,7 @@ async def _websocket_endpoint_handler(websocket: WebSocket):
         manager.set_user_room(user_id, room_id)
     
     # Update user presence to online
-    from ..database import SessionLocal
+    from ..db.database import SessionLocal
     db = SessionLocal()
     try:
         chat_repo = ChatRepository(db)
@@ -1005,7 +1006,7 @@ async def _websocket_endpoint_handler(websocket: WebSocket):
                     continue
                 
                 # Create database session for message operations
-                from ..database import SessionLocal
+                from ..db.database import SessionLocal
                 message_db = SessionLocal()
                 try:
                     chat_repo = ChatRepository(message_db)
@@ -1171,7 +1172,7 @@ async def _websocket_endpoint_handler(websocket: WebSocket):
                     files_data_with_urls = None
                     
                     if message.files_data:
-                        from ..config import settings
+                        from ..core.config import settings
                         files_data_with_urls = []
                         for file_data in message.files_data:
                             clean_path = file_data["file_path"].replace("\\", "/")
@@ -1229,7 +1230,7 @@ async def _websocket_endpoint_handler(websocket: WebSocket):
                     try:
                         from ..repositories.notification_repository import NotificationRepository
                         from ..models.notification import NotificationType
-                        from ..database import SessionLocal
+                        from ..db.database import SessionLocal
                         
                         # Create a new database session for notification
                         notification_db = SessionLocal()

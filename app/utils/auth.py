@@ -5,8 +5,8 @@ from passlib.context import CryptContext
 from sqlalchemy.orm import Session
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
-from ..config import settings
-from ..database import get_db
+from ..core.config import settings
+from ..db.database import get_db
 
 # OAuth2 scheme for token authentication
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="api/v1/auth/token")

@@ -2,7 +2,7 @@ from pydantic import BaseModel
 from typing import Optional, List
 from datetime import datetime
 from pydantic import computed_field
-from ..config import settings
+from ..core.config import settings
 from .category import CategoryResponse
 
 class LocationBase(BaseModel):

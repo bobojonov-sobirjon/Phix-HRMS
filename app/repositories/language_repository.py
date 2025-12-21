@@ -1,37 +1,47 @@
 from sqlalchemy.orm import Session
 from ..models.language import Language
 from typing import Optional, List
+from .base_repository import BaseRepository
 
-class LanguageRepository:
+
+class LanguageRepository(BaseRepository[Language]):
+    """Repository for Language model"""
+    
     def __init__(self, db: Session):
-        self.db = db
-
+        super().__init__(db, Language)
+    
     def get(self, language_id: int) -> Optional[Language]:
-        return self.db.query(Language).filter(Language.id == language_id).first()
-
+        """Get language by ID"""
+        return self.get_by_id(language_id, include_deleted=False)
+    
     def get_all(self) -> List[Language]:
-        return self.db.query(Language).all()
-
+        """Get all languages"""
+        return self.get_all(include_deleted=False)
+    
     def create(self, name: str) -> Language:
-        language = Language(name=name)
-        self.db.add(language)
-        self.db.commit()
-        self.db.refresh(language)
-        return language
-
+        """Create a new language"""
+        return self.create({"name": name})
+    
     def update(self, language_id: int, name: str) -> Optional[Language]:
-        language = self.get(language_id)
-        if not language:
-            return None
-        language.name = name
-        self.db.commit()
-        self.db.refresh(language)
-        return language
-
+        """Update language"""
+        return self.update(language_id, {"name": name}, exclude_unset=False)
+    
     def delete(self, language_id: int) -> bool:
-        language = self.get(language_id)
-        if not language:
-            return False
-        self.db.delete(language)
-        self.db.commit()
-        return True 
+        """Hard delete language (languages don't have is_deleted)"""
+        return super().delete(language_id, hard_delete=True)
+    
+    def get_language_by_id(self, language_id: int) -> Optional[Language]:
+        """Get language by ID (alias for get)"""
+        return self.get(language_id)
+    
+    def get_all_languages(self) -> List[Language]:
+        """Get all languages (alias for get_all)"""
+        return self.get_all()
+    
+    def create_language(self, name: str) -> Language:
+        """Create a new language (alias for create)"""
+        return self.create(name)
+    
+    def update_language(self, language_id: int, name: str) -> Optional[Language]:
+        """Update language (alias for update)"""
+        return self.update(language_id, name)

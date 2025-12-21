@@ -1,7 +1,7 @@
 from sqlalchemy import Column, Integer, Boolean, DateTime, Text, ForeignKey
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
-from ..database import Base
+from ..db.database import Base
 
 class ProjectImage(Base):
     __tablename__ = "project_images"

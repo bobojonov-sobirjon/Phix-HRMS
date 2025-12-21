@@ -3,8 +3,9 @@ from typing import Dict, List, Set
 import json
 import asyncio
 from datetime import datetime
-from ..database import SessionLocal
+from ..db.database import SessionLocal
 from ..repositories.chat_repository import ChatRepository
+from ..core.logging_config import logger
 
 class ConnectionManager:
     def __init__(self):
@@ -29,7 +30,7 @@ class ConnectionManager:
         # Remove from typing indicators
         for room_id, typing_set in self.typing_users.items():
             typing_set.discard(user_id)
-        print(f"User {user_id} disconnected")
+        logger.info(f"User {user_id} disconnected from WebSocket")
 
     async def send_personal_message(self, message: dict, user_id: int):
         """Send a message to a specific user"""
@@ -37,7 +38,7 @@ class ConnectionManager:
             try:
                 await self.active_connections[user_id].send_text(json.dumps(message))
             except Exception as e:
-                print(f"Error sending message to user {user_id}: {e}")
+                logger.error(f"Error sending message to user {user_id}: {e}", exc_info=True)
                 self.disconnect(user_id)
 
     async def send_to_room_participants(self, message: dict, room_id: int, exclude_user: int = None):
@@ -68,7 +69,7 @@ class ConnectionManager:
             try:
                 await self.active_connections[receiver_id].send_text(json.dumps(message))
             except Exception as e:
-                print(f"Error sending direct message to user {receiver_id}: {e}")
+                logger.error(f"Error sending direct message to user {receiver_id}: {e}", exc_info=True)
                 self.disconnect(receiver_id)
         
         # Send back to sender for confirmation
@@ -129,7 +130,7 @@ class ConnectionManager:
                         try:
                             await self.active_connections[participant_id].send_text(json.dumps(presence_message))
                         except Exception as e:
-                            print(f"Error broadcasting presence to user {participant_id}: {e}")
+                            logger.error(f"Error broadcasting presence to user {participant_id}: {e}", exc_info=True)
                             self.disconnect(participant_id)
         finally:
             db.close()
@@ -161,7 +162,7 @@ class ConnectionManager:
             try:
                 await self.active_connections[receiver_id].send_text(json.dumps(receiver_message))
             except Exception as e:
-                print(f"Error sending message to receiver {receiver_id}: {e}")
+                logger.error(f"Error sending message to receiver {receiver_id}: {e}", exc_info=True)
                 self.disconnect(receiver_id)
 
     async def broadcast_message_read(self, room_id: int, user_id: int, user_name: str):
@@ -259,7 +260,7 @@ class ConnectionManager:
             try:
                 await websocket.send_text(json.dumps(reject_message))
             except Exception as e:
-                print(f"Error broadcasting video call reject to user {user_id}: {e}")
+                logger.error(f"Error broadcasting video call reject to user {user_id}: {e}", exc_info=True)
                 self.disconnect(user_id)
 
     async def broadcast_video_call_end(self, call_id: str, user_id: int, user_name: str):
@@ -278,7 +279,7 @@ class ConnectionManager:
             try:
                 await websocket.send_text(json.dumps(end_message))
             except Exception as e:
-                print(f"Error broadcasting video call end to user {uid}: {e}")
+                logger.error(f"Error broadcasting video call end to user {uid}: {e}", exc_info=True)
                 self.disconnect(uid)
 
 

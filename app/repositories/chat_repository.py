@@ -408,6 +408,25 @@ class ChatRepository:
         ).all()
         return [participant.user_id for participant in participants]
 
+    def batch_get_users_online_status(self, user_ids: List[int]) -> Dict[int, bool]:
+        """Batch get online status for multiple users to avoid N+1 queries"""
+        if not user_ids:
+            return {}
+        
+        from datetime import datetime, timedelta
+        # Users are considered online if they were active in the last 5 minutes
+        online_threshold = datetime.utcnow() - timedelta(minutes=5)
+        
+        online_users = self.db.query(UserPresence.user_id).filter(
+            and_(
+                UserPresence.user_id.in_(user_ids),
+                UserPresence.last_seen >= online_threshold
+            )
+        ).all()
+        
+        online_user_ids = {user_id for (user_id,) in online_users}
+        return {user_id: user_id in online_user_ids for user_id in user_ids}
+    
     def is_user_online(self, user_id: int) -> bool:
         """Check if a user is currently online"""
         presence = self.get_user_presence(user_id)
@@ -467,6 +486,36 @@ class ChatRepository:
             "action": action,
             "like_count": like_count
         }
+    
+    def batch_get_messages_liked_by_user(self, message_ids: List[int], user_id: int) -> Dict[int, bool]:
+        """Batch check if messages are liked by user to avoid N+1 queries"""
+        if not message_ids:
+            return {}
+        
+        liked_messages = self.db.query(MessageLike.message_id).filter(
+            and_(
+                MessageLike.message_id.in_(message_ids),
+                MessageLike.user_id == user_id
+            )
+        ).all()
+        
+        liked_message_ids = {msg_id for (msg_id,) in liked_messages}
+        return {msg_id: msg_id in liked_message_ids for msg_id in message_ids}
+    
+    def batch_get_messages_like_counts(self, message_ids: List[int]) -> Dict[int, int]:
+        """Batch get like counts for multiple messages to avoid N+1 queries"""
+        if not message_ids:
+            return {}
+        
+        from sqlalchemy import func
+        like_counts = self.db.query(
+            MessageLike.message_id,
+            func.count(MessageLike.id).label('count')
+        ).filter(
+            MessageLike.message_id.in_(message_ids)
+        ).group_by(MessageLike.message_id).all()
+        
+        return {msg_id: count for msg_id, count in like_counts}
     
     def is_message_liked_by_user(self, message_id: int, user_id: int) -> bool:
         """Check if a message is liked by a specific user"""

@@ -1,38 +1,32 @@
 from sqlalchemy.orm import Session
-from typing import List, Optional, Dict
+from typing import List, Optional
 from ..models.location import Location
 from ..schemas.profile import LocationCreate, LocationUpdate
+from .base_repository import BaseRepository
 
-class LocationRepository:
+
+class LocationRepository(BaseRepository[Location]):
+    """Repository for Location model"""
+    
     def __init__(self, db: Session):
-        self.db = db
-
+        super().__init__(db, Location)
+    
     def get_all_locations(self) -> List[Location]:
-        return self.db.query(Location).filter(Location.is_deleted == False).all()
-
+        """Get all locations (excluding deleted)"""
+        return self.get_all(include_deleted=False)
+    
     def get_location_by_id(self, location_id: int) -> Optional[Location]:
-        return self.db.query(Location).filter(Location.id == location_id, Location.is_deleted == False).first()
-
+        """Get location by ID (excluding deleted)"""
+        return self.get_by_id(location_id, include_deleted=False)
+    
     def create_location(self, data: LocationCreate) -> Location:
-        location = Location(**data.dict())
-        self.db.add(location)
-        self.db.commit()
-        self.db.refresh(location)
-        return location
-
+        """Create a new location"""
+        return self.create(data.dict())
+    
     def update_location(self, location_id: int, update_data: LocationUpdate) -> Optional[Location]:
-        location = self.get_location_by_id(location_id)
-        if location:
-            for key, value in update_data.dict(exclude_unset=True).items():
-                setattr(location, key, value)
-            self.db.commit()
-            self.db.refresh(location)
-        return location
-
+        """Update location"""
+        return self.update(location_id, update_data, exclude_unset=True)
+    
     def delete_location(self, location_id: int) -> bool:
-        location = self.get_location_by_id(location_id)
-        if location:
-            location.is_deleted = True
-            self.db.commit()
-            return True
-        return False 
+        """Soft delete location"""
+        return self.delete(location_id, hard_delete=False) 

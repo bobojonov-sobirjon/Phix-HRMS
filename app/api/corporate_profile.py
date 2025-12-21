@@ -4,7 +4,7 @@ from typing import List, Optional
 import os
 import uuid
 from pathlib import Path
-from ..database import get_db
+from ..db.database import get_db
 from ..repositories.corporate_profile_repository import CorporateProfileRepository
 from ..repositories.user_repository import UserRepository
 from ..repositories.full_time_job_repository import FullTimeJobRepository
@@ -20,7 +20,7 @@ from ..schemas.full_time_job import FullTimeJobResponse, FullTimeJobListResponse
 from ..schemas.common import MessageResponse, SuccessResponse
 from ..utils.auth import get_current_user, verify_token
 from ..utils.email import send_email_with_retry, send_corporate_verification_email
-from ..config import settings
+from ..core.config import settings
 from ..models.otp import OTP
 from ..models.user import User
 import random
@@ -166,8 +166,8 @@ def convert_profile_to_response(profile_with_urls, current_user_id: Optional[int
     # Create profile data with team members
     profile_dict = {
         "id": profile_with_urls.id,
-        "company_name": profile_with_urls.company_name,
-        "industry": profile_with_urls.industry,
+        "category_id": getattr(profile_with_urls, "category_id", None),
+        "company_id": getattr(profile_with_urls, "company_id", None),
         "phone_number": profile_with_urls.phone_number,
         "country_code": profile_with_urls.country_code,
         "location_id": profile_with_urls.location_id,
@@ -201,6 +201,18 @@ def convert_profile_to_response(profile_with_urls, current_user_id: Optional[int
             "current_position": profile_with_urls.user.current_position,
             "location_id": profile_with_urls.user.location_id
         } if profile_with_urls.user else None,
+        "company": {
+            "id": profile_with_urls.company.id,
+            "name": profile_with_urls.company.name,
+            "icon": profile_with_urls.company.icon,
+            "country": profile_with_urls.company.country
+        } if hasattr(profile_with_urls, 'company') and profile_with_urls.company else None,
+        "category": {
+            "id": profile_with_urls.category.id,
+            "name": profile_with_urls.category.name,
+            "description": profile_with_urls.category.description,
+            "is_active": profile_with_urls.category.is_active
+        } if hasattr(profile_with_urls, 'category') and profile_with_urls.category else None,
         "team_members": team_members_data,
         "is_followed": is_followed,
         "followers_count": followers_count,
@@ -212,20 +224,22 @@ def convert_profile_to_response(profile_with_urls, current_user_id: Optional[int
 
 @router.post("/", response_model=SuccessResponse, tags=["Corporate Profile"])
 async def create_corporate_profile(
-    company_name: str = Form(...),
-    industry: str = Form(...),
     phone_number: str = Form(...),
     country_code: str = Form(default="+1"),
     location_id: int = Form(...),
     overview: str = Form(...),
     website_url: Optional[str] = Form(None),
     company_size: CompanySize = Form(...),
+    category_id: Optional[int] = Form(None),
+    company_id: int = Form(...),
     logo: Optional[UploadFile] = File(None),
     current_user: dict = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """Create a new corporate profile with logo upload"""
     from ..models.location import Location
+    from ..models.category import Category
+    from ..models.company import Company
     
     user_repo = UserRepository(db)
     corporate_repo = CorporateProfileRepository(db)
@@ -245,6 +259,29 @@ async def create_corporate_profile(
             detail="Invalid location ID"
         )
     
+    # Validate company_id is required
+    company_obj = db.query(Company).filter(
+        Company.id == company_id,
+        Company.is_deleted == False
+    ).first()
+    if not company_obj:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid company ID"
+        )
+    
+    # Validate category_id if provided
+    if category_id is not None:
+        category_obj = db.query(Category).filter(
+            Category.id == category_id,
+            Category.is_active == True
+        ).first()
+        if not category_obj:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid category ID"
+            )
+    
     # Validate logo file if provided
     logo_url = None
     if logo:
@@ -256,15 +293,15 @@ async def create_corporate_profile(
     
     # Create corporate profile data
     profile_data = CorporateProfileCreate(
-        company_name=company_name,
-        industry=industry,
         phone_number=phone_number,
         country_code=country_code,
         location_id=location_id,
         overview=overview,
         website_url=website_url,
         company_size=company_size,
-        logo_url=None  # Will be set after saving
+        logo_url=None,  # Will be set after saving
+        category_id=category_id,
+        company_id=company_id,
     )
     
     # Create corporate profile
@@ -504,20 +541,22 @@ async def get_my_corporate_profile(
 @router.put("/{profile_id}", response_model=CorporateProfileResponse, tags=["Corporate Profile"])
 async def update_corporate_profile(
     profile_id: int,
-    company_name: Optional[str] = Form(None),
-    industry: Optional[str] = Form(None),
     phone_number: Optional[str] = Form(None),
     country_code: Optional[str] = Form(None),
     location_id: Optional[int] = Form(None),
     overview: Optional[str] = Form(None),
     website_url: Optional[str] = Form(None),
     company_size: Optional[CompanySize] = Form(None),
+    category_id: Optional[int] = Form(None),
+    company_id: Optional[int] = Form(None),
     logo: Optional[UploadFile] = File(None),
     current_user: dict = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """Update corporate profile with logo upload"""
     from ..models.location import Location
+    from ..models.category import Category
+    from ..models.company import Company
     
     corporate_repo = CorporateProfileRepository(db)
     
@@ -544,6 +583,30 @@ async def update_corporate_profile(
                 detail="Invalid location ID"
             )
     
+    # Validate company_id if provided
+    if company_id is not None:
+        company_obj = db.query(Company).filter(
+            Company.id == company_id,
+            Company.is_deleted == False
+        ).first()
+        if not company_obj:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid company ID"
+            )
+    
+    # Validate category_id if provided
+    if category_id is not None:
+        category_obj = db.query(Category).filter(
+            Category.id == category_id,
+            Category.is_active == True
+        ).first()
+        if not category_obj:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid category ID"
+            )
+    
     # Validate logo file if provided
     if logo and not logo.content_type.startswith('image/'):
         raise HTTPException(
@@ -553,10 +616,6 @@ async def update_corporate_profile(
     
     # Prepare update data
     update_data = CorporateProfileUpdate()
-    if company_name is not None:
-        update_data.company_name = company_name
-    if industry is not None:
-        update_data.industry = industry
     if phone_number is not None:
         update_data.phone_number = phone_number
     if country_code is not None:
@@ -569,6 +628,10 @@ async def update_corporate_profile(
         update_data.website_url = website_url
     if company_size is not None:
         update_data.company_size = company_size
+    if category_id is not None:
+        update_data.category_id = category_id
+    if company_id is not None:
+        update_data.company_id = company_id
     
     # Update profile
     updated_profile = corporate_repo.update(profile_id, update_data)
@@ -614,6 +677,13 @@ async def delete_corporate_profile(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Corporate profile not found"
+        )
+    
+    # Check if profile is already deleted
+    if profile.is_deleted:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Corporate profile is already deleted"
         )
     
     if profile.user_id != current_user.id:

@@ -1,141 +1,62 @@
-from fastapi import FastAPI, HTTPException, Request
+"""
+Main FastAPI application
+"""
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import JSONResponse
-from starlette.middleware.base import BaseHTTPMiddleware
-from starlette.requests import Request as StarletteRequest
-from .api import auth, profile, contact_us, faq, skills, roles, languages, locations, user_skills, data_management
-from .api import company, education_facility, certification_center, gig_jobs, proposals
-from .api import saved_jobs
-from .api import corporate_profile, full_time_job, team_member, category, chat, corporate_profile_follow, notifications
-from .database import engine
-from .models import user, role, user_role, skill, user_skill, education, experience, certification, project, project_image, language, location, contact_us as contact_us_model, faq as faq_model, company as company_model, education_facility as education_facility_model, certification_center as certification_center_model, gig_job, proposal, saved_job, corporate_profile as corporate_profile_model, full_time_job as full_time_job_model, team_member as team_member_model, category as category_model, chat as chat_model, corporate_profile_follow as corporate_profile_follow_model, notification as notification_model
-import traceback
+from dotenv import load_dotenv
 import os
 
-app = FastAPI(title="Phix HRMS API", version="1.0.0", redirect_slashes=False)
+from .core.logging_config import logger
+from .core.middleware import RequestLoggingMiddleware, ErrorLoggingMiddleware
+from .core.exception_handlers import http_exception_handler, general_exception_handler
+from .core.router_setup import register_routers
+from .core.database_setup import create_all_tables
 
-# Request logging middleware
-class RequestLoggingMiddleware(BaseHTTPMiddleware):
-    async def dispatch(self, request: StarletteRequest, call_next):
-        # Log all incoming requests, especially WebSocket upgrade requests
-        if request.url.path.startswith("/api/chat/ws") or request.url.path.startswith("/api/v1/chat/ws"):
-            print(f"[Request Log] WebSocket connection attempt: {request.method} {request.url.path}")
-            print(f"[Request Log] Query params: {request.url.query}")
-            print(f"[Request Log] Headers: {dict(request.headers)}")
-        
-        response = await call_next(request)
-        return response
-
-app.add_middleware(RequestLoggingMiddleware)
-
-# CORS middleware
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-# Global exception handler for standardized error responses
-@app.exception_handler(HTTPException)
-async def http_exception_handler(request: Request, exc: HTTPException):
-    return JSONResponse(
-        status_code=exc.status_code,
-        content={
-            "status": "error",
-            "msg": exc.detail
-        }
-    )
-
-@app.exception_handler(Exception)
-async def general_exception_handler(request: Request, exc: Exception):
-    # Log the full error for debugging
-    print(f"Unhandled exception: {str(exc)}")
-    print(f"Traceback: {traceback.format_exc()}")
-    
-    return JSONResponse(
-        status_code=500,
-        content={
-            "status": "error",
-            "msg": "Internal server error"
-        }
-    )
-
-# Include routers with /api/v1/ prefix
-app.include_router(auth, prefix="/api/v1")
-app.include_router(profile, prefix="/api/v1")
-app.include_router(contact_us, prefix="/api/v1")
-app.include_router(faq, prefix="/api/v1")
-app.include_router(skills, prefix="/api/v1")
-app.include_router(roles, prefix="/api/v1")
-app.include_router(languages, prefix="/api/v1")
-app.include_router(locations, prefix="/api/v1")
-app.include_router(user_skills, prefix="/api/v1")
-app.include_router(data_management, prefix="/api/v1")
-app.include_router(company.router, prefix="/api/v1")
-app.include_router(education_facility.router, prefix="/api/v1")
-app.include_router(certification_center.router, prefix="/api/v1")
-app.include_router(gig_jobs, prefix="/api/v1")
-app.include_router(proposals, prefix="/api/v1")
-app.include_router(saved_jobs.router, prefix="/api/v1")
-app.include_router(corporate_profile.router, prefix="/api/v1")
-app.include_router(corporate_profile_follow.router, prefix="/api/v1")
-app.include_router(full_time_job.router, prefix="/api/v1")
-app.include_router(team_member.router, prefix="/api/v1")
-app.include_router(category.router, prefix="/api/v1")
-app.include_router(chat.router, prefix="/api/v1/chat")
-# Also register chat router without /v1 for backward compatibility
-app.include_router(chat.router, prefix="/api/chat")
-app.include_router(notifications.router, prefix="/api/v1")
-
-# Mount static files
-app.mount("/static", StaticFiles(directory="static"), name="static")
-
-# Create database tables
-user.Base.metadata.create_all(bind=engine)
-role.Base.metadata.create_all(bind=engine)
-user_role.Base.metadata.create_all(bind=engine)
-skill.Base.metadata.create_all(bind=engine)
-user_skill.Base.metadata.create_all(bind=engine)
-education.Base.metadata.create_all(bind=engine)
-experience.Base.metadata.create_all(bind=engine)
-certification.Base.metadata.create_all(bind=engine)
-project.Base.metadata.create_all(bind=engine)
-project_image.Base.metadata.create_all(bind=engine)
-language.Base.metadata.create_all(bind=engine)
-location.Base.metadata.create_all(bind=engine)
-contact_us_model.Base.metadata.create_all(bind=engine)
-faq_model.Base.metadata.create_all(bind=engine)
-company_model.Base.metadata.create_all(bind=engine)
-education_facility_model.Base.metadata.create_all(bind=engine)
-certification_center_model.Base.metadata.create_all(bind=engine)
-gig_job.Base.metadata.create_all(bind=engine)
-proposal.Base.metadata.create_all(bind=engine)
-saved_job.Base.metadata.create_all(bind=engine)
-corporate_profile_model.Base.metadata.create_all(bind=engine)
-full_time_job_model.Base.metadata.create_all(bind=engine)
-team_member_model.Base.metadata.create_all(bind=engine)
-category_model.Base.metadata.create_all(bind=engine)
-chat_model.Base.metadata.create_all(bind=engine)
-corporate_profile_follow_model.Base.metadata.create_all(bind=engine)
-notification_model.Base.metadata.create_all(bind=engine)
-
-
-from dotenv import load_dotenv
-
-# Load .env file
+# Load environment variables
 load_dotenv()
 
 # If .env doesn't exist, create it from env.example
 if not os.path.exists('.env') and os.path.exists('env.example'):
     import shutil
     shutil.copy('env.example', '.env')
-    
-    # Reload environment variables
     load_dotenv()
 
+# Initialize FastAPI app
+app = FastAPI(
+    title="Phix HRMS API", 
+    version="1.0.0", 
+    redirect_slashes=True,
+    docs_url="/docs",
+    redoc_url="/redoc",
+    openapi_url="/openapi.json"
+)
+
+# Add middleware
+app.add_middleware(RequestLoggingMiddleware)
+app.add_middleware(ErrorLoggingMiddleware)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # TODO: Restrict in production
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# Register exception handlers
+app.add_exception_handler(HTTPException, http_exception_handler)
+app.add_exception_handler(Exception, general_exception_handler)
+
+# Register routers
+register_routers(app)
+
+# Mount static files
+app.mount("/static", StaticFiles(directory="static"), name="static")
+
+# Create database tables
+create_all_tables()
+
+# Firebase configuration (loaded from environment)
 FIREBASE_TYPE = os.getenv("TYPE")
 FIREBASE_PROJECT_ID = os.getenv("PROJECT_ID")
 FIREBASE_PRIVATE_KEY_ID = os.getenv("PRIVATE_KEY_ID")
@@ -148,20 +69,9 @@ FIREBASE_AUTH_PROVIDER_CERT_URL = os.getenv("AUTH_PROVIDER_CERT_URL")
 FIREBASE_CLIENT_CERT_URL = os.getenv("CLIENT_CERT_URL")
 FIREBASE_UNIVERSE_DOMAIN = os.getenv("UNIVERSE_DOMAIN")
 
-@app.on_event("startup")
-async def startup_event():
-    """Log all registered routes on startup"""
-    print("\n" + "="*80)
-    print("Registered Routes:")
-    print("="*80)
-    for route in app.routes:
-        if hasattr(route, "path") and hasattr(route, "methods"):
-            methods = ", ".join(route.methods) if route.methods else "WebSocket"
-            print(f"  {methods:15} {route.path}")
-        elif hasattr(route, "path"):
-            print(f"  {'WebSocket':15} {route.path}")
-    print("="*80 + "\n")
+logger.info("Phix HRMS API application initialized")
 
 @app.get("/")
 async def root():
+    """Root endpoint"""
     return {"message": "Phix HRMS API is running"}

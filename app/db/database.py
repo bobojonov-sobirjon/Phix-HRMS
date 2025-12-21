@@ -2,7 +2,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 from urllib.parse import quote_plus
-from .config import settings
+from ..core.config import settings
 
 # Create database engine with optimized connection pool settings
 engine = create_engine(

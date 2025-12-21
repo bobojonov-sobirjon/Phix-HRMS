@@ -43,6 +43,62 @@ def create_database():
     
     return True
 
+def fix_alembic_version_column():
+    """Fix alembic_version column length before running migrations"""
+    try:
+        logger.info("Checking alembic_version column length...")
+        
+        # Connect to the phix_hrms database
+        conn = psycopg2.connect(
+            host="localhost",
+            port="5432",
+            user="postgres",
+            password="0576",
+            database="phix_hrms"
+        )
+        conn.autocommit = True
+        cursor = conn.cursor()
+        
+        # Check if alembic_version table exists
+        cursor.execute("""
+            SELECT EXISTS (
+                SELECT FROM information_schema.tables 
+                WHERE table_name = 'alembic_version'
+            )
+        """)
+        table_exists = cursor.fetchone()[0]
+        
+        if table_exists:
+            # Check current column length
+            cursor.execute("""
+                SELECT character_maximum_length 
+                FROM information_schema.columns 
+                WHERE table_name = 'alembic_version' 
+                AND column_name = 'version_num'
+            """)
+            result = cursor.fetchone()
+            
+            if result and result[0] and result[0] < 255:
+                logger.info(f"Current column length: {result[0]}, increasing to 255...")
+                cursor.execute("""
+                    ALTER TABLE alembic_version 
+                    ALTER COLUMN version_num TYPE VARCHAR(255)
+                """)
+                logger.info("✅ Increased alembic_version.version_num column length to 255")
+            else:
+                logger.info("✅ alembic_version.version_num column length is already sufficient")
+        else:
+            logger.info("ℹ️ alembic_version table does not exist yet (will be created by migrations)")
+        
+        cursor.close()
+        conn.close()
+        return True
+        
+    except Exception as e:
+        logger.warning(f"⚠️ Error fixing alembic_version column: {e}")
+        # Don't fail the whole process if this fails
+        return True
+
 def run_migrations():
     """Run Alembic migrations"""
     try:
@@ -204,6 +260,9 @@ def main():
     else:
         logger.error("\n❌ Database setup failed!")
         return
+    
+    # Step 1.5: Fix alembic_version column length before migrations
+    fix_alembic_version_column()
     
     # Step 2: Run migrations
     if run_migrations():

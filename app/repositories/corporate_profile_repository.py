@@ -27,6 +27,8 @@ class CorporateProfileRepository:
         return self.db.query(CorporateProfile).options(
             joinedload(CorporateProfile.location),
             joinedload(CorporateProfile.user),
+            joinedload(CorporateProfile.company),
+            joinedload(CorporateProfile.category),
             joinedload(CorporateProfile.team_members).joinedload(TeamMember.user),
             joinedload(CorporateProfile.team_members).joinedload(TeamMember.invited_by)
         ).filter(
@@ -38,6 +40,8 @@ class CorporateProfileRepository:
         return self.db.query(CorporateProfile).options(
             joinedload(CorporateProfile.location),
             joinedload(CorporateProfile.user),
+            joinedload(CorporateProfile.company),
+            joinedload(CorporateProfile.category),
             joinedload(CorporateProfile.team_members).joinedload(TeamMember.user),
             joinedload(CorporateProfile.team_members).joinedload(TeamMember.invited_by)
         ).filter(
@@ -52,6 +56,8 @@ class CorporateProfileRepository:
         return self.db.query(CorporateProfile).options(
             joinedload(CorporateProfile.location),
             joinedload(CorporateProfile.user),
+            joinedload(CorporateProfile.company),
+            joinedload(CorporateProfile.category),
             joinedload(CorporateProfile.team_members).joinedload(TeamMember.user),
             joinedload(CorporateProfile.team_members).joinedload(TeamMember.invited_by)
         ).offset(skip).limit(limit).all()
@@ -61,6 +67,8 @@ class CorporateProfileRepository:
         return self.db.query(CorporateProfile).options(
             joinedload(CorporateProfile.location),
             joinedload(CorporateProfile.user),
+            joinedload(CorporateProfile.company),
+            joinedload(CorporateProfile.category),
             joinedload(CorporateProfile.team_members).joinedload(TeamMember.user),
             joinedload(CorporateProfile.team_members).joinedload(TeamMember.invited_by)
         ).filter(
@@ -82,13 +90,16 @@ class CorporateProfileRepository:
         return db_profile
     
     def delete(self, profile_id: int) -> bool:
-        """Delete corporate profile"""
+        """Soft delete corporate profile (set is_deleted=True)"""
         db_profile = self.get_by_id(profile_id)
         if not db_profile:
             return False
         
-        self.db.delete(db_profile)
+        # Soft delete: set is_deleted flag instead of hard delete
+        db_profile.is_deleted = True
+        db_profile.is_active = False  # Also deactivate the profile
         self.db.commit()
+        self.db.refresh(db_profile)
         return True
     
     def verify_profile(self, profile_id: int) -> Optional[CorporateProfile]:
@@ -111,7 +122,14 @@ class CorporateProfileRepository:
     
     def get_verified_profiles(self, skip: int = 0, limit: int = 100) -> List[CorporateProfile]:
         """Get only verified corporate profiles"""
-        return self.db.query(CorporateProfile).filter(
+        return self.db.query(CorporateProfile).options(
+            joinedload(CorporateProfile.location),
+            joinedload(CorporateProfile.user),
+            joinedload(CorporateProfile.company),
+            joinedload(CorporateProfile.category),
+            joinedload(CorporateProfile.team_members).joinedload(TeamMember.user),
+            joinedload(CorporateProfile.team_members).joinedload(TeamMember.invited_by)
+        ).filter(
             CorporateProfile.is_verified == True
         ).offset(skip).limit(limit).all()
     

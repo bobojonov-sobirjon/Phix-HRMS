@@ -1,40 +1,45 @@
 from sqlalchemy.orm import Session
 from app.models.faq import FAQ
 from app.schemas.faq import FAQCreate, FAQUpdate
+from .base_repository import BaseRepository
 
-class FAQRepository:
+
+class FAQRepository(BaseRepository[FAQ]):
+    """Repository for FAQ model"""
+    
+    def __init__(self, db: Session):
+        super().__init__(db, FAQ)
+    
     @staticmethod
     def get_all(db: Session):
-        return db.query(FAQ).all()
-
+        """Get all FAQs (static method for backward compatibility)"""
+        repo = FAQRepository(db)
+        return repo.get_all(include_deleted=False)
+    
     @staticmethod
     def get_by_id(db: Session, faq_id: int):
-        return db.query(FAQ).filter(FAQ.id == faq_id).first()
-
+        """Get FAQ by ID (static method for backward compatibility)"""
+        repo = FAQRepository(db)
+        return repo.get_by_id(faq_id, include_deleted=False)
+    
     @staticmethod
     def create(db: Session, faq: FAQCreate):
-        db_faq = FAQ(**faq.dict())
-        db.add(db_faq)
-        db.commit()
-        db.refresh(db_faq)
-        return db_faq
-
+        """Create FAQ (static method for backward compatibility)"""
+        repo = FAQRepository(db)
+        return repo.create(faq.dict())
+    
     @staticmethod
     def update(db: Session, faq_id: int, faq: FAQUpdate):
-        db_faq = db.query(FAQ).filter(FAQ.id == faq_id).first()
-        if not db_faq:
-            return None
-        for var, value in faq.dict(exclude_unset=True).items():
-            setattr(db_faq, var, value)
-        db.commit()
-        db.refresh(db_faq)
-        return db_faq
-
+        """Update FAQ (static method for backward compatibility)"""
+        repo = FAQRepository(db)
+        # BaseRepository.update() handles Pydantic models automatically
+        return repo.update(faq_id, faq, exclude_unset=True)
+    
     @staticmethod
     def delete(db: Session, faq_id: int):
-        db_faq = db.query(FAQ).filter(FAQ.id == faq_id).first()
-        if not db_faq:
-            return None
-        db.delete(db_faq)
-        db.commit()
-        return db_faq 
+        """Delete FAQ (static method for backward compatibility)"""
+        repo = FAQRepository(db)
+        success = repo.delete(faq_id, hard_delete=True)
+        if success:
+            return repo.get_by_id(faq_id, include_deleted=True)
+        return None

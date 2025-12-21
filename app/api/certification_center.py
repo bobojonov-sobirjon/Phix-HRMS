@@ -1,7 +1,7 @@
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 from typing import List
-from ..database import get_db
+from ..db.database import get_db
 from ..repositories.certification_center_repository import CertificationCenterRepository
 from ..schemas.certification_center import (
     CertificationCenterCreate,
@@ -10,12 +10,20 @@ from ..schemas.certification_center import (
     CertificationCenterListResponse
 )
 from ..utils.auth import get_current_user
+from ..utils.decorators import handle_errors
+from ..utils.response_helpers import (
+    success_response,
+    not_found_error,
+    bad_request_error,
+    validate_entity_exists
+)
 from ..models.user import User
 
 router = APIRouter(prefix="/certification-centers", tags=["Certification centers"])
 
 @router.post("/", response_model=CertificationCenterResponse)
-def create_certification_center(
+@handle_errors
+async def create_certification_center(
     data: CertificationCenterCreate,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
@@ -26,12 +34,13 @@ def create_certification_center(
     # Check if certification center with same name already exists
     existing_center = repo.get_certification_center_by_name(data.name)
     if existing_center:
-        raise HTTPException(status_code=400, detail="Certification center with this name already exists")
+        raise bad_request_error("Certification center with this name already exists")
     
     return repo.create_certification_center(data.dict())
 
 @router.get("/", response_model=List[CertificationCenterListResponse])
-def get_certification_centers(
+@handle_errors
+async def get_certification_centers(
     skip: int = Query(0, ge=0),
     limit: int = Query(100, ge=1, le=1000),
     search: str = Query(None, description="Search by name"),
@@ -46,21 +55,20 @@ def get_certification_centers(
         return repo.get_all_certification_centers(skip, limit)
 
 @router.get("/{center_id}", response_model=CertificationCenterResponse)
-def get_certification_center(
+@handle_errors
+async def get_certification_center(
     center_id: int,
     db: Session = Depends(get_db)
 ):
     """Get a specific certification center by ID"""
     repo = CertificationCenterRepository(db)
     center = repo.get_certification_center_by_id(center_id)
-    
-    if not center:
-        raise HTTPException(status_code=404, detail="Certification center not found")
-    
+    validate_entity_exists(center, "Certification center")
     return center
 
 @router.put("/{center_id}", response_model=CertificationCenterResponse)
-def update_certification_center(
+@handle_errors
+async def update_certification_center(
     center_id: int,
     data: CertificationCenterUpdate,
     db: Session = Depends(get_db),
@@ -71,14 +79,13 @@ def update_certification_center(
     
     # Check if center exists
     existing_center = repo.get_certification_center_by_id(center_id)
-    if not existing_center:
-        raise HTTPException(status_code=404, detail="Certification center not found")
+    validate_entity_exists(existing_center, "Certification center")
     
     # Check if new name conflicts with existing centers
     if data.name and data.name != existing_center.name:
         name_conflict = repo.get_certification_center_by_name(data.name)
         if name_conflict:
-            raise HTTPException(status_code=400, detail="Certification center with this name already exists")
+            raise bad_request_error("Certification center with this name already exists")
     
     # Filter out None values
     update_data = {k: v for k, v in data.dict().items() if v is not None}
@@ -88,12 +95,13 @@ def update_certification_center(
     
     updated_center = repo.update_certification_center(center_id, update_data)
     if not updated_center:
-        raise HTTPException(status_code=500, detail="Failed to update certification center")
+        raise bad_request_error("Failed to update certification center")
     
     return updated_center
 
 @router.delete("/{center_id}")
-def delete_certification_center(
+@handle_errors
+async def delete_certification_center(
     center_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
@@ -103,11 +111,10 @@ def delete_certification_center(
     
     # Check if center exists
     existing_center = repo.get_certification_center_by_id(center_id)
-    if not existing_center:
-        raise HTTPException(status_code=404, detail="Certification center not found")
+    validate_entity_exists(existing_center, "Certification center")
     
     success = repo.delete_certification_center(center_id)
     if not success:
-        raise HTTPException(status_code=500, detail="Failed to delete certification center")
+        raise bad_request_error("Failed to delete certification center")
     
     return {"message": "Certification center deleted successfully"}

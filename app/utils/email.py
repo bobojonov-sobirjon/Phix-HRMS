@@ -1,7 +1,7 @@
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
-from ..config import settings
+from ..core.config import settings
 import random
 import string
 import asyncio

@@ -3,7 +3,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from app.main import app
-from app.database import get_db, Base
+from app.db.database import get_db, Base
 from app.models.full_time_job import FullTimeJob
 from app.models.corporate_profile import CorporateProfile
 from app.models.user import User

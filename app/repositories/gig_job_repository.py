@@ -12,7 +12,7 @@ from ..models.proposal import Proposal
 from ..schemas.gig_job import GigJobCreate, GigJobUpdate
 from ..schemas.location import Location as LocationSchema
 from ..pagination import PaginationParams
-from ..config import settings
+from ..core.config import settings
 
 
 class GigJobRepository:

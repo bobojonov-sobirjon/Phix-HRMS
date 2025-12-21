@@ -1,6 +1,6 @@
 import requests
 from typing import Optional, Dict, Any
-from ..config import settings
+from ..core.config import settings
 
 class GoogleAuth:
     """Google OAuth authentication"""

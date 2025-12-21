@@ -1,7 +1,7 @@
 from sqlalchemy import Column, Integer, Boolean, DateTime, ForeignKey
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
-from ..database import Base
+from ..db.database import Base
 
 class UserSkill(Base):
     __tablename__ = "user_skills"

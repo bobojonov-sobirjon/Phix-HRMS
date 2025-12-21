@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status, Header, UploadFil
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 from typing import Optional
-from ..database import get_db
+from ..db.database import get_db
 from ..schemas.auth import (
     UserRegister, UserLogin, SocialLogin, OTPRequest, 
     OTPVerify, PasswordResetVerified, LoginResponse, UserResponse, 
@@ -24,13 +24,13 @@ from ..models.user import User
 from ..models.role import Role
 from ..models.otp import OTP
 from datetime import timedelta
-from ..config import settings
+from ..core.config import settings
 import os
 import base64
 from io import BytesIO
 from json import JSONDecodeError
 
-router = APIRouter(prefix="/auth", tags=["Authentication"])
+router = APIRouter(prefix="/auth")
 
 # Dependency to get current user from token (for manual header usage)
 def get_current_user(
@@ -158,7 +158,7 @@ def get_current_user_oauth2(
     
     return user
 
-@router.post("/register", response_model=SuccessResponse)
+@router.post("/register", response_model=SuccessResponse, tags=["Authentication"])
 async def register(user_data: RegisterOTPRequest, db: Session = Depends(get_db)):
     """Register new user - send OTP for email verification"""
     try:
@@ -227,7 +227,7 @@ async def register(user_data: RegisterOTPRequest, db: Session = Depends(get_db))
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.post("/register-code-check", response_model=SuccessResponse)
+@router.post("/register-code-check", response_model=SuccessResponse, tags=["Authentication"])
 async def verify_registration_otp(otp_verify: RegisterOTPVerify, db: Session = Depends(get_db)):
     """Verify registration OTP and create user account"""
     try:
@@ -329,7 +329,7 @@ async def verify_registration_otp(otp_verify: RegisterOTPVerify, db: Session = D
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.post("/token", response_model=Token)
+@router.post("/token", response_model=Token, tags=["Authentication"])
 async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
     """OAuth2 compatible token endpoint for Swagger UI"""
     try:
@@ -373,7 +373,7 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.post("/login", response_model=SuccessResponse)
+@router.post("/login", response_model=SuccessResponse, tags=["Authentication"])
 async def login(user_data: UserLogin, db: Session = Depends(get_db)):
     """Login user with email and password"""
     try:
@@ -436,7 +436,7 @@ async def login(user_data: UserLogin, db: Session = Depends(get_db)):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.post("/social-login", response_model=SuccessResponse)
+@router.post("/social-login", response_model=SuccessResponse, tags=["Authentication"])
 async def social_login(social_data: SocialLogin, db: Session = Depends(get_db)):
     """Login or register user via social login (Google, Facebook, Apple)"""
     try:
@@ -513,7 +513,7 @@ async def social_login(social_data: SocialLogin, db: Session = Depends(get_db)):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.post("/forgot-password", response_model=SuccessResponse)
+@router.post("/forgot-password", response_model=SuccessResponse, tags=["Authentication"])
 async def forgot_password(otp_request: OTPRequest, db: Session = Depends(get_db)):
     """Send OTP code to user's email for password reset"""
     try:
@@ -551,7 +551,7 @@ async def forgot_password(otp_request: OTPRequest, db: Session = Depends(get_db)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.post("/verify-otp", response_model=SuccessResponse)
+@router.post("/verify-otp", response_model=SuccessResponse, tags=["Authentication"])
 async def verify_otp(otp_verify: OTPVerify, db: Session = Depends(get_db)):
     """Verify OTP code for password reset"""
     try:
@@ -572,7 +572,7 @@ async def verify_otp(otp_verify: OTPVerify, db: Session = Depends(get_db)):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.post("/reset-password", response_model=SuccessResponse)
+@router.post("/reset-password", response_model=SuccessResponse, tags=["Authentication"])
 async def reset_password(password_reset: PasswordResetVerified, db: Session = Depends(get_db)):
     """Reset password after OTP verification (no OTP required in request)"""
     try:
@@ -605,7 +605,7 @@ async def reset_password(password_reset: PasswordResetVerified, db: Session = De
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.get("/me", response_model=SuccessResponse)
+@router.get("/me", response_model=SuccessResponse, tags=["Account"])
 async def get_current_user_info(request: Request, current_user: User = Depends(get_current_user_oauth2), db: Session = Depends(get_db)):
     """Get current user full profile, with full avatar_url, full image URLs for project images, and full flag_image URL for location. Only one location object should be returned."""
     try:
@@ -634,7 +634,7 @@ async def get_current_user_info(request: Request, current_user: User = Depends(g
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.patch("/me", response_model=SuccessResponse)
+@router.patch("/me", response_model=SuccessResponse, tags=["Account"])
 async def update_profile(update: UserUpdate, request: Request, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     """Update user profile fields (text fields only). Use /profile/avatar for avatar uploads. Returns full avatar_url."""
     try:
@@ -677,7 +677,7 @@ async def update_profile(update: UserUpdate, request: Request, current_user: Use
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.delete("/me", response_model=SuccessResponse)
+@router.delete("/me", response_model=SuccessResponse, tags=["Account"])
 async def delete_account(
     current_user: User = Depends(get_current_user), 
     db: Session = Depends(get_db)
@@ -698,7 +698,7 @@ async def delete_account(
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.post("/test-token", response_model=SuccessResponse)
+@router.post("/test-token", response_model=SuccessResponse, tags=["Authentication"])
 async def test_token_generation(db: Session = Depends(get_db)):
     """Test endpoint to generate a valid token for testing"""
     try:
@@ -716,7 +716,7 @@ async def test_token_generation(db: Session = Depends(get_db)):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.post("/refresh-token", response_model=SuccessResponse)
+@router.post("/refresh-token", response_model=SuccessResponse, tags=["Authentication"])
 async def refresh_token(refresh_data: RefreshTokenRequest, db: Session = Depends(get_db)):
     """Refresh access token using refresh token"""
     try:
@@ -771,7 +771,7 @@ async def refresh_token(refresh_data: RefreshTokenRequest, db: Session = Depends
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.post("/test-login", response_model=SuccessResponse)
+@router.post("/test-login", response_model=SuccessResponse, tags=["Authentication"])
 async def test_login(db: Session = Depends(get_db)):
     """Test login endpoint that returns a valid token"""
     try:
@@ -811,13 +811,13 @@ async def test_login(db: Session = Depends(get_db)):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.get("/user-profiles", response_model=SuccessResponse)
+@router.get("/user-profiles", response_model=SuccessResponse, tags=["Account"])
 async def get_user_profiles(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
     """Get all user profiles (personal + owned corporate + team memberships)"""
-    from ..config import settings
+    from ..core.config import settings
     from ..models.corporate_profile import CorporateProfile
     from ..repositories.team_member_repository import TeamMemberRepository
     from ..repositories.corporate_profile_repository import CorporateProfileRepository
@@ -900,7 +900,7 @@ async def get_user_profiles(
         data={"profiles": profiles}
     )
 
-@router.post("/restore-user", response_model=SuccessResponse)
+@router.post("/restore-user", response_model=SuccessResponse, tags=["Account"])
 async def restore_user(
     restore_data: UserRestore, 
     authorization: str = Header(None),

@@ -1,8 +1,16 @@
-from fastapi import APIRouter, Depends, HTTPException, Query, status, Header
+from fastapi import APIRouter, Depends, Query, status, Header
 from sqlalchemy.orm import Session
 from typing import Optional
-from app.database import get_db
+from app.db.database import get_db
 from app.utils.auth import get_current_user
+from app.utils.decorators import handle_errors
+from app.utils.response_helpers import (
+    success_response,
+    not_found_error,
+    bad_request_error,
+    forbidden_error,
+    validate_entity_exists
+)
 from app.models.user import User
 from app.repositories.gig_job_repository import GigJobRepository
 from app.schemas.gig_job import (
@@ -28,7 +36,7 @@ def get_current_user_optional(authorization: Optional[str] = Header(None)) -> Op
         # Import here to avoid circular imports
         from app.utils.auth import verify_token
         from app.repositories.user_repository import UserRepository
-        from app.database import get_db
+        from app.db.database import get_db
         
         # Get database session
         db = next(get_db())
@@ -46,6 +54,7 @@ def get_current_user_optional(authorization: Optional[str] = Header(None)) -> Op
 
 
 @router.post("/gig-job", response_model=SuccessResponse, status_code=status.HTTP_201_CREATED)
+@handle_errors
 async def create_gig_job(
     gig_job_data: GigJobCreate,
     db: Session = Depends(get_db),
@@ -69,15 +78,12 @@ async def create_gig_job(
     
     # Validate salary range
     if gig_job_data.min_salary >= gig_job_data.max_salary:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Minimum salary must be less than maximum salary"
-        )
+        raise bad_request_error("Minimum salary must be less than maximum salary")
     
     gig_job = repository.create(gig_job_data, current_user.id)
-    return SuccessResponse(
-        msg="Gig job successfully added",
-        data=gig_job
+    return success_response(
+        data=gig_job,
+        message="Gig job successfully added"
     )
 
 
@@ -201,6 +207,7 @@ async def get_my_gig_jobs(
 
 
 @router.get("/{gig_job_id}", response_model=GigJobResponse)
+@handle_errors
 async def get_gig_job_by_id(
     gig_job_id: int,
     db: Session = Depends(get_db),
@@ -214,17 +221,12 @@ async def get_gig_job_by_id(
     """
     repository = GigJobRepository(db)
     gig_job = repository.get_by_id(gig_job_id, current_user.id if current_user else None)
-    
-    if not gig_job:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Gig job not found"
-        )
-    
+    validate_entity_exists(gig_job, "Gig job")
     return gig_job
 
 
 @router.put("/{gig_job_id}", response_model=SuccessResponse)
+@handle_errors
 async def update_gig_job(
     gig_job_id: int,
     gig_job_data: GigJobUpdate,
@@ -242,25 +244,19 @@ async def update_gig_job(
     # Validate salary range if both are provided
     if gig_job_data.min_salary is not None and gig_job_data.max_salary is not None:
         if gig_job_data.min_salary >= gig_job_data.max_salary:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Minimum salary must be less than maximum salary"
-            )
+            raise bad_request_error("Minimum salary must be less than maximum salary")
     
     updated_gig_job = repository.update(gig_job_id, gig_job_data, current_user.id)
+    validate_entity_exists(updated_gig_job, "Gig job")
     
-    if not updated_gig_job:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Gig job not found or you don't have permission to update it"
-        )
-    
-    return SuccessResponse(
-        msg="Gig job successfully updated"
+    return success_response(
+        data=updated_gig_job,
+        message="Gig job successfully updated"
     )
 
 
 @router.delete("/{gig_job_id}", response_model=SuccessResponse)
+@handle_errors
 async def delete_gig_job(
     gig_job_id: int,
     db: Session = Depends(get_db),
@@ -276,17 +272,16 @@ async def delete_gig_job(
     success = repository.delete(gig_job_id, current_user.id)
     
     if not success:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Gig job not found or you don't have permission to delete it"
-        )
+        raise not_found_error("Gig job not found or you don't have permission to delete it")
     
-    return SuccessResponse(
-        msg="Gig job successfully deleted"
+    return success_response(
+        data=None,
+        message="Gig job successfully deleted"
     )
 
 
 @router.delete("/{gig_job_id}/skills", response_model=SuccessResponse)
+@handle_errors
 async def remove_gig_job_skill(
     gig_job_id: int,
     skill_data: GigJobSkillRemove,
@@ -313,25 +308,17 @@ async def remove_gig_job_skill(
             user_id=current_user.id
         )
         
-        return SuccessResponse(
-            msg=result["message"],
+        return success_response(
             data={
                 "gig_job": result["gig_job"],
                 "removed_skill": result["removed_skill"],
                 "removed_gig_job_skill_id": result["removed_gig_job_skill_id"]
-            }
+            },
+            message=result["message"]
         )
         
     except ValueError as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e)
-        )
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"An error occurred while removing gig job skill: {str(e)}"
-        )
+        raise bad_request_error(str(e))
 
 
 @router.get("/filter/search", response_model=GigJobListResponse)

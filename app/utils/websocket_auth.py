@@ -1,6 +1,6 @@
 from fastapi import WebSocket, WebSocketDisconnect, HTTPException
 from sqlalchemy.orm import Session
-from ..database import SessionLocal
+from ..db.database import SessionLocal
 from ..models.user import User
 from ..utils.auth import verify_token
 from typing import Optional

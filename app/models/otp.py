@@ -1,8 +1,8 @@
 from sqlalchemy import Column, Integer, String, DateTime, Boolean, Text
 from sqlalchemy.sql import func
-from ..database import Base
+from ..db.database import Base
 from datetime import datetime, timedelta, timezone
-from ..config import settings
+from ..core.config import settings
 import json
 
 class OTP(Base):

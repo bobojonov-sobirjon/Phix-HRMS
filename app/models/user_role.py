@@ -1,6 +1,6 @@
 from sqlalchemy import Column, Integer, ForeignKey, Boolean, DateTime
 from sqlalchemy.sql import func
-from ..database import Base
+from ..db.database import Base
 
 class UserRole(Base):
     __tablename__ = 'user_roles'

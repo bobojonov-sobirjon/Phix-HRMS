@@ -1,7 +1,7 @@
 from pydantic import BaseModel, EmailStr, validator, computed_field
 from typing import Optional, List
 from datetime import datetime
-from ..config import settings
+from ..core.config import settings
 # from ..schemas.profile import RoleResponse
 
 # Base User Schema

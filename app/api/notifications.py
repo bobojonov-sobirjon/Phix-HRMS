@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 from typing import Optional
-from app.database import get_db
+from app.db.database import get_db
 from app.utils.auth import get_current_user
 from app.models.user import User
 from app.repositories.notification_repository import NotificationRepository
@@ -14,7 +14,7 @@ from app.schemas.proposal import ProposalResponse
 from app.schemas.profile import UserShortDetails
 from app.models.notification import NotificationType
 from app.pagination import PaginationParams, create_pagination_response
-from app.config import settings
+from app.core.config import settings
 from app.models.user import User
 
 router = APIRouter(prefix="/notifications", tags=["Notifications"])

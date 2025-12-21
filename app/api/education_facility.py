@@ -1,7 +1,7 @@
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 from typing import List
-from ..database import get_db
+from ..db.database import get_db
 from ..repositories.education_facility_repository import EducationFacilityRepository
 from ..schemas.education_facility import (
     EducationFacilityCreate,
@@ -10,12 +10,20 @@ from ..schemas.education_facility import (
     EducationFacilityListResponse
 )
 from ..utils.auth import get_current_user
+from ..utils.decorators import handle_errors
+from ..utils.response_helpers import (
+    success_response,
+    not_found_error,
+    bad_request_error,
+    validate_entity_exists
+)
 from ..models.user import User
 from ..models.education_facility import EducationFacility
 
 router = APIRouter(tags=["Education Facilities"])
 
 @router.post("/education-facilities", response_model=EducationFacilityResponse)
+@handle_errors
 async def create_education_facility(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
@@ -30,7 +38,7 @@ async def create_education_facility(
     # Check if facility with same name already exists
     existing_facility = repository.get_education_facility_by_name(name)
     if existing_facility:
-        raise HTTPException(status_code=400, detail="Education facility with this name already exists")
+        raise bad_request_error("Education facility with this name already exists")
     
     facility_data = {"name": name}
     if icon:
@@ -42,6 +50,7 @@ async def create_education_facility(
     return facility
 
 @router.get("/education-facilities/{facility_id}", response_model=EducationFacilityResponse)
+@handle_errors
 async def get_education_facility(
     facility_id: int,
     db: Session = Depends(get_db)
@@ -49,10 +58,7 @@ async def get_education_facility(
     """Get education facility by ID"""
     repository = EducationFacilityRepository(db)
     facility = repository.get_education_facility_by_id(facility_id)
-    
-    if not facility:
-        raise HTTPException(status_code=404, detail="Education facility not found")
-    
+    validate_entity_exists(facility, "Education facility")
     return facility
 
 @router.get("/education-facilities", response_model=EducationFacilityListResponse)
@@ -87,6 +93,7 @@ async def get_education_facilities(
     )
 
 @router.put("/education-facilities/{facility_id}", response_model=EducationFacilityResponse)
+@handle_errors
 async def update_education_facility(
     facility_id: int,
     facility_data: EducationFacilityUpdate,
@@ -98,14 +105,13 @@ async def update_education_facility(
     
     # Check if facility exists
     existing_facility = repository.get_education_facility_by_id(facility_id)
-    if not existing_facility:
-        raise HTTPException(status_code=404, detail="Education facility not found")
+    validate_entity_exists(existing_facility, "Education facility")
     
     # If name is being updated, check for duplicates
     if facility_data.name and facility_data.name != existing_facility.name:
         duplicate_facility = repository.get_education_facility_by_name(facility_data.name)
         if duplicate_facility:
-            raise HTTPException(status_code=400, detail="Education facility with this name already exists")
+            raise bad_request_error("Education facility with this name already exists")
     
     # Remove None values
     update_data = {k: v for k, v in facility_data.dict().items() if v is not None}
@@ -117,6 +123,7 @@ async def update_education_facility(
     return existing_facility
 
 @router.delete("/education-facilities/{facility_id}")
+@handle_errors
 async def delete_education_facility(
     facility_id: int,
     db: Session = Depends(get_db),
@@ -127,15 +134,14 @@ async def delete_education_facility(
     
     # Check if facility exists
     existing_facility = repository.get_education_facility_by_id(facility_id)
-    if not existing_facility:
-        raise HTTPException(status_code=404, detail="Education facility not found")
+    validate_entity_exists(existing_facility, "Education facility")
     
     success = repository.delete_education_facility(facility_id)
     
-    if success:
-        return {"message": "Education facility deleted successfully"}
-    else:
-        raise HTTPException(status_code=500, detail="Failed to delete education facility")
+    if not success:
+        raise bad_request_error("Failed to delete education facility")
+    
+    return {"message": "Education facility deleted successfully"}
 
 @router.get("/education-facilities/search/autocomplete")
 async def search_education_facilities_autocomplete(

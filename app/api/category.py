@@ -1,7 +1,7 @@
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 from typing import List, Optional
-from app.database import get_db
+from app.db.database import get_db
 from app.repositories.category_repository import CategoryRepository
 from app.schemas.category import (
     CategoryCreate, 
@@ -11,12 +11,20 @@ from app.schemas.category import (
     CategorySearch
 )
 from app.utils.auth import get_current_user
+from app.utils.decorators import handle_errors
+from app.utils.response_helpers import (
+    success_response,
+    not_found_error,
+    bad_request_error,
+    validate_entity_exists
+)
 from app.models.user import User
 
 router = APIRouter(prefix="/categories", tags=["Categories"])
 
 
 @router.post("/", response_model=CategoryResponse, summary="Create a new category")
+@handle_errors
 async def create_category(
     category: CategoryCreate,
     db: Session = Depends(get_db),
@@ -34,7 +42,7 @@ async def create_category(
     
     # Validate parent if provided
     if category.parent_id and not repo.is_valid_parent(category.parent_id):
-        raise HTTPException(status_code=400, detail="Invalid parent category")
+        raise bad_request_error("Invalid parent category")
     
     return repo.create(category)
 
@@ -122,6 +130,7 @@ async def get_subcategories_by_parent(
 
 
 @router.get("/{category_id}", response_model=CategoryResponse, summary="Get category by ID")
+@handle_errors
 async def get_category(
     category_id: int,
     db: Session = Depends(get_db)
@@ -131,12 +140,12 @@ async def get_category(
     """
     repo = CategoryRepository(db)
     category = repo.get_by_id(category_id)
-    if not category:
-        raise HTTPException(status_code=404, detail="Category not found")
+    validate_entity_exists(category, "Category")
     return category
 
 
 @router.put("/{category_id}", response_model=CategoryResponse, summary="Update category")
+@handle_errors
 async def update_category(
     category_id: int,
     category_update: CategoryUpdate,
@@ -150,15 +159,15 @@ async def update_category(
     
     # Validate parent if provided
     if category_update.parent_id and not repo.is_valid_parent(category_update.parent_id):
-        raise HTTPException(status_code=400, detail="Invalid parent category")
+        raise bad_request_error("Invalid parent category")
     
     category = repo.update(category_id, category_update)
-    if not category:
-        raise HTTPException(status_code=404, detail="Category not found")
+    validate_entity_exists(category, "Category")
     return category
 
 
 @router.delete("/{category_id}", summary="Delete category")
+@handle_errors
 async def delete_category(
     category_id: int,
     db: Session = Depends(get_db),
@@ -170,6 +179,6 @@ async def delete_category(
     repo = CategoryRepository(db)
     success = repo.delete(category_id)
     if not success:
-        raise HTTPException(status_code=404, detail="Category not found")
+        raise not_found_error("Category not found")
     
     return {"message": "Category deleted successfully"}
