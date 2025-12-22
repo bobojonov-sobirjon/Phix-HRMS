@@ -9,26 +9,37 @@ class ProjectRepository:
         self.db = db
 
     def create_project(self, user_id: int, project_data) -> Project:
-        # Handle both ProjectCreate schema and dict
-        if hasattr(project_data, 'dict'):
-            project_dict = project_data.dict(exclude={'images'})
-        else:
-            project_dict = project_data.copy()
-        
-        project = Project(user_id=user_id, **project_dict)
-        self.db.add(project)
-        self.db.commit()
-        self.db.refresh(project)
-        
-        # Handle images if provided
-        if hasattr(project_data, 'images') and project_data.images:
-            for img_url in project_data.images:
-                image = ProjectImage(project_id=project.id, image=img_url)
-                self.db.add(image)
+        try:
+            # Handle both ProjectCreate schema and dict
+            if hasattr(project_data, 'dict'):
+                project_dict = project_data.dict(exclude={'images'})
+            elif hasattr(project_data, 'model_dump'):
+                project_dict = project_data.model_dump(exclude={'images'})
+            else:
+                project_dict = project_data.copy()
+            
+            # Remove None values to avoid issues
+            project_dict = {k: v for k, v in project_dict.items() if v is not None}
+            
+            project = Project(user_id=user_id, **project_dict)
+            self.db.add(project)
+            self.db.flush()  # Use flush to get project.id without committing
+            
+            # Handle images if provided
+            if hasattr(project_data, 'images') and project_data.images:
+                for img_url in project_data.images:
+                    if img_url:  # Only add non-empty image URLs
+                        image = ProjectImage(project_id=project.id, image=img_url)
+                        self.db.add(image)
+            
             self.db.commit()
             self.db.refresh(project)
-        
-        return project
+            return project
+        except Exception as e:
+            self.db.rollback()
+            from ..core.logging_config import logger
+            logger.error(f"Error creating project: {e}", exc_info=True)
+            raise
 
     def get_project_by_id(self, project_id: int) -> Optional[Project]:
         return self.db.query(Project).options(

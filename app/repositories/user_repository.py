@@ -4,6 +4,7 @@ from ..models.user import User
 from ..models.otp import OTP
 from datetime import datetime, timezone
 from ..models.role import Role
+from ..models.user_role import UserRole
 from sqlalchemy.orm import joinedload, selectinload, subqueryload
 from sqlalchemy import and_, or_
 from ..models.project import Project
@@ -146,13 +147,19 @@ class UserRepository:
         if not user:
             return None
         
-        for key, value in update_data.items():
-            if hasattr(user, key):
-                setattr(user, key, value)
-        
-        self.db.commit()
-        self.db.refresh(user)
-        return user
+        try:
+            for key, value in update_data.items():
+                if hasattr(user, key) and value is not None:
+                    setattr(user, key, value)
+            
+            self.db.commit()
+            self.db.refresh(user)
+            return user
+        except Exception as e:
+            self.db.rollback()
+            from ..core.logging_config import logger
+            logger.error(f"Error updating user profile: {e}", exc_info=True)
+            raise
 
     def update_user_categories(self, user_id: int, main_category_id: Optional[int] = None, sub_category_id: Optional[int] = None) -> Optional[User]:
         """Update user categories with validation"""
@@ -273,6 +280,111 @@ class UserRepository:
         return self.db.query(User).options(
             selectinload(User.roles)
         ).filter(and_(User.email.in_(emails), User.is_deleted == False)).all()
+    
+    def block_user(self, user_id: int, blocked_by: int, block_reason: Optional[str] = None) -> bool:
+        """Block a user (set is_active to False and record blocking info)"""
+        from datetime import datetime, timezone
+        user = self.get_user_by_id_including_deleted(user_id)
+        if not user:
+            return False
+        
+        user.is_active = False
+        user.blocked_at = datetime.now(timezone.utc)
+        user.blocked_by = blocked_by
+        if block_reason:
+            user.block_reason = block_reason
+        
+        self.db.commit()
+        self.db.refresh(user)
+        return True
+    
+    def unblock_user(self, user_id: int) -> bool:
+        """Unblock a user (set is_active to True and clear blocking info)"""
+        user = self.get_user_by_id_including_deleted(user_id)
+        if not user:
+            return False
+        
+        user.is_active = True
+        user.blocked_at = None
+        user.blocked_by = None
+        user.block_reason = None
+        
+        self.db.commit()
+        self.db.refresh(user)
+        return True
+    
+    def get_user_by_id_including_deleted(self, user_id: int) -> Optional[User]:
+        """Get user by ID including deleted users (for admin operations)"""
+        return self.db.query(User).options(
+            selectinload(User.roles),
+            selectinload(User.skills),
+            selectinload(User.location),
+            selectinload(User.language),
+            selectinload(User.main_category),
+            selectinload(User.sub_category)
+        ).filter(User.id == user_id).first()
+    
+    def get_all_users_with_filters(
+        self,
+        skip: int = 0,
+        limit: int = 20,
+        role: Optional[str] = None,
+        is_active: Optional[bool] = None,
+        is_verified: Optional[bool] = None,
+        is_deleted: Optional[bool] = None,
+        search: Optional[str] = None,
+        date_from: Optional[datetime] = None,
+        date_to: Optional[datetime] = None
+    ) -> tuple[List[User], int]:
+        """Get all users with filters and pagination (for admin)"""
+        from sqlalchemy import or_
+        
+        query = self.db.query(User).options(
+            selectinload(User.roles),
+            selectinload(User.location),
+            selectinload(User.language),
+            selectinload(User.main_category),
+            selectinload(User.sub_category)
+        )
+        
+        # Apply filters
+        if is_deleted is not None:
+            query = query.filter(User.is_deleted == is_deleted)
+        else:
+            # By default, show non-deleted users, but admin can see deleted if explicitly requested
+            query = query.filter(User.is_deleted == False)
+        
+        if is_active is not None:
+            query = query.filter(User.is_active == is_active)
+        
+        if is_verified is not None:
+            query = query.filter(User.is_verified == is_verified)
+        
+        if search:
+            query = query.filter(
+                or_(
+                    User.name.ilike(f"%{search}%"),
+                    User.email.ilike(f"%{search}%")
+                )
+            )
+        
+        if date_from:
+            query = query.filter(User.created_at >= date_from)
+        
+        if date_to:
+            query = query.filter(User.created_at <= date_to)
+        
+        # Filter by role if provided
+        if role:
+            query = query.join(UserRole).join(Role).filter(Role.name.ilike(f"%{role}%"))
+        
+        # Get total count before pagination
+        total = query.count()
+        
+        # Apply pagination and ordering
+        users = query.order_by(User.created_at.desc()).offset(skip).limit(limit).all()
+        
+        return users, total
 
 class OTPRepository:
     """Repository for OTP database operations with optimized queries"""

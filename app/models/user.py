@@ -38,6 +38,11 @@ class User(Base):
     is_verified = Column(Boolean, default=False)
     is_deleted = Column(Boolean, default=False)
     
+    # Blocking fields
+    blocked_at = Column(DateTime(timezone=True), nullable=True)
+    block_reason = Column(Text, nullable=True)
+    blocked_by = Column(Integer, ForeignKey('users.id'), nullable=True)
+    
     # Timestamps
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())

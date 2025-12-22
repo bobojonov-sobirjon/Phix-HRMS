@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, UploadFile, File, Form, Request
+from typing import List, Optional
 from sqlalchemy.orm import Session
 from ..db.database import get_db
 from ..models.user import User
@@ -31,7 +32,6 @@ from ..schemas.profile import (
 )
 from ..schemas.category import CategoryResponse
 from ..schemas.common import SuccessResponse, ErrorResponse
-from typing import List, Optional
 import os
 
 router = APIRouter(prefix="/profile", tags=[])
@@ -158,21 +158,37 @@ async def get_experience_by_id(id: int, current_user: User = Depends(get_current
 @handle_errors
 async def add_experience(data: ExperienceCreate, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     """Add new experience"""
-    repo = ExperienceRepository(db)
-    created_experience = repo.create_experience(current_user.id, data)
-    # Convert SQLAlchemy model to Pydantic response model
-    experience_response = ExperienceResponse.model_validate(created_experience)
-    return success_response(
-        data=experience_response,
-        message="Experience added successfully"
-    )
+    from ..core.logging_config import logger
+    from fastapi import HTTPException
+    
+    try:
+        repo = ExperienceRepository(db)
+        created_experience = repo.create_experience(current_user.id, data)
+        if not created_experience:
+            raise HTTPException(status_code=500, detail="Failed to create experience")
+        # Convert SQLAlchemy model to Pydantic response model
+        experience_response = ExperienceResponse.model_validate(created_experience)
+        return success_response(
+            data=experience_response,
+            message="Experience added successfully"
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error adding experience: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to create experience")
 
 @router.patch("/experiences/{id}", response_model=SuccessResponse, tags=["Profile Experience"])
 @handle_errors
 async def update_experience(id: int, data: ExperienceUpdate, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     """Update experience"""
     repo = ExperienceRepository(db)
-    updated = repo.update_experience(id, data.dict(exclude_unset=True))
+    # Support both Pydantic v1 and v2
+    if hasattr(data, 'model_dump'):
+        update_data = data.model_dump(exclude_unset=True)
+    else:
+        update_data = data.dict(exclude_unset=True)
+    updated = repo.update_experience(id, update_data)
     validate_entity_exists(updated, "Experience")
     validate_ownership(updated.user_id, current_user.id, "Experience")
     # Convert SQLAlchemy model to Pydantic response model
@@ -266,15 +282,21 @@ async def delete_certification(id: int, current_user: User = Depends(get_current
 # Projects
 @router.get("/projects", response_model=SuccessResponse, tags=["Profile Projects"])
 @handle_errors
-async def get_my_projects(current_user: User = Depends(get_current_user), db: Session = Depends(get_db), request: Request = None):
+async def get_my_projects(
+    current_user: User = Depends(get_current_user), 
+    db: Session = Depends(get_db)
+):
     """Get all projects for current user"""
+    from ..core.config import settings
+    
     repo = ProjectRepository(db)
     projects = repo.get_projects_by_user(current_user.id)
     # Convert SQLAlchemy models to Pydantic response models
     project_responses = [ProjectResponse.model_validate(proj) for proj in projects]
     
     # Add base URL to image paths in response
-    base_url = str(request.base_url).rstrip("/") if request else ""
+    base_url = settings.BASE_URL
+    
     for project_response in project_responses:
         for img in project_response.images:
             if img.image and not img.image.startswith("http"):
@@ -287,8 +309,14 @@ async def get_my_projects(current_user: User = Depends(get_current_user), db: Se
 
 @router.get("/projects/{id}", response_model=SuccessResponse, tags=["Profile Projects"])
 @handle_errors
-async def get_project_by_id(id: int, current_user: User = Depends(get_current_user), db: Session = Depends(get_db), request: Request = None):
+async def get_project_by_id(
+    id: int, 
+    current_user: User = Depends(get_current_user), 
+    db: Session = Depends(get_db)
+):
     """Get project by ID"""
+    from ..core.config import settings
+    
     repo = ProjectRepository(db)
     project = repo.get_project_by_id(id)
     validate_entity_exists(project, "Project")
@@ -297,7 +325,8 @@ async def get_project_by_id(id: int, current_user: User = Depends(get_current_us
     project_response = ProjectResponse.model_validate(project)
     
     # Add base URL to image paths in response
-    base_url = str(request.base_url).rstrip("/") if request else ""
+    base_url = settings.BASE_URL
+    
     for img in project_response.images:
         if img.image and not img.image.startswith("http"):
             img.image = f"{base_url}{img.image}"
@@ -310,6 +339,7 @@ async def get_project_by_id(id: int, current_user: User = Depends(get_current_us
 @router.post("/projects", response_model=SuccessResponse, tags=["Profile Projects"])
 @handle_errors
 async def add_project(
+    request: Request,
     project_name: str = Form(...),
     role: str = Form(None),
     from_date: str = Form(None),
@@ -318,17 +348,32 @@ async def add_project(
     description: str = Form(None),
     images: List[UploadFile] = File(None),
     current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
-    request: Request = None
+    db: Session = Depends(get_db)
 ):
     """Add new project"""
     from datetime import datetime
     import os
     from ..models.project_image import ProjectImage
+    from ..core.logging_config import logger
+    from fastapi import HTTPException
 
-    # Parse dates
-    from_date_parsed = datetime.fromisoformat(from_date) if from_date else None
-    to_date_parsed = datetime.fromisoformat(to_date) if to_date else None
+    # Parse dates with error handling
+    from_date_parsed = None
+    to_date_parsed = None
+    
+    try:
+        if from_date:
+            from_date_parsed = datetime.fromisoformat(from_date.replace('Z', '+00:00'))
+    except (ValueError, AttributeError) as e:
+        logger.warning(f"Invalid from_date format: {from_date}, error: {e}")
+        from_date_parsed = None
+    
+    try:
+        if to_date:
+            to_date_parsed = datetime.fromisoformat(to_date.replace('Z', '+00:00'))
+    except (ValueError, AttributeError) as e:
+        logger.warning(f"Invalid to_date format: {to_date}, error: {e}")
+        to_date_parsed = None
 
     # Prepare project data
     project_data = {
@@ -341,44 +386,69 @@ async def add_project(
     }
 
     # Use repository to create project
-    repo = ProjectRepository(db)
-    project = repo.create_project(current_user.id, project_data)
+    try:
+        repo = ProjectRepository(db)
+        project = repo.create_project(current_user.id, project_data)
+    except Exception as e:
+        logger.error(f"Error creating project in repository: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Couldn't save projects")
 
     # Handle image uploads if provided
     if images:
-        upload_dir = "static/projects"
-        os.makedirs(upload_dir, exist_ok=True)
-        
-        for img in images:
-            if img.content_type.startswith('image/'):
-                filename = f"{project.id}_{img.filename}"
-                file_path = os.path.join(upload_dir, filename)
-                with open(file_path, "wb") as buffer:
-                    content = await img.read()
-                    buffer.write(content)
-                normalized_path = file_path.replace('\\', '/')
-                rel_path = f"/{normalized_path}"
-                
-                # Create image object
-                image_obj = ProjectImage(project_id=project.id, image=rel_path)
-                db.add(image_obj)
-        
-        db.commit()
-        db.refresh(project)
+        try:
+            upload_dir = "static/projects"
+            os.makedirs(upload_dir, exist_ok=True)
+            
+            for img in images:
+                if img and img.content_type and img.content_type.startswith('image/'):
+                    try:
+                        filename = f"{project.id}_{img.filename}"
+                        file_path = os.path.join(upload_dir, filename)
+                        with open(file_path, "wb") as buffer:
+                            content = await img.read()
+                            buffer.write(content)
+                        normalized_path = file_path.replace('\\', '/')
+                        rel_path = f"/{normalized_path}"
+                        
+                        # Create image object
+                        image_obj = ProjectImage(project_id=project.id, image=rel_path)
+                        db.add(image_obj)
+                    except Exception as e:
+                        logger.error(f"Error uploading image {img.filename}: {e}", exc_info=True)
+                        # Continue with other images even if one fails
+            
+            db.commit()
+            db.refresh(project)
+        except Exception as e:
+            logger.error(f"Error handling project images: {e}", exc_info=True)
+            db.rollback()
+            # Don't fail the whole request if image upload fails
 
     # Convert to response model
-    project_response = ProjectResponse.model_validate(project)
-    
-    # Add base URL to image paths in response
-    base_url = str(request.base_url).rstrip("/")
-    for img in project_response.images:
-        if img.image and not img.image.startswith("http"):
-            img.image = f"{base_url}{img.image}"
+    try:
+        project_response = ProjectResponse.model_validate(project)
+        
+        # Add base URL to image paths in response
+        if request:
+            base_url = str(request.base_url).rstrip("/")
+            for img in project_response.images:
+                if img.image and not img.image.startswith("http"):
+                    img.image = f"{base_url}{img.image}"
+        else:
+            # Fallback if request is not available
+            from ..core.config import settings
+            base_url = settings.BASE_URL
+            for img in project_response.images:
+                if img.image and not img.image.startswith("http"):
+                    img.image = f"{base_url}{img.image}"
 
-    return success_response(
-        data=project_response,
-        message="Project added successfully"
-    )
+        return success_response(
+            data=project_response,
+            message="Project added successfully"
+        )
+    except Exception as e:
+        logger.error(f"Error creating project response: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Couldn't save projects")
 
 @router.patch("/projects/{id}", response_model=SuccessResponse, tags=["Profile Projects"])
 @handle_errors
@@ -392,8 +462,7 @@ async def update_project(
     description: str = Form(None),
     images: List[UploadFile] = File(None),
     current_user: User = Depends(get_current_user), 
-    db: Session = Depends(get_db),
-    request: Request = None
+    db: Session = Depends(get_db)
 ):
     """Update project"""
     from datetime import datetime

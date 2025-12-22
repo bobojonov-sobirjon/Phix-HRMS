@@ -635,10 +635,14 @@ async def get_current_user_info(request: Request, current_user: User = Depends(g
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.patch("/me", response_model=SuccessResponse, tags=["Account"])
-async def update_profile(update: UserUpdate, request: Request, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+async def update_profile(update: UserUpdate, request: Request, current_user: User = Depends(get_current_user_oauth2), db: Session = Depends(get_db)):
     """Update user profile fields (text fields only). Use /profile/avatar for avatar uploads. Returns full avatar_url."""
     try:
-        update_dict = update.dict(exclude_unset=True)
+        # Support both Pydantic v1 and v2
+        if hasattr(update, 'model_dump'):
+            update_dict = update.model_dump(exclude_unset=True)
+        else:
+            update_dict = update.dict(exclude_unset=True)
         update_dict.pop("avatar_base64", None)
         user_repo = UserRepository(db)
         updated_user = user_repo.update_user_profile(current_user.id, update_dict)
@@ -661,7 +665,12 @@ async def update_profile(update: UserUpdate, request: Request, current_user: Use
             main_category_id=updated_user.main_category_id,
             sub_category_id=updated_user.sub_category_id,
             roles=[role.name for role in updated_user.roles]
-        ).dict()
+        )
+        # Support both Pydantic v1 and v2
+        if hasattr(user_data, 'model_dump'):
+            user_data = user_data.model_dump()
+        else:
+            user_data = user_data.dict()
         if user_data["raw_avatar_url"]:
             base_url = str(request.base_url).rstrip("/")
             user_data["avatar_url"] = f"{base_url}{user_data['raw_avatar_url']}"
@@ -679,7 +688,7 @@ async def update_profile(update: UserUpdate, request: Request, current_user: Use
 
 @router.delete("/me", response_model=SuccessResponse, tags=["Account"])
 async def delete_account(
-    current_user: User = Depends(get_current_user), 
+    current_user: User = Depends(get_current_user_oauth2), 
     db: Session = Depends(get_db)
 ):
     """Delete current user account (soft delete)"""
@@ -719,11 +728,14 @@ async def test_token_generation(db: Session = Depends(get_db)):
 @router.post("/refresh-token", response_model=SuccessResponse, tags=["Authentication"])
 async def refresh_token(refresh_data: RefreshTokenRequest, db: Session = Depends(get_db)):
     """Refresh access token using refresh token"""
+    from ..core.logging_config import logger
+    
     try:
         user_repo = UserRepository(db)
         
         payload = verify_refresh_token(refresh_data.refresh_token)
         if not payload:
+            logger.warning("Invalid or expired refresh token provided")
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Invalid or expired refresh token"
@@ -731,6 +743,7 @@ async def refresh_token(refresh_data: RefreshTokenRequest, db: Session = Depends
         
         user_id = payload.get("sub")
         if not user_id:
+            logger.warning("Refresh token missing user ID")
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Invalid refresh token"
@@ -738,17 +751,20 @@ async def refresh_token(refresh_data: RefreshTokenRequest, db: Session = Depends
         
         user = user_repo.get_user_by_id(int(user_id))
         if not user:
+            logger.warning(f"User {user_id} not found during token refresh")
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="User does not exist"
             )
         
         if not user.is_active:
+            logger.warning(f"User {user_id} account is deactivated")
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Account is deactivated"
             )
         
+        # Create new tokens
         access_token = create_access_token(
             data={"sub": str(user.id)}
         )
@@ -762,6 +778,7 @@ async def refresh_token(refresh_data: RefreshTokenRequest, db: Session = Depends
             expires_in=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60
         )
         
+        logger.info(f"Token refreshed successfully for user {user.id}")
         return SuccessResponse(
             msg="Token refreshed successfully",
             data=refresh_response
@@ -769,7 +786,8 @@ async def refresh_token(refresh_data: RefreshTokenRequest, db: Session = Depends
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"Error refreshing token: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 @router.post("/test-login", response_model=SuccessResponse, tags=["Authentication"])
 async def test_login(db: Session = Depends(get_db)):
@@ -814,7 +832,7 @@ async def test_login(db: Session = Depends(get_db)):
 @router.get("/user-profiles", response_model=SuccessResponse, tags=["Account"])
 async def get_user_profiles(
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user_oauth2)
 ):
     """Get all user profiles (personal + owned corporate + team memberships)"""
     from ..core.config import settings
