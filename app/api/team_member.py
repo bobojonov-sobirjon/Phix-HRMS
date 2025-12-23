@@ -94,7 +94,7 @@ async def invite_team_member(
         # Send invitation email with team member ID
         await send_team_invitation_email_new(
             email=team_member.email,
-            company_name=corporate_profile.company.name if corporate_profile.company else "Company",
+            company_name=corporate_profile.company_name if corporate_profile else "Company",
             inviter_name=current_user.name,
             role=team_member.role.value,
             team_member_id=new_team_member.id
