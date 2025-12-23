@@ -27,7 +27,6 @@ class CorporateProfileRepository:
         return self.db.query(CorporateProfile).options(
             joinedload(CorporateProfile.location),
             joinedload(CorporateProfile.user),
-            joinedload(CorporateProfile.company),
             joinedload(CorporateProfile.category),
             joinedload(CorporateProfile.team_members).joinedload(TeamMember.user),
             joinedload(CorporateProfile.team_members).joinedload(TeamMember.invited_by)
@@ -40,7 +39,6 @@ class CorporateProfileRepository:
         return self.db.query(CorporateProfile).options(
             joinedload(CorporateProfile.location),
             joinedload(CorporateProfile.user),
-            joinedload(CorporateProfile.company),
             joinedload(CorporateProfile.category),
             joinedload(CorporateProfile.team_members).joinedload(TeamMember.user),
             joinedload(CorporateProfile.team_members).joinedload(TeamMember.invited_by)
@@ -56,7 +54,6 @@ class CorporateProfileRepository:
         return self.db.query(CorporateProfile).options(
             joinedload(CorporateProfile.location),
             joinedload(CorporateProfile.user),
-            joinedload(CorporateProfile.company),
             joinedload(CorporateProfile.category),
             joinedload(CorporateProfile.team_members).joinedload(TeamMember.user),
             joinedload(CorporateProfile.team_members).joinedload(TeamMember.invited_by)
@@ -67,7 +64,6 @@ class CorporateProfileRepository:
         return self.db.query(CorporateProfile).options(
             joinedload(CorporateProfile.location),
             joinedload(CorporateProfile.user),
-            joinedload(CorporateProfile.company),
             joinedload(CorporateProfile.category),
             joinedload(CorporateProfile.team_members).joinedload(TeamMember.user),
             joinedload(CorporateProfile.team_members).joinedload(TeamMember.invited_by)
@@ -125,7 +121,6 @@ class CorporateProfileRepository:
         return self.db.query(CorporateProfile).options(
             joinedload(CorporateProfile.location),
             joinedload(CorporateProfile.user),
-            joinedload(CorporateProfile.company),
             joinedload(CorporateProfile.category),
             joinedload(CorporateProfile.team_members).joinedload(TeamMember.user),
             joinedload(CorporateProfile.team_members).joinedload(TeamMember.invited_by)

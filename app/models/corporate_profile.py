@@ -19,6 +19,7 @@ class CorporateProfile(Base):
     id = Column(Integer, primary_key=True, index=True)
 
     # Company information
+    company_name = Column(String(255), nullable=False)
     phone_number = Column(String(20), nullable=False)
     country_code = Column(String(10), nullable=False, default="+1")
     location_id = Column(Integer, ForeignKey("locations.id"), nullable=False)
@@ -27,9 +28,8 @@ class CorporateProfile(Base):
     company_size = Column(Enum(CompanySize), nullable=False)
     logo_url = Column(Text, nullable=True)
 
-    # New relations to main entities selected in the app
+    # Relations to main entities selected in the app
     category_id = Column(Integer, ForeignKey("categories.id"), nullable=True)
-    company_id = Column(Integer, ForeignKey("companies.id"), nullable=True)
 
     # Verification status
     is_active = Column(Boolean, default=False)  # False until verified
@@ -50,7 +50,6 @@ class CorporateProfile(Base):
     team_members = relationship("TeamMember", back_populates="corporate_profile", cascade="all, delete-orphan")
     followers = relationship("CorporateProfileFollow", back_populates="corporate_profile", cascade="all, delete-orphan")
     category = relationship("Category", lazy="joined", foreign_keys=[category_id])
-    company = relationship("Company", lazy="joined", foreign_keys=[company_id])
 
     def __repr__(self):
-        return f"<CorporateProfile(id={self.id}, company_id={self.company_id}, user_id={self.user_id})>"
+        return f"<CorporateProfile(id={self.id}, company_name='{self.company_name}', user_id={self.user_id})>"
