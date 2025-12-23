@@ -1528,9 +1528,11 @@ async def generate_video_call_token(
         agora_creds = get_agora_credentials()
         app_id = agora_creds.get("appId", "")
         
-        # If token exists and not expired, return existing token
-        if existing_token and existing_token.expire_at > datetime.now(timezone.utc):
-            # Use existing token data
+        current_time = datetime.now(timezone.utc)
+        
+        # Check if token exists and is still valid (not expired)
+        if existing_token and existing_token.expire_at > current_time:
+            # Token exists and is still valid - return existing token
             token_data = {
                 "appId": app_id,
                 "channel": existing_token.channel_name,
@@ -1541,6 +1543,7 @@ async def generate_video_call_token(
                 "token": existing_token.token
             }
         else:
+            # Token doesn't exist OR token is expired - generate new token
             # Generate channel name if not provided
             import time
             if token_request.channel_name:
@@ -1566,7 +1569,7 @@ async def generate_video_call_token(
             
             # Save or update token in database
             if existing_token:
-                # Update existing token
+                # Token exists but expired - UPDATE existing token with new token
                 existing_token.token = token_data["token"]
                 existing_token.channel_name = channel_name
                 existing_token.uid = token_data["uid"]
@@ -1576,7 +1579,7 @@ async def generate_video_call_token(
                 db.commit()
                 db.refresh(existing_token)
             else:
-                # Create new token
+                # Token doesn't exist - CREATE new token
                 new_token = AgoraToken(
                     room_id=token_request.room_id,
                     token=token_data["token"],
