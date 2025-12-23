@@ -1515,25 +1515,80 @@ async def generate_video_call_token(
         if not room_with_participants:
             raise HTTPException(status_code=404, detail="Room not found")
         
-        # Generate channel name if not provided
-        import time
-        if token_request.channel_name:
-            channel_name = token_request.channel_name
+        # Check if token already exists for this room_id
+        from ..models.agora_token import AgoraToken
+        from datetime import datetime, timezone
+        from ..utils.agora_tokens_standalone import get_agora_credentials
+        
+        existing_token = db.query(AgoraToken).filter(
+            AgoraToken.room_id == token_request.room_id
+        ).first()
+        
+        # Get Agora app_id for response
+        agora_creds = get_agora_credentials()
+        app_id = agora_creds.get("appId", "")
+        
+        # If token exists and not expired, return existing token
+        if existing_token and existing_token.expire_at > datetime.now(timezone.utc):
+            # Use existing token data
+            token_data = {
+                "appId": app_id,
+                "channel": existing_token.channel_name,
+                "uid": existing_token.uid,
+                "userAccount": token_request.user_account or (current_user.email if current_user.email else f"user_{current_user.id}"),
+                "role": existing_token.role,
+                "expireAt": int(existing_token.expire_at.timestamp()),
+                "token": existing_token.token
+            }
         else:
-            timestamp = int(time.time())
-            channel_name = f"room_{token_request.room_id}_call_{timestamp}"
-        
-        # Use user email as user_account, or generate UUID if no email
-        user_account = token_request.user_account or (current_user.email if current_user.email else f"user_{current_user.id}_{uuid.uuid4().hex[:8]}")
-        
-        # Generate real token using Agora
-        token_data = generate_rtc_token(
-            channel_name=channel_name,
-            uid=token_request.uid,
-            user_account=user_account,
-            role=token_request.role,
-            expire_seconds=token_request.expire_seconds
-        )
+            # Generate channel name if not provided
+            import time
+            if token_request.channel_name:
+                channel_name = token_request.channel_name
+            else:
+                timestamp = int(time.time())
+                channel_name = f"room_{token_request.room_id}_call_{timestamp}"
+            
+            # Use user email as user_account, or generate UUID if no email
+            user_account = token_request.user_account or (current_user.email if current_user.email else f"user_{current_user.id}_{uuid.uuid4().hex[:8]}")
+            
+            # Generate new token using Agora
+            token_data = generate_rtc_token(
+                channel_name=channel_name,
+                uid=token_request.uid,
+                user_account=user_account,
+                role=token_request.role,
+                expire_seconds=token_request.expire_seconds
+            )
+            
+            # Calculate expire_at timestamp
+            expire_at = datetime.fromtimestamp(token_data["expireAt"], tz=timezone.utc)
+            
+            # Save or update token in database
+            if existing_token:
+                # Update existing token
+                existing_token.token = token_data["token"]
+                existing_token.channel_name = channel_name
+                existing_token.uid = token_data["uid"]
+                existing_token.role = token_request.role
+                existing_token.expire_seconds = token_request.expire_seconds
+                existing_token.expire_at = expire_at
+                db.commit()
+                db.refresh(existing_token)
+            else:
+                # Create new token
+                new_token = AgoraToken(
+                    room_id=token_request.room_id,
+                    token=token_data["token"],
+                    channel_name=channel_name,
+                    uid=token_data["uid"],
+                    role=token_request.role,
+                    expire_seconds=token_request.expire_seconds,
+                    expire_at=expire_at
+                )
+                db.add(new_token)
+                db.commit()
+                db.refresh(new_token)
         
         # Prepare participants response (excluding messages)
         participants_response = []

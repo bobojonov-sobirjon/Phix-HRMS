@@ -27,6 +27,7 @@ from .chat import ChatRoom, ChatMessage, ChatParticipant, UserPresence
 from .saved_job import SavedJob
 from .user_device_token import UserDeviceToken, DeviceType
 from .notification import Notification, NotificationType
+from .agora_token import AgoraToken
 
 __all__ = [
     "Certification",
@@ -63,4 +64,5 @@ __all__ = [
     "DeviceType",
     "Notification",
     "NotificationType",
+    "AgoraToken",
 ] 
