@@ -167,11 +167,39 @@ class UserSearchListResponse(BaseModel):
     total: int
 
 class VideoCallTokenRequest(BaseModel):
-    channel_name: str = Field(..., description="Channel name for the video call")
+    room_id: int = Field(..., description="Chat room ID for the video call")
+    channel_name: Optional[str] = Field(None, description="Channel name for the video call (optional, auto-generated if not provided)")
     uid: Optional[int] = Field(None, description="User ID (0 for auto-assign)")
     user_account: Optional[str] = Field(None, description="String-based user account")
     role: str = Field("publisher", description="Role: publisher or subscriber")
     expire_seconds: int = Field(3600, ge=60, le=86400, description="Token expiry in seconds")
+
+# ChatParticipant Response Schema
+class ChatParticipantResponse(BaseModel):
+    id: int
+    room_id: int
+    user_id: int
+    joined_at: datetime
+    last_read_at: Optional[datetime] = None
+    is_active: bool
+    user: Optional[UserSearchResponse] = None
+    
+    class Config:
+        from_attributes = True
+
+# ChatRoom Response Schema (without messages)
+class ChatRoomDetailResponse(BaseModel):
+    id: int
+    name: Optional[str]
+    room_type: str
+    created_by: int
+    created_at: datetime
+    updated_at: Optional[datetime]
+    is_active: bool
+    participants: List[ChatParticipantResponse] = []
+    
+    class Config:
+        from_attributes = True
 
 class VideoCallTokenResponse(BaseModel):
     app_id: str
@@ -181,6 +209,7 @@ class VideoCallTokenResponse(BaseModel):
     role: str
     expire_at: int
     token: str
+    room: Optional[ChatRoomDetailResponse] = None
 
 class VideoCallRequest(BaseModel):
     receiver_id: int = Field(..., description="ID of the user to call")

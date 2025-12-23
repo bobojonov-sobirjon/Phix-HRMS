@@ -13,7 +13,8 @@ from ..schemas.chat import (
     WebSocketMessage, TypingIndicator, UserPresenceUpdate,
     VideoCallTokenRequest, VideoCallTokenResponse, VideoCallRequest, VideoCallResponse, VideoCallStatus,
     MessageLikeRequest, MessageLikeResponse, RoomCheckResponse,
-    OnlineUsersResponse, OnlineUserDetails
+    OnlineUsersResponse, OnlineUserDetails,
+    ChatRoomDetailResponse, ChatParticipantResponse
 )
 from ..utils.websocket_manager import manager
 from ..utils.file_upload import file_upload_manager
@@ -1490,25 +1491,81 @@ async def websocket_endpoint_with_slash(websocket: WebSocket):
 
 @router.post("/video-call/token", response_model=VideoCallTokenResponse)
 async def generate_video_call_token(
-    current_user: User = Depends(get_current_user)
+    token_request: VideoCallTokenRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
 ):
     """Generate Agora RTC token for video calling - Production Mode"""
+    from ..models.chat import ChatRoom, ChatParticipant
+    from sqlalchemy.orm import joinedload
+    
     try:
-        # Auto-generate channel name based on user and timestamp
+        chat_repo = ChatRepository(db)
+        
+        # Get room and verify user is a participant
+        room = chat_repo.get_room(token_request.room_id, current_user.id)
+        if not room:
+            raise HTTPException(status_code=404, detail="Room not found or you are not a participant")
+        
+        # Get room with participants (excluding messages)
+        room_with_participants = db.query(ChatRoom).options(
+            joinedload(ChatRoom.participants).joinedload(ChatParticipant.user)
+        ).filter(ChatRoom.id == token_request.room_id).first()
+        
+        if not room_with_participants:
+            raise HTTPException(status_code=404, detail="Room not found")
+        
+        # Generate channel name if not provided
         import time
-        timestamp = int(time.time())
-        channel_name = f"user_{current_user.id}_call_{timestamp}"
+        if token_request.channel_name:
+            channel_name = token_request.channel_name
+        else:
+            timestamp = int(time.time())
+            channel_name = f"room_{token_request.room_id}_call_{timestamp}"
         
         # Use user email as user_account, or generate UUID if no email
-        user_account = current_user.email if current_user.email else f"user_{current_user.id}_{uuid.uuid4().hex[:8]}"
+        user_account = token_request.user_account or (current_user.email if current_user.email else f"user_{current_user.id}_{uuid.uuid4().hex[:8]}")
         
-        # Generate real token using Agora with auto-generated values
+        # Generate real token using Agora
         token_data = generate_rtc_token(
             channel_name=channel_name,
-            uid=None,  # Use user_account instead
+            uid=token_request.uid,
             user_account=user_account,
-            role="publisher",  # Default role
-            expire_seconds=3600  # Default 1 hour
+            role=token_request.role,
+            expire_seconds=token_request.expire_seconds
+        )
+        
+        # Prepare participants response (excluding messages)
+        participants_response = []
+        for participant in room_with_participants.participants:
+            if participant.is_active and participant.user:
+                user_info = UserSearchResponse(
+                    id=participant.user.id,
+                    name=participant.user.name,
+                    email=participant.user.email,
+                    avatar_url=participant.user.avatar_url,
+                    is_online=chat_repo.is_user_online(participant.user.id)
+                )
+                participants_response.append(ChatParticipantResponse(
+                    id=participant.id,
+                    room_id=participant.room_id,
+                    user_id=participant.user_id,
+                    joined_at=participant.joined_at,
+                    last_read_at=participant.last_read_at,
+                    is_active=participant.is_active,
+                    user=user_info
+                ))
+        
+        # Prepare room response (without messages)
+        room_response = ChatRoomDetailResponse(
+            id=room_with_participants.id,
+            name=room_with_participants.name,
+            room_type=room_with_participants.room_type,
+            created_by=room_with_participants.created_by,
+            created_at=room_with_participants.created_at,
+            updated_at=room_with_participants.updated_at,
+            is_active=room_with_participants.is_active,
+            participants=participants_response
         )
         
         return VideoCallTokenResponse(
@@ -1518,8 +1575,11 @@ async def generate_video_call_token(
             user_account=token_data["userAccount"],
             role=token_data["role"],
             expire_at=token_data["expireAt"],
-            token=token_data["token"]
+            token=token_data["token"],
+            room=room_response
         )
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Token generation failed: {str(e)}")
 
