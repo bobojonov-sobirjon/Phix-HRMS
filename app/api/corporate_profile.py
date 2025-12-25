@@ -92,128 +92,154 @@ def save_logo_file(logo_file: UploadFile, profile_id: int) -> str:
 
 def add_base_url_to_profile(profile):
     """Add base URL to logo_url, location.flag_image, user.avatar_url, and team member avatars"""
-    if profile.logo_url:
-        profile.logo_url = f"{settings.BASE_URL}{profile.logo_url}"
-    
-    if profile.location and profile.location.flag_image:
-        profile.location.flag_image = f"{settings.BASE_URL}{profile.location.flag_image}"
-    
-    if profile.user and profile.user.avatar_url:
-        profile.user.avatar_url = f"{settings.BASE_URL}{profile.user.avatar_url}"
-    
-    # Add base URL to team member avatars
-    if hasattr(profile, 'team_members') and profile.team_members:
-        for team_member in profile.team_members:
-            if team_member.user and team_member.user.avatar_url:
-                team_member.user.avatar_url = f"{settings.BASE_URL}{team_member.user.avatar_url}"
-    
-    return profile
+    try:
+        if hasattr(profile, 'logo_url') and profile.logo_url:
+            profile.logo_url = f"{settings.BASE_URL}{profile.logo_url}"
+        
+        if hasattr(profile, 'location') and profile.location and hasattr(profile.location, 'flag_image') and profile.location.flag_image:
+            profile.location.flag_image = f"{settings.BASE_URL}{profile.location.flag_image}"
+        
+        if hasattr(profile, 'user') and profile.user and hasattr(profile.user, 'avatar_url') and profile.user.avatar_url:
+            profile.user.avatar_url = f"{settings.BASE_URL}{profile.user.avatar_url}"
+        
+        # Add base URL to team member avatars
+        if hasattr(profile, 'team_members') and profile.team_members:
+            for team_member in profile.team_members:
+                if team_member.user and hasattr(team_member.user, 'avatar_url') and team_member.user.avatar_url:
+                    team_member.user.avatar_url = f"{settings.BASE_URL}{team_member.user.avatar_url}"
+        
+        return profile
+    except Exception as e:
+        import traceback
+        error_msg = f"Error adding base URL to profile: {str(e)}"
+        print(f"ERROR in add_base_url_to_profile: {error_msg}")
+        print(traceback.format_exc())
+        # Return profile as-is if URL addition fails
+        return profile
 
 
 def convert_profile_to_response(profile_with_urls, current_user_id: Optional[int] = None, db: Optional[Session] = None):
     """Convert CorporateProfile model to CorporateProfileResponse format"""
-    from ..schemas.corporate_profile import CorporateProfileResponse, TeamMemberResponse
-    
-    # Prepare team members data
-    team_members_data = []
-    if hasattr(profile_with_urls, 'team_members') and profile_with_urls.team_members:
-        for team_member in profile_with_urls.team_members:
-            team_member_data = {
-                "id": team_member.id,
-                "user_id": team_member.user_id,
-                "user_name": team_member.user.name if team_member.user else "",
-                "user_email": team_member.user.email if team_member.user else "",
-                "user_avatar": team_member.user.avatar_url if team_member.user else None,
-                "role": team_member.role.value,
-                "status": team_member.status.value,
-                "invited_by_user_id": team_member.invited_by_user_id,
-                "invited_by_name": team_member.invited_by.name if team_member.invited_by else "",
-                "created_at": team_member.created_at,
-                "accepted_at": team_member.accepted_at,
-                "rejected_at": team_member.rejected_at
-            }
-            team_members_data.append(team_member_data)
-    
-    # Check if current user is following this profile
-    is_followed = False
-    follow_relation_id = None
-    followers_count = 0
-    if db:
-        from ..repositories.corporate_profile_follow_repository import CorporateProfileFollowRepository
-        follow_repo = CorporateProfileFollowRepository(db)
+    try:
+        from ..schemas.corporate_profile import CorporateProfileResponse, TeamMemberResponse
         
-        # Get followers count
-        followers_count = follow_repo.count_followers(profile_with_urls.id)
+        # Prepare team members data
+        team_members_data = []
+        if hasattr(profile_with_urls, 'team_members') and profile_with_urls.team_members:
+            for team_member in profile_with_urls.team_members:
+                try:
+                    team_member_data = {
+                        "id": team_member.id,
+                        "user_id": team_member.user_id,
+                        "user_name": team_member.user.name if team_member.user else "",
+                        "user_email": team_member.user.email if team_member.user else "",
+                        "user_avatar": team_member.user.avatar_url if team_member.user else None,
+                        "role": team_member.role.value if hasattr(team_member.role, 'value') else str(team_member.role),
+                        "status": team_member.status.value if hasattr(team_member.status, 'value') else str(team_member.status),
+                        "invited_by_user_id": team_member.invited_by_user_id,
+                        "invited_by_name": team_member.invited_by.name if team_member.invited_by else "",
+                        "created_at": team_member.created_at,
+                        "accepted_at": team_member.accepted_at,
+                        "rejected_at": team_member.rejected_at
+                    }
+                    team_members_data.append(team_member_data)
+                except Exception as e:
+                    # Skip problematic team members
+                    print(f"Error processing team member {getattr(team_member, 'id', 'unknown')}: {str(e)}")
+                    continue
         
-        # Check if current user is following and get follow relation ID
-        # If token is provided, get user.id and corporate_profile_id, then filter CorporateProfileFollow
-        if current_user_id is not None and profile_with_urls.id:
-            from ..models.corporate_profile_follow import CorporateProfileFollow
-            from sqlalchemy import and_
-            # Filter CorporateProfileFollow by user_id and corporate_profile_id
-            # Get user_id from token and corporate_profile_id from profile, then check if follow exists
-            follow_relation = db.query(CorporateProfileFollow).filter(
-                and_(
-                    CorporateProfileFollow.user_id == int(current_user_id),
-                    CorporateProfileFollow.corporate_profile_id == int(profile_with_urls.id)
-                )
-            ).first()
-            # If follow relation exists, get its id
-            if follow_relation:
-                is_followed = True
-                follow_relation_id = int(follow_relation.id)
-    
-    # Create profile data with team members
-    profile_dict = {
-        "id": profile_with_urls.id,
-        "company_name": profile_with_urls.company_name,
-        "category_id": getattr(profile_with_urls, "category_id", None),
-        "phone_number": profile_with_urls.phone_number,
-        "country_code": profile_with_urls.country_code,
-        "location_id": profile_with_urls.location_id,
-        "overview": profile_with_urls.overview,
-        "website_url": profile_with_urls.website_url,
-        "company_size": profile_with_urls.company_size.value,
-        "logo_url": profile_with_urls.logo_url,
-        "user_id": profile_with_urls.user_id,
-        "is_active": profile_with_urls.is_active,
-        "is_verified": profile_with_urls.is_verified,
-        "created_at": profile_with_urls.created_at,
-        "updated_at": profile_with_urls.updated_at,
-        "location": {
-            "id": profile_with_urls.location.id,
-            "name": profile_with_urls.location.name,
-            "code": profile_with_urls.location.code,
-            "flag_image": profile_with_urls.location.flag_image
-        } if profile_with_urls.location else None,
-        "user": {
-            "id": profile_with_urls.user.id,
-            "name": profile_with_urls.user.name,
-            "email": profile_with_urls.user.email,
-            "is_active": profile_with_urls.user.is_active,
-            "is_verified": profile_with_urls.user.is_verified,
-            "is_social_user": profile_with_urls.user.is_social_user,
-            "created_at": profile_with_urls.user.created_at,
-            "last_login": profile_with_urls.user.last_login,
-            "phone": profile_with_urls.user.phone,
-            "avatar_url": profile_with_urls.user.avatar_url,
-            "about_me": profile_with_urls.user.about_me,
-            "current_position": profile_with_urls.user.current_position,
-            "location_id": profile_with_urls.user.location_id
-        } if profile_with_urls.user else None,
-        "category": {
-            "id": profile_with_urls.category.id,
-            "name": profile_with_urls.category.name,
-            "description": profile_with_urls.category.description,
-            "is_active": profile_with_urls.category.is_active
-        } if hasattr(profile_with_urls, 'category') and profile_with_urls.category else None,
-        "team_members": team_members_data,
-        "is_followed": is_followed,
-        "followers_count": followers_count,
-        "follow_relation_id": follow_relation_id
-    }
-    
-    return CorporateProfileResponse(**profile_dict)
+        # Check if current user is following this profile
+        is_followed = False
+        follow_relation_id = None
+        followers_count = 0
+        if db:
+            try:
+                from ..repositories.corporate_profile_follow_repository import CorporateProfileFollowRepository
+                follow_repo = CorporateProfileFollowRepository(db)
+                
+                # Get followers count
+                followers_count = follow_repo.count_followers(profile_with_urls.id)
+                
+                # Check if current user is following and get follow relation ID
+                # If token is provided, get user.id and corporate_profile_id, then filter CorporateProfileFollow
+                if current_user_id is not None and profile_with_urls.id:
+                    from ..models.corporate_profile_follow import CorporateProfileFollow
+                    from sqlalchemy import and_
+                    # Filter CorporateProfileFollow by user_id and corporate_profile_id
+                    # Get user_id from token and corporate_profile_id from profile, then check if follow exists
+                    follow_relation = db.query(CorporateProfileFollow).filter(
+                        and_(
+                            CorporateProfileFollow.user_id == int(current_user_id),
+                            CorporateProfileFollow.corporate_profile_id == int(profile_with_urls.id)
+                        )
+                    ).first()
+                    # If follow relation exists, get its id
+                    if follow_relation:
+                        is_followed = True
+                        follow_relation_id = int(follow_relation.id)
+            except Exception as e:
+                # If follow check fails, continue without follow info
+                print(f"Error checking follow status: {str(e)}")
+        
+        # Create profile data with team members
+        company_size_value = profile_with_urls.company_size.value if hasattr(profile_with_urls.company_size, 'value') else str(profile_with_urls.company_size)
+        
+        profile_dict = {
+            "id": profile_with_urls.id,
+            "company_name": getattr(profile_with_urls, "company_name", ""),
+            "category_id": getattr(profile_with_urls, "category_id", None),
+            "phone_number": getattr(profile_with_urls, "phone_number", ""),
+            "country_code": getattr(profile_with_urls, "country_code", ""),
+            "location_id": getattr(profile_with_urls, "location_id", None),
+            "overview": getattr(profile_with_urls, "overview", ""),
+            "website_url": getattr(profile_with_urls, "website_url", None),
+            "company_size": company_size_value,
+            "logo_url": getattr(profile_with_urls, "logo_url", None),
+            "user_id": getattr(profile_with_urls, "user_id", None),
+            "is_active": getattr(profile_with_urls, "is_active", False),
+            "is_verified": getattr(profile_with_urls, "is_verified", False),
+            "created_at": getattr(profile_with_urls, "created_at", None),
+            "updated_at": getattr(profile_with_urls, "updated_at", None),
+            "location": {
+                "id": profile_with_urls.location.id,
+                "name": profile_with_urls.location.name,
+                "code": profile_with_urls.location.code,
+                "flag_image": profile_with_urls.location.flag_image
+            } if profile_with_urls.location else None,
+            "user": {
+                "id": profile_with_urls.user.id,
+                "name": profile_with_urls.user.name,
+                "email": profile_with_urls.user.email,
+                "is_active": profile_with_urls.user.is_active,
+                "is_verified": profile_with_urls.user.is_verified,
+                "is_social_user": profile_with_urls.user.is_social_user,
+                "created_at": profile_with_urls.user.created_at,
+                "last_login": profile_with_urls.user.last_login,
+                "phone": profile_with_urls.user.phone,
+                "avatar_url": profile_with_urls.user.avatar_url,
+                "about_me": profile_with_urls.user.about_me,
+                "current_position": profile_with_urls.user.current_position,
+                "location_id": profile_with_urls.user.location_id
+            } if profile_with_urls.user else None,
+            "category": {
+                "id": profile_with_urls.category.id,
+                "name": profile_with_urls.category.name,
+                "description": profile_with_urls.category.description,
+                "is_active": profile_with_urls.category.is_active
+            } if hasattr(profile_with_urls, 'category') and profile_with_urls.category else None,
+            "team_members": team_members_data,
+            "is_followed": is_followed,
+            "followers_count": followers_count,
+            "follow_relation_id": follow_relation_id
+        }
+        
+        return CorporateProfileResponse(**profile_dict)
+    except Exception as e:
+        import traceback
+        error_msg = f"Error converting profile to response: {str(e)}"
+        print(f"ERROR in convert_profile_to_response: {error_msg}")
+        print(traceback.format_exc())
+        raise
 
 
 @router.post("/", response_model=SuccessResponse, tags=["Corporate Profile"])
@@ -360,23 +386,35 @@ async def get_corporate_profiles(
     db: Session = Depends(get_db)
 ):
     """Get all verified corporate profiles with pagination"""
-    corporate_repo = CorporateProfileRepository(db)
-    skip = (page - 1) * size
+    try:
+        corporate_repo = CorporateProfileRepository(db)
+        skip = (page - 1) * size
 
-    profiles = corporate_repo.get_verified_profiles(skip=skip, limit=size)
-    total = corporate_repo.count_verified()
+        profiles = corporate_repo.get_verified_profiles(skip=skip, limit=size)
+        total = corporate_repo.count_verified()
 
-    # Add base URL to all profiles and convert to response format
-    profiles_with_urls = [add_base_url_to_profile(profile) for profile in profiles]
-    current_user_id = current_user.get("id") if current_user else None
-    profiles_response = [convert_profile_to_response(profile, current_user_id, db) for profile in profiles_with_urls]
+        # Add base URL to all profiles and convert to response format
+        profiles_with_urls = [add_base_url_to_profile(profile) for profile in profiles]
+        current_user_id = current_user.get("id") if current_user else None
+        profiles_response = [convert_profile_to_response(profile, current_user_id, db) for profile in profiles_with_urls]
 
-    return CorporateProfileListResponse(
-        corporate_profiles=profiles_response,
-        total=total,
-        page=page,
-        size=size
-    )
+        return CorporateProfileListResponse(
+            corporate_profiles=profiles_response,
+            total=total,
+            page=page,
+            size=size
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        import traceback
+        error_detail = f"Error getting corporate profiles: {str(e)}"
+        print(f"ERROR in get_corporate_profiles: {error_detail}")
+        print(traceback.format_exc())
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=error_detail
+        )
 
 
 @router.get("/active", response_model=CorporateProfileListResponse, tags=["Corporate Profile"])
