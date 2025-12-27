@@ -168,11 +168,10 @@ class UserSearchListResponse(BaseModel):
 
 class VideoCallTokenRequest(BaseModel):
     room_id: int = Field(..., description="Chat room ID for the video call")
-    channel_name: Optional[str] = Field(None, description="Channel name for the video call (optional, auto-generated if not provided)")
-    uid: Optional[int] = Field(None, description="User ID (0 for auto-assign)")
-    user_account: Optional[str] = Field(None, description="String-based user account")
-    role: str = Field("publisher", description="Role: publisher or subscriber")
-    expire_seconds: int = Field(3600, ge=60, le=86400, description="Token expiry in seconds")
+    uid: Optional[int] = Field(0, description="User ID (0 for auto-assign by Agora, default: 0)")
+    user_account: Optional[str] = Field(None, description="String-based user account (optional)")
+    role: str = Field("publisher", description="Role: publisher or subscriber (default: publisher)")
+    expire_seconds: int = Field(3600, ge=60, le=86400, description="Token expiry in seconds (default: 3600)")
 
 # ChatParticipant Response Schema
 class ChatParticipantResponse(BaseModel):

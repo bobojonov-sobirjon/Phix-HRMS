@@ -1544,21 +1544,26 @@ async def generate_video_call_token(
             }
         else:
             # Token doesn't exist OR token is expired - generate new token
-            # Generate channel name if not provided
-            import time
-            if token_request.channel_name:
-                channel_name = token_request.channel_name
+            # IMPORTANT: Use same channel_name for same room_id to ensure all participants join same channel
+            if existing_token:
+                # Reuse existing channel_name for the same room_id (even if token expired)
+                channel_name = existing_token.channel_name
             else:
-                timestamp = int(time.time())
-                channel_name = f"room_{token_request.room_id}_call_{timestamp}"
+                # Generate channel name based on room_id only (no timestamp)
+                # This ensures same room_id always gets same channel_name
+                channel_name = f"room_{token_request.room_id}_call"
             
             # Use user email as user_account, or generate UUID if no email
             user_account = token_request.user_account or (current_user.email if current_user.email else f"user_{current_user.id}_{uuid.uuid4().hex[:8]}")
             
+            # Use uid from request if provided, otherwise use 0 (Agora will auto-assign)
+            # Always use 0 if not provided (not None)
+            request_uid = token_request.uid if token_request.uid is not None else 0
+            
             # Generate new token using Agora
             token_data = generate_rtc_token(
                 channel_name=channel_name,
-                uid=token_request.uid,
+                uid=request_uid,  # Can be 0, None, or a specific UID
                 user_account=user_account,
                 role=token_request.role,
                 expire_seconds=token_request.expire_seconds
@@ -1626,10 +1631,13 @@ async def generate_video_call_token(
             participants=participants_response
         )
         
+        # Ensure uid is 0 if None (not null)
+        uid_value = token_data["uid"] if token_data["uid"] is not None else 0
+        
         return VideoCallTokenResponse(
             app_id=token_data["appId"],
             channel=token_data["channel"],
-            uid=token_data["uid"],
+            uid=uid_value,  # Always 0 if None
             user_account=token_data["userAccount"],
             role=token_data["role"],
             expire_at=token_data["expireAt"],
@@ -1795,19 +1803,34 @@ async def generate_video_call_token_test(
 ):
     """Generate Agora RTC token for video calling (TEST - No Auth) - Production Mode"""
     try:
+        # IMPORTANT: Use same channel_name for same room_id (without timestamp)
+        # This ensures all participants join the same channel
+        # Generate channel name based on room_id only (no timestamp)
+        channel_name = f"room_{token_request.room_id}_call"
+        
+        # Use user_account if provided, otherwise generate default
+        user_account = token_request.user_account or f"test_user_{token_request.room_id}"
+        
+        # Use uid from request if provided, otherwise use 0 (Agora will auto-assign)
+        # Always use 0 if not provided (not None)
+        request_uid = token_request.uid if token_request.uid is not None else 0
+        
         # Generate real token using Agora
         token_data = generate_rtc_token(
-            channel_name=token_request.channel_name,
-            uid=token_request.uid,
-            user_account=token_request.user_account,
+            channel_name=channel_name,
+            uid=request_uid,  # Can be 0, None, or a specific UID
+            user_account=user_account,
             role=token_request.role,
             expire_seconds=token_request.expire_seconds
         )
         
+        # Ensure uid is 0 if None (not null)
+        uid_value = token_data["uid"] if token_data["uid"] is not None else 0
+        
         return VideoCallTokenResponse(
             app_id=token_data["appId"],
             channel=token_data["channel"],
-            uid=token_data["uid"],
+            uid=uid_value,  # Always 0 if None
             user_account=token_data["userAccount"],
             role=token_data["role"],
             expire_at=token_data["expireAt"],

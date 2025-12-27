@@ -84,10 +84,12 @@
       </div>
          <div class="note">
            <strong>Instructions:</strong><br>
-           1. Fresh token will be automatically generated from backend (006 format)<br>
-           2. Both users must use the same Channel name<br>
-           3. Click "Join" to start video call<br>
-           4. No manual token entry needed - backend handles everything
+           1. Fresh token will be automatically generated from backend (007 format)<br>
+           2. Enter Room ID in Channel field (e.g., 9 for room_id 9)<br>
+           3. Both users must use the same Room ID<br>
+           4. Click "Join" to start video call<br>
+           5. No manual token entry needed - backend handles everything<br>
+           6. <strong>Note:</strong> You need to be authenticated (login first) to generate tokens
          </div>
     </div>
 
@@ -190,14 +192,18 @@
           client = AgoraRTC.createClient({ mode: 'rtc', codec: 'vp8' });
         }
         
-        // Get fresh token from backend
+        // Get fresh token from backend (using test endpoint - no auth required)
         console.log('Getting fresh token from backend...');
+        // Note: channel input is used as room_id for testing
+        const roomId = parseInt(inputs.channel) || 1; // Use channel input as room_id
         const tokenResponse = await fetch('/api/v1/chat/video-call/token/test', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 
+            'Content-Type': 'application/json'
+          },
           body: JSON.stringify({
-            channel_name: inputs.channel,
-            uid: inputs.uid,
+            room_id: roomId,
+            uid: inputs.uid || 0, // 0 for auto-assign
             user_account: null,
             role: 'publisher',
             expire_seconds: 3600
@@ -210,20 +216,26 @@
         
         const tokenData = await tokenResponse.json();
         const token = tokenData.token;
+        const channelName = tokenData.channel; // Get channel name from response
+        const uidFromResponse = tokenData.uid; // Get UID from response (may be 0 or auto-assigned)
         
         console.log(`Got token from backend: ${token.substring(0, 50)}...`);
-        console.log(`Token format: ${token.startsWith('006') ? '006 (Backend Generated)' : token.startsWith('007') ? '007 (Agora Dashboard)' : 'Unknown'}`);
+        console.log(`Token format: ${token.startsWith('006') ? '006 (Legacy)' : token.startsWith('007') ? '007 (Current)' : 'Unknown'}`);
+        console.log(`Channel name from backend: ${channelName}`);
+        console.log(`UID from backend: ${uidFromResponse}`);
         
-        // Update token field
+        // Update token field and channel field with values from backend
         document.getElementById('token').value = token;
+        document.getElementById('channel').value = channelName;
+        document.getElementById('uid').value = uidFromResponse || 0;
         
         // Note: setClientRole is not available in RTC mode
         // In RTC mode, all users are publishers by default
         console.log(`Role: ${inputs.role} (RTC mode - all users are publishers)`);
         
-        // Join channel
-        console.log(`Joining channel: ${inputs.channel}`);
-        const uid = await client.join(inputs.appId, inputs.channel, token, inputs.uid);
+        // Join channel using channel name from backend response
+        console.log(`Joining channel: ${channelName}`);
+        const uid = await client.join(inputs.appId, channelName, token, uidFromResponse || inputs.uid);
         joined = true;
         console.log(`Successfully joined with UID: ${uid}`);
         
