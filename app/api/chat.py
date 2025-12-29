@@ -1531,12 +1531,23 @@ async def generate_video_call_token(
         current_time = datetime.now(timezone.utc)
         
         # Check if token exists and is still valid (not expired)
-        if existing_token and existing_token.expire_at > current_time:
+        token_is_valid = False
+        if existing_token:
+            # Check if token is expired (expire_at must be in the future)
+            time_until_expiry = (existing_token.expire_at - current_time).total_seconds()
+            token_is_valid = time_until_expiry > 0
+            
+            if token_is_valid:
+                print(f"Token for room_id {token_request.room_id} is still valid. Expires in {time_until_expiry:.0f} seconds")
+            else:
+                print(f"Token for room_id {token_request.room_id} is EXPIRED. Time until expiry: {time_until_expiry:.0f} seconds. Generating new token...")
+        
+        if existing_token and token_is_valid:
             # Token exists and is still valid - return existing token
             token_data = {
                 "appId": app_id,
                 "channel": existing_token.channel_name,
-                "uid": existing_token.uid,
+                "uid": existing_token.uid if existing_token.uid is not None else 0,
                 "userAccount": token_request.user_account or (current_user.email if current_user.email else f"user_{current_user.id}"),
                 "role": existing_token.role,
                 "expireAt": int(existing_token.expire_at.timestamp()),
@@ -1544,14 +1555,18 @@ async def generate_video_call_token(
             }
         else:
             # Token doesn't exist OR token is expired - generate new token
+            print(f"Generating new token for room_id {token_request.room_id}...")
+            
             # IMPORTANT: Use same channel_name for same room_id to ensure all participants join same channel
             if existing_token:
                 # Reuse existing channel_name for the same room_id (even if token expired)
                 channel_name = existing_token.channel_name
+                print(f"Reusing existing channel_name: {channel_name}")
             else:
                 # Generate channel name based on room_id only (no timestamp)
                 # This ensures same room_id always gets same channel_name
                 channel_name = f"room_{token_request.room_id}_call"
+                print(f"Creating new channel_name: {channel_name}")
             
             # Use user email as user_account, or generate UUID if no email
             user_account = token_request.user_account or (current_user.email if current_user.email else f"user_{current_user.id}_{uuid.uuid4().hex[:8]}")
@@ -1575,21 +1590,25 @@ async def generate_video_call_token(
             # Save or update token in database
             if existing_token:
                 # Token exists but expired - UPDATE existing token with new token
+                print(f"Updating expired token for room_id {token_request.room_id} with new token")
                 existing_token.token = token_data["token"]
-                existing_token.channel_name = channel_name
-                existing_token.uid = token_data["uid"]
+                existing_token.channel_name = channel_name  # Keep same channel_name
+                existing_token.uid = token_data["uid"] if token_data["uid"] is not None else 0
                 existing_token.role = token_request.role
                 existing_token.expire_seconds = token_request.expire_seconds
                 existing_token.expire_at = expire_at
+                existing_token.updated_at = datetime.now(timezone.utc)  # Update timestamp
                 db.commit()
                 db.refresh(existing_token)
+                print(f"Token updated successfully. New expire_at: {expire_at}")
             else:
                 # Token doesn't exist - CREATE new token
+                print(f"Creating new token for room_id {token_request.room_id}")
                 new_token = AgoraToken(
                     room_id=token_request.room_id,
                     token=token_data["token"],
                     channel_name=channel_name,
-                    uid=token_data["uid"],
+                    uid=token_data["uid"] if token_data["uid"] is not None else 0,
                     role=token_request.role,
                     expire_seconds=token_request.expire_seconds,
                     expire_at=expire_at
@@ -1597,6 +1616,7 @@ async def generate_video_call_token(
                 db.add(new_token)
                 db.commit()
                 db.refresh(new_token)
+                print(f"New token created successfully. Expire_at: {expire_at}")
         
         # Prepare participants response (excluding messages)
         participants_response = []
