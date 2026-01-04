@@ -20,6 +20,7 @@ from ..utils.auth import create_access_token, create_refresh_token, verify_passw
 from ..utils.email import generate_otp, send_otp_email, send_registration_otp_email
 from ..utils.social_auth import verify_social_token
 from ..utils.device_token_logger import create_user_device_token
+from ..utils.admin_setup import create_admin_user
 from ..models.user import User
 from ..models.role import Role
 from ..models.otp import OTP
@@ -964,6 +965,132 @@ async def restore_user(
             msg="User restored successfully",
             data={"email": restore_data.email}
         )
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/login-admin", response_model=SuccessResponse, tags=["Authentication"])
+async def login_admin(admin_data: UserLogin, db: Session = Depends(get_db)):
+    """
+    Admin login endpoint - No OTP required, returns token immediately
+    Email: admin@admin.com
+    Password: Admin@2024!Secure#PhixHRMS
+    """
+    try:
+        user_repo = UserRepository(db)
+        
+        # Ensure admin user exists (create if not exists)
+        create_admin_user(db)
+        
+        # Get admin user
+        admin_user = user_repo.get_user_by_email("admin@admin.com")
+        if not admin_user:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to create or retrieve admin user"
+            )
+        
+        # Verify admin email
+        if admin_data.email != "admin@admin.com":
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid admin email"
+            )
+        
+        # Verify password
+        if not admin_user.verify_password(admin_data.password):
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid admin password"
+            )
+        
+        # Check if admin is active
+        if not admin_user.is_active:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Admin account is deactivated"
+            )
+        
+        # Generate tokens immediately (no OTP required)
+        access_token = create_access_token(
+            data={"sub": str(admin_user.id)}
+        )
+        refresh_token = create_refresh_token(
+            data={"sub": str(admin_user.id)}
+        )
+        
+        # Update last login
+        user_repo.update_last_login(admin_user.id)
+        
+        # Create device token if provided
+        if admin_data.device_token and admin_data.device_type:
+            create_user_device_token(
+                db=db,
+                user_id=admin_user.id,
+                device_token=admin_data.device_token,
+                device_type=admin_data.device_type
+            )
+        
+        login_response = LoginResponse(
+            token=Token(
+                access_token=access_token,
+                expires_in=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60
+            ),
+            refresh_token=refresh_token
+        )
+        
+        return SuccessResponse(
+            msg="Admin login successful",
+            data=login_response
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/create-admin", response_model=SuccessResponse, tags=["Authentication"])
+async def create_admin_endpoint(db: Session = Depends(get_db)):
+    """
+    Create admin user endpoint
+    Creates admin user if it doesn't exist
+    Email: admin@admin.com
+    Password: Admin@2024!Secure#PhixHRMS
+    """
+    try:
+        user_repo = UserRepository(db)
+        
+        # Check if admin user already exists
+        existing_admin = user_repo.get_user_by_email("admin@admin.com")
+        if existing_admin:
+            return SuccessResponse(
+                msg="Admin user already exists",
+                data={
+                    "email": "admin@admin.com",
+                    "user_id": existing_admin.id,
+                    "message": "Admin user is already created"
+                }
+            )
+        
+        # Create admin user
+        success = create_admin_user(db)
+        
+        if success:
+            admin_user = user_repo.get_user_by_email("admin@admin.com")
+            return SuccessResponse(
+                msg="Admin user created successfully",
+                data={
+                    "email": "admin@admin.com",
+                    "password": "Admin@2024!Secure#PhixHRMS",
+                    "user_id": admin_user.id if admin_user else None,
+                    "message": "Admin user has been created. You can now login using /login-admin endpoint."
+                }
+            )
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to create admin user"
+            )
     except HTTPException:
         raise
     except Exception as e:

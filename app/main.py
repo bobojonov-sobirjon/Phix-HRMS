@@ -12,6 +12,7 @@ from .core.middleware import RequestLoggingMiddleware, ErrorLoggingMiddleware
 from .core.exception_handlers import http_exception_handler, general_exception_handler
 from .core.router_setup import register_routers
 from .core.database_setup import create_all_tables
+from .utils.admin_setup import ensure_admin_user_exists
 
 # Load environment variables
 load_dotenv()
@@ -55,6 +56,10 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 
 # Create database tables
 create_all_tables()
+
+# Ensure admin user exists (create if not exists)
+logger.info("Checking admin user...")
+ensure_admin_user_exists()
 
 # Firebase configuration (loaded from environment)
 FIREBASE_TYPE = os.getenv("TYPE")
