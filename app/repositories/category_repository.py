@@ -113,15 +113,12 @@ class CategoryRepository:
         if not db_category:
             return False
         
-        # Check if category has children
         children = self.get_subcategories(category_id)
         if children:
-            # Soft delete - just mark as inactive
             db_category.is_active = False
             self.db.commit()
             return True
         
-        # Hard delete if no children
         self.db.delete(db_category)
         self.db.commit()
         return True
@@ -135,7 +132,6 @@ class CategoryRepository:
         if parent_id is None:
             return True
         
-        # Check if parent exists and is active
         parent = self.get_by_id(parent_id)
         if not parent or not parent.is_active:
             return False

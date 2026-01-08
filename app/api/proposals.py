@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 from app.db.database import get_db
 from app.utils.auth import get_current_user
 from app.utils.decorators import handle_errors
+from app.utils.permissions import is_admin_user
 from app.utils.response_helpers import (
     success_response,
     not_found_error,
@@ -34,15 +35,44 @@ from typing import List, Optional
 
 router = APIRouter(prefix="/proposals", tags=["Proposals"])
 
-# File upload directory
 UPLOAD_DIR = "static/proposals"
 os.makedirs(UPLOAD_DIR, exist_ok=True)
+
+
+@router.get("/", response_model=ProposalListResponse)
+@handle_errors
+async def get_all_proposals(
+    page: int = Query(1, ge=1, description="Page number"),
+    size: int = Query(10, ge=1, le=100, description="Page size"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Get all proposals (admin only).
+    
+    - **page**: Page number (default: 1)
+    - **size**: Page size (default: 10, max: 100)
+    """
+    if not is_admin_user(current_user.email):
+        raise forbidden_error("Only admin can view all proposals")
+    
+    repository = ProposalRepository(db)
+    pagination = PaginationParams(page=page, size=size)
+    
+    proposals, total = repository.get_all_proposals(pagination)
+    
+    proposal_responses = [ProposalResponse.from_orm(proposal) for proposal in proposals]
+    
+    return create_pagination_response(
+        items=proposal_responses,
+        total=total,
+        pagination=pagination
+    )
 
 
 def get_user_device_tokens(db: Session, user_id: int) -> List[str]:
     """Get all active device tokens for a user"""
     from sqlalchemy import text
-    # Use raw SQL to avoid enum parsing issues with uppercase values in database
     try:
         result = db.execute(text("""
             SELECT device_token 
@@ -54,7 +84,6 @@ def get_user_device_tokens(db: Session, user_id: int) -> List[str]:
         return [row[0] for row in result if row[0]]
     except Exception as e:
         print(f"DEBUG: Error getting device tokens: {str(e)}")
-        # Fallback to ORM query with exception handling
         try:
             device_tokens = db.query(UserDeviceToken).filter(
                 UserDeviceToken.user_id == user_id,
@@ -98,17 +127,13 @@ def send_proposal_notification(
                 else:
                     print(f"DEBUG: Notification result - Success: {result.get('success_count', 0)}, Failed: {result.get('failure_count', 0)}")
             except FileNotFoundError as fe:
-                # Firebase service account file not found - this is OK, notification is already saved to database
                 print(f"WARNING: Firebase service account file not found. Push notification skipped, but notification is saved to database: {str(fe)}")
             except Exception as fe:
-                # Other Firebase errors - log but don't fail
                 print(f"WARNING: Failed to send push notification (notification saved to database): {str(fe)}")
         else:
             print(f"DEBUG: No device tokens found for user_id={recipient_user_id}")
     except Exception as e:
-        # Don't fail the whole request if notification sending fails
         print(f"WARNING: Failed to send notification to user_id={recipient_user_id}: {str(e)}")
-        # Don't print full traceback for expected errors like missing Firebase file
         if "Firebase service account file not found" not in str(e):
             import traceback
             traceback.print_exc()
@@ -120,24 +145,19 @@ def save_uploaded_files(files: List[UploadFile], user_id: int, proposal_id: int)
     
     for file in files:
         if file.filename:
-            # Create user-specific directory
             user_dir = os.path.join(UPLOAD_DIR, f"user_{user_id}")
             os.makedirs(user_dir, exist_ok=True)
             
-            # Generate unique filename
             file_extension = os.path.splitext(file.filename)[1]
             unique_filename = f"proposal_{proposal_id}_{file.filename}"
             file_path = os.path.join(user_dir, unique_filename)
             
-            # Save file
             with open(file_path, "wb") as buffer:
                 content = file.file.read()
                 buffer.write(content)
             
-            # Store relative path for database
             relative_path = os.path.join("proposals", f"user_{user_id}", unique_filename)
             
-            # Get file size
             file_size = len(content)
             
             file_info_list.append({
@@ -170,7 +190,6 @@ async def create_proposal(
     - **gig_job_id**: ID of the gig job you're applying for (for gig jobs)
     - **full_time_job_id**: ID of the full-time job you're applying for (for full-time jobs)
     """
-    # Validate that either gig_job_id or full_time_job_id is provided
     if not gig_job_id and not full_time_job_id:
         return JSONResponse(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -193,7 +212,6 @@ async def create_proposal(
     attachment_repository = ProposalAttachmentRepository(db)
     
     if gig_job_id:
-        # Proposal for gig job
         gig_job_repository = GigJobRepository(db)
         gig_job = gig_job_repository.get_by_id(gig_job_id)
         if not gig_job:
@@ -205,7 +223,6 @@ async def create_proposal(
                 }
             )
         
-        # Check if user is not the author of the gig job
         if gig_job['author']['id'] == current_user.id:
             return JSONResponse(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -215,7 +232,6 @@ async def create_proposal(
                 }
             )
         
-        # Check if user has already submitted a proposal for this gig job
         if repository.check_user_proposal_exists(current_user.id, gig_job_id, "gig"):
             return JSONResponse(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -226,7 +242,6 @@ async def create_proposal(
             )
     
     elif full_time_job_id:
-        # Proposal for full-time job
         full_time_job_repository = FullTimeJobRepository(db)
         full_time_job = full_time_job_repository.get_object_by_id(full_time_job_id)
         if not full_time_job:
@@ -238,7 +253,6 @@ async def create_proposal(
                 }
             )
         
-        # Check if user has already submitted a proposal for this full-time job
         if repository.check_user_proposal_exists(current_user.id, full_time_job_id, "full_time"):
             return JSONResponse(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -248,7 +262,6 @@ async def create_proposal(
                 }
             )
     
-    # Create proposal data
     proposal_data = ProposalCreate(
         cover_letter=cover_letter,
         delivery_time=delivery_time,
@@ -257,10 +270,8 @@ async def create_proposal(
         full_time_job_id=full_time_job_id
     )
     
-    # Create proposal first to get ID
     proposal = repository.create(proposal_data, current_user.id)
     
-    # Process file uploads if any
     if attachments:
         file_info_list = save_uploaded_files(attachments, current_user.id, proposal.id)
         for file_info in file_info_list:
@@ -271,21 +282,17 @@ async def create_proposal(
                 name=file_info["name"]
             )
     
-    # Get the created proposal with all relationships for response
     proposal_with_details = repository.get_by_id(proposal.id)
     
-    # Determine job type and ID for success message and notification
     job_type = "gig job" if gig_job_id else "full-time job"
     job_id = gig_job_id if gig_job_id else full_time_job_id
     
-    # Send push notification to job owner (Application notification)
     try:
         print(f"DEBUG: Starting notification process for proposal {proposal.id}")
         job_owner_id = None
         job_title = None
         
         if gig_job_id:
-            # Get gig job directly from database to ensure we have author_id
             from app.models.gig_job import GigJob
             gig_job_model = db.query(GigJob).filter(GigJob.id == gig_job_id).first()
             print(f"DEBUG: Gig job model found: {gig_job_model is not None}")
@@ -314,7 +321,6 @@ async def create_proposal(
             print(f"DEBUG: Sending notification to job owner (user_id={job_owner_id})")
             print(f"DEBUG: Notification title: {title}, body: {body}")
             
-            # Save notification to database
             from app.repositories.notification_repository import NotificationRepository
             from app.models.notification import NotificationType
             from app.utils.websocket_manager import manager
@@ -330,7 +336,6 @@ async def create_proposal(
                 applicant_id=current_user.id
             )
             
-            # Send push notification
             send_proposal_notification(
                 db=db,
                 recipient_user_id=job_owner_id,
@@ -353,7 +358,6 @@ async def create_proposal(
         traceback.print_exc()
     
     try:
-        # Create response data with expanded job details
         response_data = ProposalResponse.from_orm(proposal_with_details)
         
         return JSONResponse(
@@ -365,7 +369,6 @@ async def create_proposal(
             }
         )
     except Exception as e:
-        # If there's an error with the detailed response, return basic response
         return JSONResponse(
             status_code=status.HTTP_201_CREATED,
             content={
@@ -405,7 +408,6 @@ async def get_my_gig_job_proposals(
     
     proposals, total = repository.get_user_gig_job_proposals(current_user.id, pagination)
     
-    # Convert proposals to response format
     proposal_responses = [ProposalResponse.from_orm(proposal) for proposal in proposals]
     
     return create_pagination_response(
@@ -433,7 +435,6 @@ async def get_my_full_time_job_proposals(
     
     proposals, total = repository.get_user_full_time_job_proposals(current_user.id, pagination)
     
-    # Convert proposals to response format
     proposal_responses = [ProposalResponse.from_orm(proposal) for proposal in proposals]
     
     return create_pagination_response(
@@ -459,10 +460,8 @@ async def get_proposal_by_id(
     proposal = repository.get_by_id(proposal_id)
     validate_entity_exists(proposal, "Proposal")
     
-    # Check if user has permission to view this proposal
     is_job_owner = False
     if proposal.user_id != current_user.id:
-        # Check if user is the author of the gig job or full-time job
         has_permission = False
         
         if proposal.gig_job_id:
@@ -481,12 +480,9 @@ async def get_proposal_by_id(
         if not has_permission:
             raise forbidden_error("You don't have permission to view this proposal")
     
-    # If job owner is viewing the proposal and it's not read yet, mark as read and send notification
     if is_job_owner and not proposal.is_read:
-        # Mark proposal as read
         repository.mark_as_read(proposal_id)
         
-        # Send push notification to proposal sender (My Proposal notification)
         try:
             proposal_sender_id = proposal.user_id
             job_title = None
@@ -506,7 +502,6 @@ async def get_proposal_by_id(
                 title = "Your Proposal Was Viewed"
                 body = f"Your proposal for {job_title} was viewed."
                 
-                # Save notification to database
                 from app.repositories.notification_repository import NotificationRepository
                 from app.models.notification import NotificationType
                 notification_repo = NotificationRepository(db)
@@ -520,7 +515,6 @@ async def get_proposal_by_id(
                     job_type="gig" if proposal.gig_job_id else "full_time"
                 )
                 
-                # Send push notification
                 send_proposal_notification(
                     db=db,
                     recipient_user_id=proposal_sender_id,
@@ -536,7 +530,6 @@ async def get_proposal_by_id(
         except Exception:
             pass
         
-        # Refresh proposal to get updated is_read status
         proposal = repository.get_by_id(proposal_id)
     
     return ProposalResponse.from_orm(proposal)
@@ -562,7 +555,6 @@ async def get_gig_job_proposals(
     gig_job = gig_job_repository.get_by_id(gig_job_id)
     validate_entity_exists(gig_job, "Gig job")
     
-    # Check if user is the author of the gig job
     if gig_job['author']['id'] != current_user.id:
         raise forbidden_error("You can only view proposals for your own gig jobs")
     
@@ -571,7 +563,6 @@ async def get_gig_job_proposals(
     
     proposals, total = repository.get_gig_job_proposals(gig_job_id, pagination)
     
-    # Convert proposals to response format
     proposal_responses = [ProposalResponse.from_orm(proposal) for proposal in proposals]
     
     return create_pagination_response(
@@ -601,7 +592,6 @@ async def get_full_time_job_proposals(
     full_time_job = full_time_job_repository.get_object_by_id(full_time_job_id)
     validate_entity_exists(full_time_job, "Full-time job")
     
-    # Check if user is the author of the full-time job
     if full_time_job.created_by_user_id != current_user.id:
         raise forbidden_error("You can only view proposals for your own full-time jobs")
     
@@ -610,7 +600,6 @@ async def get_full_time_job_proposals(
     
     proposals, total = repository.get_full_time_job_proposals(full_time_job_id, pagination)
     
-    # Convert proposals to response format
     proposal_responses = [ProposalResponse.from_orm(proposal) for proposal in proposals]
     
     return create_pagination_response(
@@ -643,15 +632,12 @@ async def update_proposal(
     repository = ProposalRepository(db)
     attachment_repository = ProposalAttachmentRepository(db)
     
-    # Get existing proposal
     existing_proposal = repository.get_by_id(proposal_id)
     validate_entity_exists(existing_proposal, "Proposal")
     
-    # Check if user has permission to update
     if existing_proposal.user_id != current_user.id:
         raise forbidden_error("You don't have permission to update this proposal")
     
-    # Prepare update data
     update_data = {}
     if cover_letter is not None:
         update_data['cover_letter'] = cover_letter
@@ -660,12 +646,9 @@ async def update_proposal(
     if offer_amount is not None:
         update_data['offer_amount'] = offer_amount
     
-    # Process file uploads if any
     if attachments:
-        # Delete existing attachments
         attachment_repository.delete_by_proposal_id(proposal_id)
         
-        # Save new attachments
         file_info_list = save_uploaded_files(attachments, current_user.id, proposal_id)
         for file_info in file_info_list:
             attachment_repository.create(
@@ -675,10 +658,8 @@ async def update_proposal(
                 name=file_info["name"]
             )
     
-    # Create ProposalUpdate object
     proposal_update = ProposalUpdate(**update_data)
     
-    # Update proposal
     updated_proposal = repository.update(proposal_id, proposal_update, current_user.id)
     
     if not updated_proposal:
@@ -690,15 +671,12 @@ async def update_proposal(
             }
         )
     
-    # Get the updated proposal with all relationships for response
     proposal_with_details = repository.get_by_id(proposal_id)
     
-    # Determine job type for success message
     job_type = "gig job" if existing_proposal.gig_job_id else "full-time job"
     job_id = existing_proposal.gig_job_id if existing_proposal.gig_job_id else existing_proposal.full_time_job_id
     
     try:
-        # Create response data with expanded job details
         response_data = ProposalResponse.from_orm(proposal_with_details)
         
         return JSONResponse(
@@ -710,7 +688,6 @@ async def update_proposal(
             }
         )
     except Exception as e:
-        # If there's an error with the detailed response, return basic response
         return JSONResponse(
             status_code=status.HTTP_200_OK,
             content={
@@ -747,18 +724,14 @@ async def delete_proposal(
     repository = ProposalRepository(db)
     attachment_repository = ProposalAttachmentRepository(db)
     
-    # Get existing proposal to determine job type
     existing_proposal = repository.get_by_id(proposal_id)
     validate_entity_exists(existing_proposal, "Proposal")
     
-    # Check if user has permission to delete
     if existing_proposal.user_id != current_user.id:
         raise forbidden_error("You don't have permission to delete this proposal")
     
-    # Delete attachments first
     attachment_repository.delete_by_proposal_id(proposal_id)
     
-    # Delete proposal
     success = repository.delete(proposal_id, current_user.id)
     
     if not success:
@@ -770,7 +743,6 @@ async def delete_proposal(
             }
         )
     
-    # Determine job type for success message
     job_type = "gig job" if existing_proposal.gig_job_id else "full-time job"
     job_id = existing_proposal.gig_job_id if existing_proposal.gig_job_id else existing_proposal.full_time_job_id
     
@@ -806,11 +778,9 @@ async def mark_proposal_as_read(
             }
         )
     
-    # Check if user is the job owner
     is_job_owner = False
     
     if proposal.gig_job_id:
-        # Get gig job directly from database to ensure we have author_id
         from app.models.gig_job import GigJob
         gig_job_model = db.query(GigJob).filter(GigJob.id == proposal.gig_job_id).first()
         if gig_job_model and gig_job_model.author_id == current_user.id:
@@ -830,7 +800,6 @@ async def mark_proposal_as_read(
             }
         )
     
-    # Check if already read
     if proposal.is_read:
         return JSONResponse(
             status_code=status.HTTP_200_OK,
@@ -844,7 +813,6 @@ async def mark_proposal_as_read(
             }
         )
     
-    # Mark as read
     updated_proposal = repository.mark_as_read(proposal_id)
     
     if not updated_proposal:
@@ -856,7 +824,6 @@ async def mark_proposal_as_read(
             }
         )
     
-    # Send push notification to proposal sender (My Proposal notification)
     try:
         proposal_sender_id = proposal.user_id
         print(f"DEBUG: Proposal sender ID: {proposal_sender_id}")
@@ -879,7 +846,6 @@ async def mark_proposal_as_read(
             title = "Your Proposal Was Viewed"
             body = f"Your proposal for {job_title} was viewed."
             
-            # Save notification to database
             from app.repositories.notification_repository import NotificationRepository
             from app.models.notification import NotificationType
             notification_repo = NotificationRepository(db)
@@ -939,7 +905,6 @@ async def mark_all_proposals_as_read(
     gig_job_repository = GigJobRepository(db)
     full_time_job_repository = FullTimeJobRepository(db)
     
-    # Get all gig jobs owned by current user
     from app.models.gig_job import GigJob
     user_gig_jobs = db.query(GigJob).filter(
         GigJob.author_id == current_user.id,
@@ -947,14 +912,12 @@ async def mark_all_proposals_as_read(
     ).all()
     gig_job_ids = [job.id for job in user_gig_jobs]
     
-    # Get all full-time jobs owned by current user
     from app.models.full_time_job import FullTimeJob
     user_full_time_jobs = db.query(FullTimeJob).filter(
         FullTimeJob.created_by_user_id == current_user.id
     ).all()
     full_time_job_ids = [job.id for job in user_full_time_jobs]
     
-    # Get all unread proposals for user's jobs
     from app.models.proposal import Proposal
     from sqlalchemy import or_
     
@@ -965,7 +928,6 @@ async def mark_all_proposals_as_read(
         conditions.append(Proposal.full_time_job_id.in_(full_time_job_ids))
     
     if not conditions:
-        # User has no jobs, return empty result
         return JSONResponse(
             status_code=status.HTTP_200_OK,
             content={
@@ -997,18 +959,15 @@ async def mark_all_proposals_as_read(
             }
         )
     
-    # Mark all proposals as read and send notifications
     marked_count = 0
     notifications_sent = 0
     
     for proposal in unread_proposals:
         try:
-            # Mark as read
             updated_proposal = repository.mark_as_read(proposal.id)
             if updated_proposal:
                 marked_count += 1
                 
-                # Send push notification to proposal sender
                 try:
                     proposal_sender_id = proposal.user_id
                     job_title = None
@@ -1026,7 +985,6 @@ async def mark_all_proposals_as_read(
                         title = "Your Proposal Was Viewed"
                         body = f"Your proposal for {job_title} was viewed."
                         
-                        # Save notification to database
                         from app.repositories.notification_repository import NotificationRepository
                         from app.models.notification import NotificationType
                         notification_repo = NotificationRepository(db)

@@ -3,25 +3,20 @@ from typing import List
 from app.models.team_member import TeamMemberRole, TeamMemberStatus
 
 class Permission(str, Enum):
-    # Job management
     CREATE_JOB = "create_job"
     UPDATE_JOB = "update_job"
     DELETE_JOB = "delete_job"
     VIEW_JOB = "view_job"
     
-    # Team management
     ADD_TEAM_MEMBER = "add_team_member"
     REMOVE_TEAM_MEMBER = "remove_team_member"
     UPDATE_TEAM_MEMBER_ROLE = "update_team_member_role"
     
-    # Candidate management
     VIEW_CANDIDATES = "view_candidates"
     CHAT_WITH_CANDIDATES = "chat_with_candidates"
     
-    # Job sharing
     SHARE_JOB = "share_job"
 
-# Role-based permissions mapping
 ROLE_PERMISSIONS = {
     TeamMemberRole.OWNER: [
         Permission.CREATE_JOB,
@@ -74,14 +69,12 @@ def get_user_permissions(user_id: int, corporate_profile_id: int, db) -> List[Pe
     from app.repositories.team_member_repository import TeamMemberRepository
     from app.repositories.corporate_profile_repository import CorporateProfileRepository
     
-    # Check if user is the owner
     corporate_repo = CorporateProfileRepository(db)
     profile = corporate_repo.get_by_id(corporate_profile_id)
     
     if profile and profile.user_id == user_id:
         return ROLE_PERMISSIONS[TeamMemberRole.OWNER]
     
-    # Check if user is a team member
     team_repo = TeamMemberRepository(db)
     team_member = team_repo.get_by_user_and_corporate_profile(user_id, corporate_profile_id)
     
@@ -94,3 +87,11 @@ def has_permission(user_id: int, corporate_profile_id: int, permission: Permissi
     """Check if user has specific permission for corporate profile"""
     permissions = get_user_permissions(user_id, corporate_profile_id, db)
     return permission in permissions
+
+def is_admin_user(user_email: str) -> bool:
+    """Check if user is admin (admin@admin.com)"""
+    return user_email.lower() == "admin@admin.com"
+
+def check_admin_or_owner(user_email: str, user_id: int, owner_id: int) -> bool:
+    """Check if user is admin or owner of the resource"""
+    return is_admin_user(user_email) or user_id == owner_id

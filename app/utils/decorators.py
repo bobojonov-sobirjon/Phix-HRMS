@@ -45,7 +45,6 @@ def handle_errors(func: Callable) -> Callable:
                 detail=f"Internal server error: {str(e)}"
             )
     
-    # Return appropriate wrapper based on whether function is async
     import inspect
     if inspect.iscoroutinefunction(func):
         return async_wrapper

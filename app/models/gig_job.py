@@ -39,17 +39,14 @@ class GigJob(Base):
     max_salary = Column(Float, nullable=False)
     status = Column(Enum(GigJobStatus), default=GigJobStatus.ACTIVE)
     
-    # Foreign keys
     author_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     category_id = Column(Integer, ForeignKey("categories.id"), nullable=False)
     subcategory_id = Column(Integer, ForeignKey("categories.id"), nullable=True)
     
-    # Timestamps
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
     is_deleted = Column(Boolean, default=False)
     
-    # Relationships
     author = relationship("User", back_populates="gig_jobs")
     category = relationship("Category", foreign_keys=[category_id], back_populates="gig_jobs")
     subcategory = relationship("Category", foreign_keys=[subcategory_id])

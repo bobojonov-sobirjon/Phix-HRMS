@@ -33,7 +33,6 @@ from json import JSONDecodeError
 
 router = APIRouter(prefix="/auth")
 
-# Dependency to get current user from token (for manual header usage)
 def get_current_user(
     authorization: str = Header(None),
     db: Session = Depends(get_db)
@@ -47,7 +46,6 @@ def get_current_user(
             detail="Authorization header required"
         )
     
-    # Extract token from Authorization header
     if not authorization.startswith("Bearer "):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -80,7 +78,6 @@ def get_current_user(
     
     return user
 
-# Dependency to get current user including deleted users (for restore operations)
 def get_current_user_including_deleted(
     authorization: str = Header(None),
     db: Session = Depends(get_db)
@@ -94,7 +91,6 @@ def get_current_user_including_deleted(
             detail="Authorization header required"
         )
     
-    # Extract token from Authorization header
     if not authorization.startswith("Bearer "):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -117,7 +113,6 @@ def get_current_user_including_deleted(
             detail="Invalid token"
         )
     
-    # Get user including deleted users
     user = db.query(User).filter(User.id == int(user_id)).first()
     if not user:
         raise HTTPException(
@@ -127,7 +122,6 @@ def get_current_user_including_deleted(
     
     return user
 
-# Dependency to get current user from OAuth2 token (for Swagger UI)
 def get_current_user_oauth2(
     token: str = Depends(oauth2_scheme),
     db: Session = Depends(get_db)
@@ -193,7 +187,7 @@ async def register(user_data: RegisterOTPRequest, db: Session = Depends(get_db))
                         detail="User with this phone number already exists"
                     )
         
-        otp_code = generate_otp(settings.OTP_LENGTH)
+        otp_code = generate_otp(settings.OTP_LENGTH, email=user_data.email)
         
         registration_data = {
             "name": user_data.name,
@@ -296,7 +290,6 @@ async def verify_registration_otp(otp_verify: RegisterOTPVerify, db: Session = D
         
         user_repo.update_last_login(user.id)
         
-        # Create device token if provided
         if otp_verify.device_token and otp_verify.device_type:
             create_user_device_token(
                 db=db,
@@ -304,7 +297,6 @@ async def verify_registration_otp(otp_verify: RegisterOTPVerify, db: Session = D
                 device_token=otp_verify.device_token,
                 device_type=otp_verify.device_type
             )
-        # Also check registration_data for device_token (in case it was saved during register step)
         elif registration_data.get("device_token") and registration_data.get("device_type"):
             create_user_device_token(
                 db=db,
@@ -336,7 +328,7 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
     try:
         user_repo = UserRepository(db)
         
-        user = user_repo.get_user_by_email(form_data.username)  # OAuth2PasswordRequestForm uses 'username' field
+        user = user_repo.get_user_by_email(form_data.username)
         if not user:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
@@ -408,7 +400,6 @@ async def login(user_data: UserLogin, db: Session = Depends(get_db)):
         
         user_repo.update_last_login(user.id)
         
-        # Create device token if provided (using logging utility)
         if user_data.device_token and user_data.device_type:
             print(f"[Login] Creating device token for user {user.id}, device_type: {user_data.device_type}")
             create_user_device_token(
@@ -486,7 +477,6 @@ async def social_login(social_data: SocialLogin, db: Session = Depends(get_db)):
                 detail="Account is deactivated"
             )
         
-        # Create access token and refresh token
         access_token = create_access_token(
             data={"sub": str(user.id)}
         )
@@ -494,7 +484,6 @@ async def social_login(social_data: SocialLogin, db: Session = Depends(get_db)):
             data={"sub": str(user.id)}
         )
         
-        # Update last login
         user_repo.update_last_login(user.id)
         
         login_response = LoginResponse(
@@ -528,7 +517,7 @@ async def forgot_password(otp_request: OTPRequest, db: Session = Depends(get_db)
                 detail="User with this email not found"
             )
         
-        otp_code = generate_otp(settings.OTP_LENGTH)
+        otp_code = generate_otp(settings.OTP_LENGTH, email=otp_request.email)
         
         otp = otp_repo.create_otp(otp_request.email, otp_code)
         
@@ -639,7 +628,6 @@ async def get_current_user_info(request: Request, current_user: User = Depends(g
 async def update_profile(update: UserUpdate, request: Request, current_user: User = Depends(get_current_user_oauth2), db: Session = Depends(get_db)):
     """Update user profile fields (text fields only). Use /profile/avatar for avatar uploads. Returns full avatar_url."""
     try:
-        # Support both Pydantic v1 and v2
         if hasattr(update, 'model_dump'):
             update_dict = update.model_dump(exclude_unset=True)
         else:
@@ -667,7 +655,6 @@ async def update_profile(update: UserUpdate, request: Request, current_user: Use
             sub_category_id=updated_user.sub_category_id,
             roles=[role.name for role in updated_user.roles]
         )
-        # Support both Pydantic v1 and v2
         if hasattr(user_data, 'model_dump'):
             user_data = user_data.model_dump()
         else:
@@ -765,7 +752,6 @@ async def refresh_token(refresh_data: RefreshTokenRequest, db: Session = Depends
                 detail="Account is deactivated"
             )
         
-        # Create new tokens
         access_token = create_access_token(
             data={"sub": str(user.id)}
         )
@@ -845,7 +831,6 @@ async def get_user_profiles(
     
     profiles = []
     
-    # 1. Personal Profile (har doim birinchi)
     personal_profile = {
         "id": f"personal_{current_user.id}",
         "type": "personal",
@@ -854,12 +839,11 @@ async def get_user_profiles(
         "avatar": f"{settings.BASE_URL}{current_user.avatar_url}" if current_user.avatar_url else None,
         "is_active": current_user.is_active,
         "is_owner": True,
-        "can_create_jobs": False,  # Personal profile job yarata olmaydi
+        "can_create_jobs": False,
         "permissions": []
     }
     profiles.append(personal_profile)
     
-    # 2. Owned Corporate Profile
     corporate_profile_repo = CorporateProfileRepository(db)
     user_corporate_profile = corporate_profile_repo.get_by_user_id(current_user.id)
     
@@ -878,15 +862,12 @@ async def get_user_profiles(
         }
         profiles.append(owned_profile)
     
-    # 3. Team Memberships (boshqa kompaniyalarda - faqat owned corporate profilidan tashqarida)
     team_member_repo = TeamMemberRepository(db)
     user_team_memberships = team_member_repo.get_user_team_memberships_accepted(current_user.id)
     
-    # User's owned corporate profile ID - exclude it from team memberships
     owned_corporate_profile_id = user_corporate_profile.id if user_corporate_profile else None
     
     for membership in user_team_memberships:
-        # Skip if this is the user's own corporate profile (it's already added as owned profile)
         if owned_corporate_profile_id and membership.corporate_profile_id == owned_corporate_profile_id:
             continue
             
@@ -895,7 +876,6 @@ async def get_user_profiles(
         ).first()
         
         if corporate_profile and corporate_profile.is_active and corporate_profile.is_verified and not corporate_profile.is_deleted:
-            # Role-based permissions
             permissions = [p.value for p in get_role_permissions(membership.role)]
             
             team_profile = {
@@ -929,16 +909,12 @@ async def restore_user(
     try:
         user_repo = UserRepository(db)
         
-        # Optional authentication - if token provided, verify it
         if authorization:
             try:
                 current_user = get_current_user_including_deleted(authorization, db)
-                # User is authenticated, can proceed
             except HTTPException:
-                # Invalid token, but we still allow the operation
                 pass
         
-        # Check if user exists with this email (including deleted users)
         user = db.query(User).filter(User.email == restore_data.email).first()
         if not user:
             raise HTTPException(
@@ -946,14 +922,12 @@ async def restore_user(
                 detail="User with this email not found"
             )
         
-        # Check if user is already active (not deleted)
         if not user.is_deleted:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="User is already active (not deleted)"
             )
         
-        # Restore user
         success = user_repo.restore_user_by_email(restore_data.email)
         if not success:
             raise HTTPException(
@@ -975,15 +949,13 @@ async def login_admin(admin_data: UserLogin, db: Session = Depends(get_db)):
     """
     Admin login endpoint - No OTP required, returns token immediately
     Email: admin@admin.com
-    Password: Admin@2024!Secure#PhixHRMS
+    Password: Admin@2024!Secure
     """
     try:
         user_repo = UserRepository(db)
         
-        # Ensure admin user exists (create if not exists)
         create_admin_user(db)
         
-        # Get admin user
         admin_user = user_repo.get_user_by_email("admin@admin.com")
         if not admin_user:
             raise HTTPException(
@@ -991,28 +963,24 @@ async def login_admin(admin_data: UserLogin, db: Session = Depends(get_db)):
                 detail="Failed to create or retrieve admin user"
             )
         
-        # Verify admin email
         if admin_data.email != "admin@admin.com":
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Invalid admin email"
             )
         
-        # Verify password
         if not admin_user.verify_password(admin_data.password):
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Invalid admin password"
             )
         
-        # Check if admin is active
         if not admin_user.is_active:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Admin account is deactivated"
             )
         
-        # Generate tokens immediately (no OTP required)
         access_token = create_access_token(
             data={"sub": str(admin_user.id)}
         )
@@ -1020,10 +988,8 @@ async def login_admin(admin_data: UserLogin, db: Session = Depends(get_db)):
             data={"sub": str(admin_user.id)}
         )
         
-        # Update last login
         user_repo.update_last_login(admin_user.id)
         
-        # Create device token if provided
         if admin_data.device_token and admin_data.device_type:
             create_user_device_token(
                 db=db,
@@ -1055,12 +1021,11 @@ async def create_admin_endpoint(db: Session = Depends(get_db)):
     Create admin user endpoint
     Creates admin user if it doesn't exist
     Email: admin@admin.com
-    Password: Admin@2024!Secure#PhixHRMS
+    Password: Admin@2024!Secure
     """
     try:
         user_repo = UserRepository(db)
         
-        # Check if admin user already exists
         existing_admin = user_repo.get_user_by_email("admin@admin.com")
         if existing_admin:
             return SuccessResponse(
@@ -1072,7 +1037,6 @@ async def create_admin_endpoint(db: Session = Depends(get_db)):
                 }
             )
         
-        # Create admin user
         success = create_admin_user(db)
         
         if success:
@@ -1090,7 +1054,7 @@ async def create_admin_endpoint(db: Session = Depends(get_db)):
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="Failed to create admin user"
-            )
+        )
     except HTTPException:
         raise
     except Exception as e:

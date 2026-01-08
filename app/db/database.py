@@ -4,34 +4,30 @@ from sqlalchemy.orm import sessionmaker
 from urllib.parse import quote_plus
 from ..core.config import settings
 
-# Create database engine with optimized connection pool settings
 engine = create_engine(
     settings.DATABASE_URL,
     pool_pre_ping=True,
     pool_recycle=300,
-    pool_size=20,  # Increased from default 5
-    max_overflow=30,  # Allow additional connections
-    pool_timeout=30,  # Connection timeout
-    pool_reset_on_return='commit',  # Reset connection state
-    echo=False,  # Disable SQL logging in production
+    pool_size=20,
+    max_overflow=30,
+    pool_timeout=30,
+    pool_reset_on_return='commit',
+    echo=False,
     connect_args={
         "options": "-c timezone=utc -c client_encoding=utf8",
-        "application_name": "phix_hrms"  # Help identify connections
+        "application_name": "phix_hrms"
     }
 )
 
-# Create SessionLocal class with optimized settings
 SessionLocal = sessionmaker(
     autocommit=False, 
     autoflush=False, 
     bind=engine,
-    expire_on_commit=False  # Prevent lazy loading issues
+    expire_on_commit=False
 )
 
-# Create Base class for models
 Base = declarative_base()
 
-# Dependency to get database session with connection management
 def get_db():
     db = SessionLocal()
     try:

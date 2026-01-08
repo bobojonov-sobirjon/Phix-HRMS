@@ -10,7 +10,6 @@ import asyncio
 from concurrent.futures import ThreadPoolExecutor
 from typing import Optional
 
-# Thread pool executor for async email operations
 brevo_executor = ThreadPoolExecutor(max_workers=4, thread_name_prefix="brevo_worker")
 
 def send_email_brevo_sync(email: str, otp_code: str, email_type: str = "registration") -> bool:
@@ -24,7 +23,6 @@ def send_email_brevo_sync(email: str, otp_code: str, email_type: str = "registra
         print(f"Email Type: {email_type}")
         print("========================")
         
-        # Check if Brevo is configured
         if not settings.BREVO_API_KEY:
             print("ERROR: BREVO_API_KEY not configured!")
             return False
@@ -33,14 +31,11 @@ def send_email_brevo_sync(email: str, otp_code: str, email_type: str = "registra
             print("ERROR: BREVO_FROM_EMAIL not configured!")
             return False
         
-        # Configure API key
         configuration = sib_api_v3_sdk.Configuration()
         configuration.api_key['api-key'] = settings.BREVO_API_KEY
         
-        # Create API instance
         api_instance = sib_api_v3_sdk.TransactionalEmailsApi(sib_api_v3_sdk.ApiClient(configuration))
         
-        # Create email content based on type
         if email_type == "registration":
             subject = f"Registration Verification - {settings.APP_NAME}"
             html_content = f"""
@@ -108,7 +103,6 @@ def send_email_brevo_sync(email: str, otp_code: str, email_type: str = "registra
             </html>
             """
         elif email_type == "team_invitation":
-            # Extract data from html_content for team invitation
             import re
             company_match = re.search(r'<strong>([^<]+)</strong> has invited you to join <strong>([^<]+)</strong> as a <strong>([^<]+)</strong>', html_content)
             if company_match:
@@ -157,7 +151,6 @@ def send_email_brevo_sync(email: str, otp_code: str, email_type: str = "registra
             </html>
             """
         
-        # Create send email object
         send_smtp_email = sib_api_v3_sdk.SendSmtpEmail(
             to=[{"email": email}],
             sender={"email": settings.BREVO_FROM_EMAIL},
@@ -167,7 +160,6 @@ def send_email_brevo_sync(email: str, otp_code: str, email_type: str = "registra
         
         print("Sending email via Brevo API...")
         
-        # Send email
         response = api_instance.send_transac_email(send_smtp_email)
         
         print(f"Brevo Response: {response}")
@@ -193,7 +185,6 @@ async def send_email_brevo_async(email: str, otp_code: str, email_type: str = "r
     """Send email using Brevo API (async version)"""
     try:
         print(f"Starting async Brevo email send to: {email}")
-        # Run email sending in thread pool to avoid blocking
         loop = asyncio.get_event_loop()
         result = await loop.run_in_executor(
             brevo_executor, 
@@ -218,14 +209,11 @@ def test_brevo_connection() -> bool:
             print("❌ BREVO_API_KEY not configured")
             return False
         
-        # Configure API key
         configuration = sib_api_v3_sdk.Configuration()
         configuration.api_key['api-key'] = settings.BREVO_API_KEY
         
-        # Create API instance
         api_instance = sib_api_v3_sdk.AccountApi(sib_api_v3_sdk.ApiClient(configuration))
         
-        # Test API key by getting account info
         response = api_instance.get_account()
         print(f"✅ Brevo API connection successful")
         return True

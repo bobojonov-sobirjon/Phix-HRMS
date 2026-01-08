@@ -24,22 +24,18 @@ class TeamMember(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     
-    # Foreign keys
     corporate_profile_id = Column(Integer, ForeignKey("corporate_profiles.id"), nullable=False)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     invited_by_user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     
-    # Role and status
     role = Column(Enum(TeamMemberRole), nullable=False)
     status = Column(Enum(TeamMemberStatus), default=TeamMemberStatus.PENDING)
     
-    # Timestamps
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
     accepted_at = Column(DateTime(timezone=True), nullable=True)
     rejected_at = Column(DateTime(timezone=True), nullable=True)
     
-    # Relationships
     corporate_profile = relationship("CorporateProfile", back_populates="team_members")
     user = relationship("User", foreign_keys=[user_id], back_populates="team_memberships")
     invited_by = relationship("User", foreign_keys=[invited_by_user_id])

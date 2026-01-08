@@ -14,43 +14,34 @@ from .team_member import *
 from .category import *
 
 __all__ = [
-    # Auth schemas
     "UserLogin",
     "UserRegister",
     "TokenResponse",
     "PasswordReset",
     
-    # Profile schemas
     "ProfileResponse",
     "ProfileUpdate",
     
-         # Common schemas
      "ErrorResponse",
      "MessageResponse",
      "SuccessResponse",
      "PaginatedResponse",
     
-    # Contact schemas
     "ContactUsCreate",
     "ContactUsResponse",
     
-    # Education schemas
     "EducationFacilityCreate",
     "EducationFacilityResponse",
     
-    # FAQ schemas
     "FAQCreate",
     "FAQResponse",
     
-    # Language schemas
     "LanguageCreate",
     "LanguageResponse",
     
-    # Location schemas
     "LocationCreate",
     "LocationResponse",
     
-    # Category schemas
     "CategoryCreate",
     "CategoryUpdate",
     "CategoryResponse",
@@ -58,7 +49,6 @@ __all__ = [
     "CategorySearch",
     "CategoryBase",
     
-    # Gig Job schemas
     "GigJobCreate",
     "GigJobUpdate",
     "GigJobResponse",
@@ -67,13 +57,11 @@ __all__ = [
     "GigJobStatus",
     "ProjectLength",
     
-    # Proposal schemas
     "ProposalCreate",
     "ProposalUpdate",
     "ProposalResponse",
     "ProposalListResponse",
     
-    # Corporate Profile schemas
     "CorporateProfileCreate",
     "CorporateProfileUpdate",
     "CorporateProfileResponse",
@@ -81,7 +69,6 @@ __all__ = [
     "CorporateProfileListResponse",
     "CompanySize",
     
-    # Full Time Job schemas
     "FullTimeJobCreate",
     "FullTimeJobUpdate",
     "FullTimeJobResponse",
@@ -92,7 +79,6 @@ __all__ = [
     "ExperienceLevel as FTExperienceLevel",
     "JobStatus",
     
-    # Team Member schemas
     "TeamMemberCreate",
     "TeamMemberUpdate",
     "TeamMemberResponse",

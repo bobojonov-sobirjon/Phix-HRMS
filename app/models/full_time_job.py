@@ -47,10 +47,9 @@ class FullTimeJob(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     
-    # Job details
     title = Column(String(255), nullable=False, index=True)
     description = Column(Text, nullable=False)
-    responsibilities = Column(Text, nullable=True)  # JSON string for responsibilities list
+    responsibilities = Column(Text, nullable=True)
     location = Column(String(100), nullable=False, default="Worldwide")
     job_type = Column(Enum(JobType), nullable=False, default=JobType.FULL_TIME)
     work_mode = Column(Enum(WorkMode), nullable=False, default=WorkMode.ON_SITE)
@@ -60,20 +59,16 @@ class FullTimeJob(Base):
     pay_period = Column(Enum(PayPeriod), nullable=False, default=PayPeriod.PER_MONTH)
     status = Column(Enum(JobStatus), default=JobStatus.ACTIVE)
     
-    # Foreign keys
     company_id = Column(Integer, ForeignKey("corporate_profiles.id"), nullable=False)
     category_id = Column(Integer, ForeignKey("categories.id"), nullable=False)
     subcategory_id = Column(Integer, ForeignKey("categories.id"), nullable=True)
     
-    # Job creation context
     created_by_user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     created_by_role = Column(Enum(TeamMemberRole), nullable=False)
     
-    # Timestamps
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
     
-    # Relationships
     company = relationship("CorporateProfile", back_populates="full_time_jobs")
     category = relationship("Category", foreign_keys=[category_id], back_populates="full_time_jobs")
     subcategory = relationship("Category", foreign_keys=[subcategory_id])

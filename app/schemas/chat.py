@@ -9,7 +9,6 @@ class MessageType(str, Enum):
     FILE = "file"
     VOICE = "voice"
 
-# User Search
 class UserSearchResponse(BaseModel):
     id: int
     name: str
@@ -20,7 +19,6 @@ class UserSearchResponse(BaseModel):
     class Config:
         from_attributes = True
 
-# Chat Room Schemas
 class ChatRoomResponse(BaseModel):
     id: int
     name: Optional[str]
@@ -29,7 +27,7 @@ class ChatRoomResponse(BaseModel):
     created_at: datetime
     updated_at: Optional[datetime]
     is_active: bool
-    other_user: Optional[Dict[str, Any]] = None  # For direct chats
+    other_user: Optional[Dict[str, Any]] = None
     last_message: Optional[Dict[str, Any]] = None
     unread_count: int = 0
     
@@ -45,7 +43,6 @@ class ChatRoomCreate(BaseModel):
             raise ValueError('Receiver ID must be a positive integer')
         return v
 
-# Sender Details Schema
 class SenderDetails(BaseModel):
     id: int
     name: str
@@ -56,7 +53,6 @@ class SenderDetails(BaseModel):
     class Config:
         from_attributes = True
 
-# Receiver Details Schema
 class ReceiverDetails(BaseModel):
     id: int
     name: str
@@ -67,7 +63,6 @@ class ReceiverDetails(BaseModel):
     class Config:
         from_attributes = True
 
-# Online User Details Schema
 class OnlineUserDetails(BaseModel):
     id: int
     name: str
@@ -83,38 +78,35 @@ class OnlineUserDetails(BaseModel):
     class Config:
         from_attributes = True
 
-# Online Users Response Schema
 class OnlineUsersResponse(BaseModel):
     online_users: List[OnlineUserDetails]
     
     class Config:
         from_attributes = True
 
-# File Schema for multiple files
 class FileData(BaseModel):
     file_name: str
     file_path: str
     file_size: int
     mime_type: str
-    duration: Optional[int] = None  # Duration in seconds (for voice/audio messages)
+    duration: Optional[int] = None
 
-# Message Schemas
 class ChatMessageResponse(BaseModel):
     id: int
     content: Optional[str] = None
     message_type: MessageType
-    file_name: Optional[str] = None  # For backward compatibility
-    file_path: Optional[str] = None  # For backward compatibility
-    file_size: Optional[int] = None  # For backward compatibility
-    duration: Optional[int] = None  # Duration in seconds (for voice/audio messages)
-    files_data: Optional[List[FileData]] = None  # Har doim bo'ladi (file bo'lsa array, aks holda null)
-    local_temp_id: Optional[str] = None  # Har doim bo'ladi (request'da yuborilgan bo'lsa value, aks holda null)
+    file_name: Optional[str] = None
+    file_path: Optional[str] = None
+    file_size: Optional[int] = None
+    duration: Optional[int] = None
+    files_data: Optional[List[FileData]] = None
+    local_temp_id: Optional[str] = None
     created_at: datetime
     is_read: bool
     is_deleted: bool
-    is_sender: bool  # Frontend uchun: true = o'ng tomonda, false = chap tomonda
-    is_liked: bool = False  # Whether current user liked this message
-    like_count: int = 0  # Total number of likes for this message
+    is_sender: bool
+    is_liked: bool = False
+    like_count: int = 0
     sender_details: Optional[SenderDetails] = None
     receiver_details: Optional[ReceiverDetails] = None
     
@@ -130,11 +122,9 @@ class ChatMessageCreate(BaseModel):
 class TextMessageCreate(ChatMessageCreate):
     content: str = Field(..., min_length=1, max_length=5000)
 
-# File Upload schemas removed - using WebSocket only for file uploads
 
-# WebSocket Messages
 class WebSocketMessage(BaseModel):
-    type: str  # message, typing, presence, etc.
+    type: str
     data: Dict[str, Any]
 
 class TypingIndicator(BaseModel):
@@ -148,20 +138,18 @@ class UserPresenceUpdate(BaseModel):
     is_online: bool
     last_seen: Optional[datetime] = None
 
-# Response Lists
 class ChatRoomListResponse(BaseModel):
     rooms: List[ChatRoomResponse]
     total: int
 
 class MessageListResponse(BaseModel):
     messages: List[ChatMessageResponse]
-    total: int  # Total number of messages in the room
-    has_more: bool  # Whether there are more pages available
-    page: int = 1  # Current page number
-    per_page: int = 50  # Number of messages per page
-    total_pages: int = 1  # Total number of pages
+    total: int
+    has_more: bool
+    page: int = 1
+    per_page: int = 50
+    total_pages: int = 1
 
-# Search Response
 class UserSearchListResponse(BaseModel):
     users: List[UserSearchResponse]
     total: int
@@ -173,7 +161,6 @@ class VideoCallTokenRequest(BaseModel):
     role: str = Field("publisher", description="Role: publisher or subscriber (default: publisher)")
     expire_seconds: int = Field(3600, ge=60, le=86400, description="Token expiry in seconds (default: 3600)")
 
-# ChatParticipant Response Schema
 class ChatParticipantResponse(BaseModel):
     id: int
     room_id: int
@@ -186,7 +173,6 @@ class ChatParticipantResponse(BaseModel):
     class Config:
         from_attributes = True
 
-# ChatRoom Response Schema (without messages)
 class ChatRoomDetailResponse(BaseModel):
     id: int
     name: Optional[str]
@@ -223,7 +209,7 @@ class VideoCallResponse(BaseModel):
 
 class VideoCallStatus(BaseModel):
     call_id: str
-    status: str  # calling, answered, rejected, ended
+    status: str
     caller_id: int
     receiver_id: int
     channel_name: str
@@ -231,16 +217,14 @@ class VideoCallStatus(BaseModel):
     answered_at: Optional[datetime] = None
     ended_at: Optional[datetime] = None
 
-# Message Like Schemas
 class MessageLikeRequest(BaseModel):
     message_id: int = Field(..., description="ID of the message to like/unlike")
 
 class MessageLikeResponse(BaseModel):
-    action: str  # "liked" or "unliked"
+    action: str
     like_count: int
     message_id: int
 
-# Room Check Response
 class RoomCheckResponse(BaseModel):
     status: str
     msg: str

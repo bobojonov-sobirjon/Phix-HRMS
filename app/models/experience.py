@@ -21,6 +21,5 @@ class Experience(Base):
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
     is_deleted = Column(Boolean, default=False)
     
-    # Relationship
     user = relationship('User', back_populates='experiences')
     company_ref = relationship('Company', back_populates='experiences') 

@@ -8,20 +8,16 @@ from .language import Language
 class User(Base):
     __tablename__ = "users"
     
-    # Primary key
     id = Column(Integer, primary_key=True, index=True)
     
-    # Basic user information
     name = Column(String(255), nullable=False)
     email = Column(String(255), unique=True, index=True, nullable=False)
-    password_hash = Column(String(255), nullable=True)  # Nullable for social login users
+    password_hash = Column(String(255), nullable=True)
     
-    # Social login fields
     google_id = Column(String(255), unique=True, nullable=True)
     facebook_id = Column(String(255), unique=True, nullable=True)
     apple_id = Column(String(255), unique=True, nullable=True)
     
-    # Profile information
     phone = Column(String(20), unique=True, nullable=True)
     avatar_url = Column(Text, nullable=True)
     about_me = Column(Text, nullable=True)
@@ -29,26 +25,21 @@ class User(Base):
     location_id = Column(Integer, ForeignKey('locations.id'), nullable=True)
     language_id = Column(Integer, ForeignKey('languages.id'), nullable=True)
     
-    # Category information
     main_category_id = Column(Integer, ForeignKey('categories.id'), nullable=True)
     sub_category_id = Column(Integer, ForeignKey('categories.id'), nullable=True)
     
-    # Account status
     is_active = Column(Boolean, default=True)
     is_verified = Column(Boolean, default=False)
     is_deleted = Column(Boolean, default=False)
     
-    # Blocking fields
     blocked_at = Column(DateTime(timezone=True), nullable=True)
     block_reason = Column(Text, nullable=True)
     blocked_by = Column(Integer, ForeignKey('users.id'), nullable=True)
     
-    # Timestamps
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
     last_login = Column(DateTime(timezone=True), nullable=True)
     
-    # Relationships
     location = relationship('Location', back_populates='users')
     language = relationship('Language')
     main_category = relationship('Category', foreign_keys=[main_category_id], back_populates='users_main')

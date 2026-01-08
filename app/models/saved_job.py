@@ -13,7 +13,6 @@ class SavedJob(Base):
     full_time_job_id = Column(Integer, ForeignKey("full_time_jobs.id"), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
-    # Relationships
     user = relationship("User", back_populates="saved_jobs")
     gig_job = relationship("GigJob", back_populates="saved_jobs")
     full_time_job = relationship("FullTimeJob", back_populates="saved_jobs")

@@ -9,15 +9,13 @@ class ProposalAttachment(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     proposal_id = Column(Integer, ForeignKey("proposals.id"), nullable=False)
-    attachment = Column(String, nullable=False)  # File path
-    size = Column(Integer, nullable=False)  # File size in bytes
-    name = Column(String, nullable=False)  # Original file name
+    attachment = Column(String, nullable=False)
+    size = Column(Integer, nullable=False)
+    name = Column(String, nullable=False)
     
-    # Timestamps
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
     
-    # Relationships
     proposal = relationship("Proposal", back_populates="attachments")
     
     def __repr__(self):

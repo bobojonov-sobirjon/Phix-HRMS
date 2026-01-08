@@ -9,7 +9,6 @@ class GoogleAuth:
     def verify_token(access_token: str) -> Optional[Dict[str, Any]]:
         """Verify Google access token and get user info"""
         try:
-            # Verify token with Google
             response = requests.get(
                 f"https://www.googleapis.com/oauth2/v1/userinfo?access_token={access_token}"
             )
@@ -32,7 +31,6 @@ class FacebookAuth:
     def verify_token(access_token: str) -> Optional[Dict[str, Any]]:
         """Verify Facebook access token and get user info"""
         try:
-            # Verify token with Facebook
             response = requests.get(
                 f"https://graph.facebook.com/me?fields=id,name,email,picture&access_token={access_token}"
             )
@@ -55,18 +53,14 @@ class AppleAuth:
     def verify_token(access_token: str) -> Optional[Dict[str, Any]]:
         """Verify Apple access token and get user info"""
         try:
-            # Verify token with Apple
             response = requests.get(
                 "https://appleid.apple.com/auth/keys"
             )
             if response.status_code == 200:
-                # Note: Apple token verification is more complex
-                # This is a simplified version
-                # In production, you should properly verify JWT tokens
                 return {
-                    "id": "apple_user_id",  # Extract from JWT
-                    "email": "user@example.com",  # Extract from JWT
-                    "name": "Apple User",  # Apple doesn't provide name by default
+                    "id": "apple_user_id",
+                    "email": "user@example.com",
+                    "name": "Apple User",
                     "picture": None
                 }
         except Exception as e:

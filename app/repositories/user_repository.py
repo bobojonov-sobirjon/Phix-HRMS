@@ -25,43 +25,39 @@ class UserRepository:
     def get_user_by_email(self, email: str) -> Optional[User]:
         """Get user by email with optimized loading"""
         return self.db.query(User).options(
-            selectinload(User.roles)  # Eager load roles to avoid N+1
+            selectinload(User.roles)
         ).filter(and_(User.email == email, User.is_deleted == False)).first()
     
     def get_user_by_phone(self, phone: str) -> Optional[User]:
         """Get user by phone with optimized loading"""
         return self.db.query(User).options(
-            selectinload(User.roles)  # Eager load roles to avoid N+1
+            selectinload(User.roles)
         ).filter(and_(User.phone == phone, User.is_deleted == False)).first()
     
     def get_user_by_id(self, user_id: int) -> Optional[User]:
         """Get user by ID with optimized loading"""
         user = self.db.query(User).options(
-            selectinload(User.roles),  # Eager load roles to avoid N+1
-            selectinload(User.skills),  # Eager load skills
-            selectinload(User.location),  # Eager load location
-            selectinload(User.language),  # Eager load language
-            selectinload(User.main_category),  # Eager load main category
-            selectinload(User.sub_category)  # Eager load sub category
+            selectinload(User.roles),
+            selectinload(User.skills),
+            selectinload(User.location),
+            selectinload(User.language),
+            selectinload(User.main_category),
+            selectinload(User.sub_category)
         ).filter(and_(User.id == user_id, User.is_deleted == False)).first()
         
         if user:
-            # Load non-deleted educations
             user.educations = self.db.query(Education).options(
                 selectinload(Education.education_facility)
             ).filter(Education.user_id == user_id, Education.is_deleted == False).all()
             
-            # Load non-deleted experiences
             user.experiences = self.db.query(Experience).options(
                 selectinload(Experience.company_ref)
             ).filter(Experience.user_id == user_id, Experience.is_deleted == False).all()
             
-            # Load non-deleted certifications
             user.certifications = self.db.query(Certification).options(
                 selectinload(Certification.certification_center)
             ).filter(Certification.user_id == user_id, Certification.is_deleted == False).all()
             
-            # Load non-deleted projects
             user.projects = self.db.query(Project).options(
                 selectinload(Project.images)
             ).filter(Project.user_id == user_id, Project.is_deleted == False).all()
@@ -75,7 +71,7 @@ class UserRepository:
     def get_user_by_social_id(self, provider: str, social_id: str) -> Optional[User]:
         """Get user by social login ID with optimized loading"""
         query = self.db.query(User).options(
-            selectinload(User.roles)  # Eager load roles to avoid N+1
+            selectinload(User.roles)
         ).filter(User.is_deleted == False)
         
         if provider == "google":
@@ -88,7 +84,6 @@ class UserRepository:
     
     def create_user(self, name: str, email: str, password: str = None, phone: str = None) -> User:
         """Create new user with optimized transaction"""
-        # Phone is required for regular user registration
 
             
         user = User(
@@ -110,10 +105,9 @@ class UserRepository:
             name=name,
             email=email,
             avatar_url=avatar_url,
-            is_verified=True  # Social users are pre-verified
+            is_verified=True
         )
         
-        # Set social ID based on provider
         if provider == "google":
             user.google_id = social_id
         elif provider == "facebook":
@@ -128,7 +122,6 @@ class UserRepository:
     
     def update_last_login(self, user_id: int):
         """Update user's last login time with optimized query"""
-        # Use direct update instead of loading user first
         self.db.query(User).filter(User.id == user_id).update({
             User.last_login: datetime.now(timezone.utc)
         })
@@ -167,7 +160,6 @@ class UserRepository:
         if not user:
             return None
         
-        # Validate categories exist if provided
         if main_category_id is not None:
             from ..models.category import Category
             main_category = self.db.query(Category).filter(Category.id == main_category_id).first()
@@ -188,7 +180,6 @@ class UserRepository:
 
     def soft_delete_user(self, user_id: int) -> bool:
         """Soft delete user with optimized query"""
-        # Use direct update instead of loading user first
         result = self.db.query(User).filter(User.id == user_id).update({
             User.is_deleted: True
         })
@@ -219,10 +210,8 @@ class UserRepository:
         if not user:
             return False
         
-        # Get roles that exist
         roles = self.db.query(Role).filter(Role.name.in_(role_names)).all()
         
-        # If no roles found, try to create them (for backward compatibility)
         if not roles:
             role_repo = RoleRepository(self.db)
             role_repo.seed_initial_roles()
@@ -237,7 +226,6 @@ class UserRepository:
     def get_user_full_profile(self, user_id: int) -> Optional[User]:
         """Get user full profile with optimized eager loading to prevent N+1 queries"""
         user = self.db.query(User).options(
-            # Use selectinload for better performance than joinedload
             selectinload(User.location),
             selectinload(User.roles),
             selectinload(User.skills),
@@ -246,22 +234,18 @@ class UserRepository:
         ).filter(and_(User.id == user_id, User.is_deleted == False)).first()
         
         if user:
-            # Load non-deleted educations
             user.educations = self.db.query(Education).options(
                 selectinload(Education.education_facility)
             ).filter(Education.user_id == user_id, Education.is_deleted == False).all()
             
-            # Load non-deleted experiences
             user.experiences = self.db.query(Experience).options(
                 selectinload(Experience.company_ref)
             ).filter(Experience.user_id == user_id, Experience.is_deleted == False).all()
             
-            # Load non-deleted certifications
             user.certifications = self.db.query(Certification).options(
                 selectinload(Certification.certification_center)
             ).filter(Certification.user_id == user_id, Certification.is_deleted == False).all()
             
-            # Load non-deleted projects
             user.projects = self.db.query(Project).options(
                 selectinload(Project.images)
             ).filter(Project.user_id == user_id, Project.is_deleted == False).all()
@@ -347,11 +331,9 @@ class UserRepository:
             selectinload(User.sub_category)
         )
         
-        # Apply filters
         if is_deleted is not None:
             query = query.filter(User.is_deleted == is_deleted)
         else:
-            # By default, show non-deleted users, but admin can see deleted if explicitly requested
             query = query.filter(User.is_deleted == False)
         
         if is_active is not None:
@@ -374,14 +356,11 @@ class UserRepository:
         if date_to:
             query = query.filter(User.created_at <= date_to)
         
-        # Filter by role if provided
         if role:
             query = query.join(UserRole).join(Role).filter(Role.name.ilike(f"%{role}%"))
         
-        # Get total count before pagination
         total = query.count()
         
-        # Apply pagination and ordering
         users = query.order_by(User.created_at.desc()).offset(skip).limit(limit).all()
         
         return users, total
@@ -423,7 +402,7 @@ class OTPRepository:
                 OTP.email == email,
                 OTP.otp_code == otp_code,
                 OTP.is_used == False,
-                OTP.expires_at > datetime.now(timezone.utc)  # Add expiration check
+                OTP.expires_at > datetime.now(timezone.utc)
             )
         ).first()
     
@@ -435,13 +414,12 @@ class OTPRepository:
                 OTP.otp_code == otp_code,
                 OTP.otp_type == otp_type,
                 OTP.is_used == False,
-                OTP.expires_at > datetime.now(timezone.utc)  # Add expiration check
+                OTP.expires_at > datetime.now(timezone.utc)
             )
         ).first()
     
     def mark_otp_used(self, otp_id: int):
         """Mark OTP as used with optimized query"""
-        # Use direct update instead of loading OTP first
         self.db.query(OTP).filter(OTP.id == otp_id).update({
             OTP.is_used: True
         })

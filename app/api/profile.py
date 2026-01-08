@@ -36,7 +36,6 @@ import os
 
 router = APIRouter(prefix="/profile", tags=[])
 
-# Get user by ID
 @router.get("/user/{user_id}", response_model=SuccessResponse, tags=["Account"])
 @handle_errors
 async def get_user_by_id(user_id: int, db: Session = Depends(get_db)):
@@ -49,21 +48,18 @@ async def get_user_by_id(user_id: int, db: Session = Depends(get_db)):
     user = repo.get_by_id(user_id)
     validate_entity_exists(user, "User")
     
-    # Convert SQLAlchemy model to Pydantic response model
     user_response = UserFullResponse.model_validate(user)
     return success_response(
         data=user_response,
         message="User retrieved successfully"
     )
 
-# Educations
 @router.get("/educations", response_model=SuccessResponse, tags=["Profile Education"])
 @handle_errors
 async def get_my_educations(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     """Get all educations for current user"""
     repo = EducationRepository(db)
     educations = repo.get_educations_by_user(current_user.id)
-    # Convert SQLAlchemy models to Pydantic response models
     education_responses = [EducationResponse.model_validate(edu) for edu in educations]
     return success_response(
         data=education_responses,
@@ -78,7 +74,6 @@ async def get_education_by_id(education_id: int, current_user: User = Depends(ge
     education = repo.get_education_by_id(education_id)
     validate_entity_exists(education, "Education")
     validate_ownership(education.user_id, current_user.id, "Education")
-    # Convert SQLAlchemy model to Pydantic response model
     education_response = EducationResponse.model_validate(education)
     return success_response(
         data=education_response,
@@ -91,7 +86,6 @@ async def add_education(education: EducationCreate, current_user: User = Depends
     """Add new education"""
     repo = EducationRepository(db)
     created_education = repo.create_education(current_user.id, education)
-    # Convert SQLAlchemy model to Pydantic response model
     education_response = EducationResponse.model_validate(created_education)
     return success_response(
         data=education_response,
@@ -106,7 +100,6 @@ async def update_education(education_id: int, education: EducationUpdate, curren
     updated = repo.update_education(education_id, education.dict(exclude_unset=True))
     validate_entity_exists(updated, "Education")
     validate_ownership(updated.user_id, current_user.id, "Education")
-    # Convert SQLAlchemy model to Pydantic response model
     education_response = EducationResponse.model_validate(updated)
     return success_response(
         data=education_response,
@@ -125,14 +118,12 @@ async def delete_education(education_id: int, current_user: User = Depends(get_c
         message="Education deleted successfully"
     )
 
-# Experiences
 @router.get("/experiences", response_model=SuccessResponse, tags=["Profile Experience"])
 @handle_errors
 async def get_my_experiences(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     """Get all experiences for current user"""
     repo = ExperienceRepository(db)
     experiences = repo.get_experiences_by_user(current_user.id)
-    # Convert SQLAlchemy models to Pydantic response models
     experience_responses = [ExperienceResponse.model_validate(exp) for exp in experiences]
     return success_response(
         data=experience_responses,
@@ -147,7 +138,6 @@ async def get_experience_by_id(id: int, current_user: User = Depends(get_current
     experience = repo.get_experience_by_id(id)
     validate_entity_exists(experience, "Experience")
     validate_ownership(experience.user_id, current_user.id, "Experience")
-    # Convert SQLAlchemy model to Pydantic response model
     experience_response = ExperienceResponse.model_validate(experience)
     return success_response(
         data=experience_response,
@@ -166,7 +156,6 @@ async def add_experience(data: ExperienceCreate, current_user: User = Depends(ge
         created_experience = repo.create_experience(current_user.id, data)
         if not created_experience:
             raise HTTPException(status_code=500, detail="Failed to create experience")
-        # Convert SQLAlchemy model to Pydantic response model
         experience_response = ExperienceResponse.model_validate(created_experience)
         return success_response(
             data=experience_response,
@@ -183,7 +172,6 @@ async def add_experience(data: ExperienceCreate, current_user: User = Depends(ge
 async def update_experience(id: int, data: ExperienceUpdate, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     """Update experience"""
     repo = ExperienceRepository(db)
-    # Support both Pydantic v1 and v2
     if hasattr(data, 'model_dump'):
         update_data = data.model_dump(exclude_unset=True)
     else:
@@ -191,7 +179,6 @@ async def update_experience(id: int, data: ExperienceUpdate, current_user: User 
     updated = repo.update_experience(id, update_data)
     validate_entity_exists(updated, "Experience")
     validate_ownership(updated.user_id, current_user.id, "Experience")
-    # Convert SQLAlchemy model to Pydantic response model
     experience_response = ExperienceResponse.model_validate(updated)
     return success_response(
         data=experience_response,
@@ -210,14 +197,12 @@ async def delete_experience(id: int, current_user: User = Depends(get_current_us
         message="Experience deleted successfully"
     )
 
-# Certifications
 @router.get("/certifications", response_model=SuccessResponse, tags=["Profile Certifications"])
 @handle_errors
 async def get_my_certifications(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     """Get all certifications for current user"""
     repo = CertificationRepository(db)
     certifications = repo.get_certifications_by_user(current_user.id)
-    # Convert SQLAlchemy models to Pydantic response models
     certification_responses = [CertificationResponse.model_validate(cert) for cert in certifications]
     return success_response(
         data=certification_responses,
@@ -232,7 +217,6 @@ async def get_certification_by_id(id: int, current_user: User = Depends(get_curr
     certification = repo.get_certification_by_id(id)
     validate_entity_exists(certification, "Certification")
     validate_ownership(certification.user_id, current_user.id, "Certification")
-    # Convert SQLAlchemy model to Pydantic response model
     certification_response = CertificationResponse.model_validate(certification)
     return success_response(
         data=certification_response,
@@ -245,7 +229,6 @@ async def add_certification(data: CertificationCreate, current_user: User = Depe
     """Add new certification"""
     repo = CertificationRepository(db)
     created_certification = repo.create_certification(current_user.id, data)
-    # Convert SQLAlchemy model to Pydantic response model
     certification_response = CertificationResponse.model_validate(created_certification)
     return success_response(
         data=certification_response,
@@ -260,7 +243,6 @@ async def update_certification(id: int, data: CertificationUpdate, current_user:
     updated = repo.update_certification(id, data.dict(exclude_unset=True))
     validate_entity_exists(updated, "Certification")
     validate_ownership(updated.user_id, current_user.id, "Certification")
-    # Convert SQLAlchemy model to Pydantic response model
     certification_response = CertificationResponse.model_validate(updated)
     return success_response(
         data=certification_response,
@@ -279,7 +261,6 @@ async def delete_certification(id: int, current_user: User = Depends(get_current
         message="Certification deleted successfully"
     )
 
-# Projects
 @router.get("/projects", response_model=SuccessResponse, tags=["Profile Projects"])
 @handle_errors
 async def get_my_projects(
@@ -291,10 +272,8 @@ async def get_my_projects(
     
     repo = ProjectRepository(db)
     projects = repo.get_projects_by_user(current_user.id)
-    # Convert SQLAlchemy models to Pydantic response models
     project_responses = [ProjectResponse.model_validate(proj) for proj in projects]
     
-    # Add base URL to image paths in response
     base_url = settings.BASE_URL
     
     for project_response in project_responses:
@@ -321,10 +300,8 @@ async def get_project_by_id(
     project = repo.get_project_by_id(id)
     validate_entity_exists(project, "Project")
     validate_ownership(project.user_id, current_user.id, "Project")
-    # Convert SQLAlchemy model to Pydantic response model
     project_response = ProjectResponse.model_validate(project)
     
-    # Add base URL to image paths in response
     base_url = settings.BASE_URL
     
     for img in project_response.images:
@@ -357,7 +334,6 @@ async def add_project(
     from ..core.logging_config import logger
     from fastapi import HTTPException
 
-    # Parse dates with error handling
     from_date_parsed = None
     to_date_parsed = None
     
@@ -375,7 +351,6 @@ async def add_project(
         logger.warning(f"Invalid to_date format: {to_date}, error: {e}")
         to_date_parsed = None
 
-    # Prepare project data
     project_data = {
         "project_name": project_name,
         "role": role,
@@ -385,7 +360,6 @@ async def add_project(
         "description": description
     }
 
-    # Use repository to create project
     try:
         repo = ProjectRepository(db)
         project = repo.create_project(current_user.id, project_data)
@@ -393,7 +367,6 @@ async def add_project(
         logger.error(f"Error creating project in repository: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Couldn't save projects")
 
-    # Handle image uploads if provided
     if images:
         try:
             upload_dir = "static/projects"
@@ -410,32 +383,26 @@ async def add_project(
                         normalized_path = file_path.replace('\\', '/')
                         rel_path = f"/{normalized_path}"
                         
-                        # Create image object
                         image_obj = ProjectImage(project_id=project.id, image=rel_path)
                         db.add(image_obj)
                     except Exception as e:
                         logger.error(f"Error uploading image {img.filename}: {e}", exc_info=True)
-                        # Continue with other images even if one fails
             
             db.commit()
             db.refresh(project)
         except Exception as e:
             logger.error(f"Error handling project images: {e}", exc_info=True)
             db.rollback()
-            # Don't fail the whole request if image upload fails
 
-    # Convert to response model
     try:
         project_response = ProjectResponse.model_validate(project)
         
-        # Add base URL to image paths in response
         if request:
             base_url = str(request.base_url).rstrip("/")
             for img in project_response.images:
                 if img.image and not img.image.startswith("http"):
                     img.image = f"{base_url}{img.image}"
         else:
-            # Fallback if request is not available
             from ..core.config import settings
             base_url = settings.BASE_URL
             for img in project_response.images:
@@ -471,12 +438,10 @@ async def update_project(
     
     repo = ProjectRepository(db)
     
-    # Check if project exists and belongs to user
     project = repo.get_project_by_id(id)
     validate_entity_exists(project, "Project")
     validate_ownership(project.user_id, current_user.id, "Project")
     
-    # Prepare update data
     update_data = {}
     if project_name is not None:
         update_data['project_name'] = project_name
@@ -491,7 +456,6 @@ async def update_project(
     if description is not None:
         update_data['description'] = description
     
-    # Handle image updates if provided
     if images:
         image_urls = []
         upload_dir = "static/projects"
@@ -511,14 +475,11 @@ async def update_project(
         if image_urls:
             update_data['images'] = image_urls
     
-    # Update project
     updated = repo.update_project(id, update_data)
     validate_entity_exists(updated, "Project")
     
-    # Convert SQLAlchemy model to Pydantic response model
     project_response = ProjectResponse.model_validate(updated)
     
-    # Add base URL to image paths in response
     base_url = str(request.base_url).rstrip("/")
     for img in project_response.images:
         if img.image and not img.image.startswith("http"):
@@ -567,12 +528,10 @@ async def upload_avatar(file: UploadFile = File(...), current_user: User = Depen
 @handle_errors
 async def update_user_language(data: UserLanguageUpdate, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     """Update user language"""
-    # Check if language exists
     language_repo = LanguageRepository(db)
     language = language_repo.get(data.language_id)
     validate_entity_exists(language, "Language")
 
-    # Update user's language
     current_user.language_id = data.language_id
     db.commit()
     db.refresh(current_user)
@@ -583,7 +542,6 @@ async def update_user_language(data: UserLanguageUpdate, current_user: User = De
         message="Language updated successfully"
     )
 
-# Category Management Endpoints
 @router.get("/categories", response_model=SuccessResponse, tags=["Profile Categories"])
 @handle_errors
 async def get_categories(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):

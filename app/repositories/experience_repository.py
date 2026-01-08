@@ -9,7 +9,6 @@ class ExperienceRepository:
         self.db = db
 
     def create_experience(self, user_id: int, data: ExperienceCreate) -> Experience:
-        # Support both Pydantic v1 and v2
         if hasattr(data, 'model_dump'):
             exp_data = data.model_dump(exclude_unset=True)
         else:
@@ -20,24 +19,18 @@ class ExperienceRepository:
         
         if company_name:
             try:
-                # Check if company already exists using partial matching
-                # First try exact match
                 company = self.db.query(Company).filter(Company.name == company_name, Company.is_deleted == False).first()
                 if not company:
-                    # Then try partial match (company_name is contained in existing company name)
                     company = self.db.query(Company).filter(Company.name.contains(company_name), Company.is_deleted == False).first()
                 if not company:
-                    # Finally try reverse partial match (existing company name is contained in company_name)
                     company = self.db.query(Company).filter(Company.name.op('LIKE')(f'%{company_name}%'), Company.is_deleted == False).first()
                 if not company:
-                    # Create new company only if no match found
                     company = Company(name=company_name, icon=None)
                     self.db.add(company)
-                    self.db.flush()  # Use flush instead of commit to keep transaction
+                    self.db.flush()
                     self.db.refresh(company)
                 company_id = company.id
             except Exception as e:
-                # Log error but continue without company_id
                 from ..core.logging_config import logger
                 logger.error(f"Error processing company_name in create_experience: {e}", exc_info=True)
         
@@ -61,33 +54,24 @@ class ExperienceRepository:
             return None
         
         try:
-            # Handle company_name update separately
             company_name = update_data.pop('company_name', None)
             if company_name:
                 try:
-                    # Check if company exists using partial matching
-                    # First try exact match
                     company = self.db.query(Company).filter(Company.name == company_name, Company.is_deleted == False).first()
                     if not company:
-                        # Then try partial match (company_name is contained in existing company name)
                         company = self.db.query(Company).filter(Company.name.contains(company_name), Company.is_deleted == False).first()
                     if not company:
-                        # Finally try reverse partial match (existing company name is contained in company_name)
                         company = self.db.query(Company).filter(Company.name.op('LIKE')(f'%{company_name}%'), Company.is_deleted == False).first()
                     if not company:
-                        # Create new company if no match found
                         company = Company(name=company_name, icon=None)
                         self.db.add(company)
-                        self.db.flush()  # Use flush instead of commit to keep transaction
+                        self.db.flush()
                         self.db.refresh(company)
-                    # Update company_id
                     exp.company_id = company.id
                 except Exception as e:
-                    # Log error but continue without company_id
                     from ..core.logging_config import logger
                     logger.error(f"Error processing company_name in update_experience: {e}", exc_info=True)
             
-            # Update other fields
             for k, v in update_data.items():
                 if hasattr(exp, k):
                     setattr(exp, k, v)

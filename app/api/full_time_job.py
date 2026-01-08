@@ -22,7 +22,7 @@ from ..utils.response_helpers import (
     forbidden_error,
     validate_entity_exists
 )
-from ..utils.permissions import has_permission, Permission
+from ..utils.permissions import has_permission, Permission, is_admin_user, check_admin_or_owner
 from ..models.team_member import TeamMemberRole, TeamMemberStatus
 from ..models.user import User
 
@@ -36,16 +36,13 @@ def get_current_user_optional(authorization: Optional[str] = Header(None)) -> Op
     
     try:
         token = authorization.split(" ")[1]
-        # Import here to avoid circular imports
         from ..utils.auth import verify_token
         from ..repositories.user_repository import UserRepository
         from ..db.database import get_db
         
-        # Get database session
         db = next(get_db())
         user_repo = UserRepository(db)
         
-        # Verify token and get user
         payload = verify_token(token)
         if payload and 'sub' in payload:
             user_id = int(payload['sub'])
@@ -70,14 +67,12 @@ def check_job_access_permission(
     corporate_repo = CorporateProfileRepository(db)
     team_repo = TeamMemberRepository(db)
     
-    # Get job details
     job = job_repo.get_by_id(job_id, user_id)
     if not job:
         return False, {}, "Full-time job not found"
     
     corporate_profile_id = job['company_id']
     
-    # Check if corporate profile exists and is active
     profile = corporate_repo.get_by_id(corporate_profile_id)
     if not profile:
         return False, job, "Corporate profile not found"
@@ -85,16 +80,13 @@ def check_job_access_permission(
     if not profile.is_active:
         return False, job, "Corporate profile is not active"
     
-    # Check if user is owner
     if profile.user_id == user_id:
         return True, job, ""
     
-    # Check if user is team member with required permission
     team_member = team_repo.get_by_user_and_corporate_profile(user_id, corporate_profile_id)
     if not team_member or team_member.status != TeamMemberStatus.ACCEPTED:
         return False, job, "You don't have access to this job"
     
-    # Check permission
     if not has_permission(user_id, corporate_profile_id, required_permission, db):
         return False, job, f"You don't have permission to {required_permission.value.replace('_', ' ')} this job"
     
@@ -106,17 +98,15 @@ def get_user_corporate_profiles(user_id: int, db: Session) -> List[int]:
     corporate_repo = CorporateProfileRepository(db)
     team_repo = TeamMemberRepository(db)
     
-    # Get owned profiles
     owned_profile = corporate_repo.get_by_user_id(user_id)
     corporate_profile_ids = []
     if owned_profile:
         corporate_profile_ids.append(owned_profile.id)
     
-    # Get team member profiles
     team_memberships = team_repo.get_user_team_memberships_accepted(user_id)
     corporate_profile_ids.extend([membership.corporate_profile_id for membership in team_memberships])
     
-    return list(set(corporate_profile_ids))  # Remove duplicates
+    return list(set(corporate_profile_ids))
 
 
 @router.post("/", response_model=SuccessResponse, tags=["Full Time Job"])
@@ -131,36 +121,32 @@ async def create_full_time_job(
     job_repo = FullTimeJobRepository(db)
     team_repo = TeamMemberRepository(db)
     
-    # Get corporate_profile_id from request body
     corporate_profile_id = full_time_job.corporate_profile_id
     
-    # 1. Check if corporate profile exists and is active
     profile = corporate_repo.get_by_id(corporate_profile_id)
     validate_entity_exists(profile, "Corporate profile")
     
     if not profile.is_active or not profile.is_verified:
         raise bad_request_error("Corporate profile must be verified and active to create jobs")
     
-    # 2. Check user permissions for this corporate profile
     user_role = None
     can_create_jobs = False
     
-    # Check if user is the owner
-    if profile.user_id == current_user.id:
+    if is_admin_user(current_user.email):
+        can_create_jobs = True
+        user_role = TeamMemberRole.OWNER
+    elif profile.user_id == current_user.id:
         user_role = TeamMemberRole.OWNER
         can_create_jobs = True
     else:
-        # Check if user is a team member with create_job permission
         team_member = team_repo.get_by_user_and_corporate_profile(current_user.id, corporate_profile_id)
         if team_member and team_member.status == TeamMemberStatus.ACCEPTED:
             user_role = team_member.role
-            # Check if role has create_job permission
             can_create_jobs = has_permission(current_user.id, corporate_profile_id, Permission.CREATE_JOB, db)
     
     if not can_create_jobs:
         raise forbidden_error("You don't have permission to create jobs for this company")
     
-    # 3. Create the job with context (returns formatted dict)
     formatted_job = job_repo.create_with_context(
         full_time_job, 
         corporate_profile_id, 
@@ -168,7 +154,6 @@ async def create_full_time_job(
         user_role
     )
     
-    # 4. Return success response with job data
     return success_response(
         data=formatted_job,
         message="Full time job successfully created"
@@ -179,19 +164,57 @@ async def create_full_time_job(
 async def get_all_full_time_jobs(
     page: int = Query(1, ge=1),
     size: int = Query(10, ge=1, le=100),
+    title: Optional[str] = Query(None, description="Filter by job title (partial match)"),
+    location: Optional[str] = Query(None, description="Filter by location (partial match)"),
+    experience_level: Optional[str] = Query(None, description="Filter by experience level"),
+    work_mode: Optional[str] = Query(None, description="Filter by work mode"),
+    skill_ids: Optional[str] = Query(None, description="Comma-separated list of skill IDs"),
     category_id: Optional[int] = Query(None, description="Filter by category ID"),
     subcategory_id: Optional[int] = Query(None, description="Filter by subcategory ID"),
+    min_salary: Optional[float] = Query(None, ge=0, description="Filter by minimum salary"),
+    max_salary: Optional[float] = Query(None, ge=0, description="Filter by maximum salary"),
     db: Session = Depends(get_db),
     current_user: Optional[dict] = Depends(get_current_user_optional)
 ):
-    """Get all full-time jobs with pagination"""
+    """Get all full-time jobs with pagination and filters"""
     job_repo = FullTimeJobRepository(db)
     skip = (page - 1) * size
     
-    jobs = job_repo.get_all_active(skip=skip, limit=size, current_user_id=current_user.id if current_user else None, category_id=category_id, subcategory_id=subcategory_id)
-    total = job_repo.count_active()
+    skill_id_list = None
+    if skill_ids:
+        try:
+            skill_id_list = [int(id.strip()) for id in skill_ids.split(',') if id.strip()]
+        except ValueError:
+            from ..utils.response_helpers import bad_request_error
+            raise bad_request_error("Invalid skill_ids format. Use comma-separated integers.")
     
-    # Convert dict responses to FullTimeJobResponse objects
+    jobs = job_repo.get_all_active(
+        skip=skip, 
+        limit=size, 
+        current_user_id=current_user.id if current_user else None, 
+        category_id=category_id, 
+        subcategory_id=subcategory_id,
+        title=title,
+        location=location,
+        experience_level=experience_level,
+        work_mode=work_mode,
+        skill_ids=skill_id_list,
+        min_salary=min_salary,
+        max_salary=max_salary
+    )
+    
+    total = job_repo.count_active(
+        category_id=category_id,
+        subcategory_id=subcategory_id,
+        title=title,
+        location=location,
+        experience_level=experience_level,
+        work_mode=work_mode,
+        skill_ids=skill_id_list,
+        min_salary=min_salary,
+        max_salary=max_salary
+    )
+    
     response_jobs = []
     for job in jobs:
         response_data = FullTimeJobResponse(**job)
@@ -226,7 +249,6 @@ async def search_full_time_jobs(
     job_repo = FullTimeJobRepository(db)
     skip = (page - 1) * size
     
-    # Parse skill_ids from comma-separated string
     skill_id_list = None
     if skill_ids:
         try:
@@ -249,7 +271,6 @@ async def search_full_time_jobs(
         current_user_id=current_user.id if current_user else None
     )
     
-    # Convert dict responses to FullTimeJobResponse objects
     response_jobs = []
     for job in jobs:
         response_data = FullTimeJobResponse(**job)
@@ -257,7 +278,7 @@ async def search_full_time_jobs(
     
     return FullTimeJobListResponse(
         jobs=response_jobs,
-        total=len(response_jobs),  # For search, we return actual results count
+        total=len(response_jobs),
         page=page,
         size=size
     )
@@ -274,11 +295,9 @@ async def get_my_full_time_jobs(
     job_repo = FullTimeJobRepository(db)
     skip = (page - 1) * size
     
-    # Get all jobs user can access (from owned and team member corporate profiles)
     jobs = job_repo.get_user_accessible_jobs(current_user.id, skip=skip, limit=size)
     total = job_repo.count_user_accessible_jobs(current_user.id)
     
-    # Convert dict responses to FullTimeJobResponse objects
     response_jobs = []
     for job in jobs:
         response_data = FullTimeJobResponse(**job)
@@ -311,7 +330,6 @@ async def get_my_full_time_jobs_with_filters(
     job_repo = FullTimeJobRepository(db)
     skip = (page - 1) * size
     
-    # Get user's accessible corporate profiles
     corporate_profile_ids = get_user_corporate_profiles(current_user.id, db)
     
     if not corporate_profile_ids:
@@ -322,7 +340,6 @@ async def get_my_full_time_jobs_with_filters(
             size=size
         )
     
-    # Get filtered jobs from accessible corporate profiles
     jobs = job_repo.get_by_corporate_profiles_with_filters(
         corporate_profile_ids=corporate_profile_ids,
         skip=skip,
@@ -348,7 +365,6 @@ async def get_my_full_time_jobs_with_filters(
         max_salary=max_salary
     )
     
-    # Convert dict responses to FullTimeJobResponse objects
     response_jobs = []
     for job in jobs:
         response_data = FullTimeJobResponse(**job)
@@ -374,11 +390,9 @@ async def get_full_time_job(
     corporate_repo = CorporateProfileRepository(db)
     team_repo = TeamMemberRepository(db)
     
-    # Get job details
     job_data = job_repo.get_by_id(job_id, current_user.id if current_user else None)
     validate_entity_exists(job_data, "Full-time job")
     
-    # Check if corporate profile exists and is active
     corporate_profile_id = job_data['company_id']
     profile = corporate_repo.get_by_id(corporate_profile_id)
     validate_entity_exists(profile, "Corporate profile")
@@ -386,27 +400,22 @@ async def get_full_time_job(
     if not profile.is_active:
         raise not_found_error("Corporate profile is not active")
     
-    # Check if user is owner or team member (can view any status)
     is_owner_or_team_member = False
     if current_user:
-        # Check if user is owner
         if profile.user_id == current_user.id:
             is_owner_or_team_member = True
         else:
-            # Check if user is team member
             team_member = team_repo.get_by_user_and_corporate_profile(
                 current_user.id, corporate_profile_id
             )
             if team_member and team_member.status == TeamMemberStatus.ACCEPTED:
                 is_owner_or_team_member = True
     
-    # If user is not owner/team member, only allow viewing ACTIVE jobs
     if not is_owner_or_team_member:
         job_status = job_data.get('status', '')
         if job_status != 'ACTIVE':
             raise not_found_error("Full-time job not found")
     
-    # Convert dict response to FullTimeJobResponse object
     response_data = FullTimeJobResponse(**job_data)
     
     return response_data
@@ -420,24 +429,26 @@ async def update_full_time_job(
     current_user: dict = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Update full-time job (requires UPDATE_JOB permission)"""
-    # Check if user has permission to update this job
-    has_access, job_data, error_msg = check_job_access_permission(
-        current_user.id, job_id, Permission.UPDATE_JOB, db
-    )
+    """Update full-time job (requires UPDATE_JOB permission or admin)"""
+    if is_admin_user(current_user.email):
+        job_repo = FullTimeJobRepository(db)
+        job_data = job_repo.get_by_id(job_id, current_user.id)
+        validate_entity_exists(job_data, "Full-time job")
+    else:
+        has_access, job_data, error_msg = check_job_access_permission(
+            current_user.id, job_id, Permission.UPDATE_JOB, db
+        )
+        
+        if not has_access:
+            if "not found" in error_msg.lower():
+                raise not_found_error(error_msg)
+            else:
+                raise forbidden_error(error_msg)
     
-    if not has_access:
-        if "not found" in error_msg.lower():
-            raise not_found_error(error_msg)
-        else:
-            raise forbidden_error(error_msg)
-    
-    # Update the job
     job_repo = FullTimeJobRepository(db)
     updated_job = job_repo.update(job_id, full_time_job)
     validate_entity_exists(updated_job, "Full-time job")
     
-    # Convert dict response to FullTimeJobResponse object
     response_data = FullTimeJobResponse(**updated_job)
     
     return response_data
@@ -450,19 +461,22 @@ async def delete_full_time_job(
     current_user: dict = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Delete full-time job (requires DELETE_JOB permission)"""
-    # Check if user has permission to delete this job
-    has_access, job_data, error_msg = check_job_access_permission(
-        current_user.id, job_id, Permission.DELETE_JOB, db
-    )
+    """Delete full-time job (requires DELETE_JOB permission or admin)"""
+    if is_admin_user(current_user.email):
+        job_repo = FullTimeJobRepository(db)
+        job_data = job_repo.get_by_id(job_id, current_user.id)
+        validate_entity_exists(job_data, "Full-time job")
+    else:
+        has_access, job_data, error_msg = check_job_access_permission(
+            current_user.id, job_id, Permission.DELETE_JOB, db
+        )
+        
+        if not has_access:
+            if "not found" in error_msg.lower():
+                raise not_found_error(error_msg)
+            else:
+                raise forbidden_error(error_msg)
     
-    if not has_access:
-        if "not found" in error_msg.lower():
-            raise not_found_error(error_msg)
-        else:
-            raise forbidden_error(error_msg)
-    
-    # Delete the job
     job_repo = FullTimeJobRepository(db)
     success = job_repo.delete(job_id)
     if not success:
@@ -480,7 +494,6 @@ async def change_job_status(
     db: Session = Depends(get_db)
 ):
     """Change job status (requires UPDATE_JOB permission)"""
-    # Check if user has permission to update this job
     has_access, job_data, error_msg = check_job_access_permission(
         current_user.id, job_id, Permission.UPDATE_JOB, db
     )
@@ -491,12 +504,10 @@ async def change_job_status(
         else:
             raise forbidden_error(error_msg)
     
-    # Change status
     job_repo = FullTimeJobRepository(db)
     updated_job = job_repo.change_status(job_id, new_status)
     validate_entity_exists(updated_job, "Full-time job")
     
-    # Convert dict response to FullTimeJobResponse object
     response_data = FullTimeJobResponse(**updated_job)
     
     return response_data

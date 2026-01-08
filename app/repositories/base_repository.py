@@ -38,7 +38,6 @@ class BaseRepository(Generic[ModelType]):
         """
         query = self.db.query(self.model).filter(self.model.id == id)
         
-        # Filter deleted entities if model has is_deleted attribute
         if hasattr(self.model, 'is_deleted') and not include_deleted:
             query = query.filter(self.model.is_deleted == False)
         
@@ -65,11 +64,9 @@ class BaseRepository(Generic[ModelType]):
         """
         query = self.db.query(self.model)
         
-        # Filter deleted entities if model has is_deleted attribute
         if hasattr(self.model, 'is_deleted') and not include_deleted:
             query = query.filter(self.model.is_deleted == False)
         
-        # Apply additional filters
         if filters:
             for key, value in filters.items():
                 if hasattr(self.model, key):
@@ -90,11 +87,9 @@ class BaseRepository(Generic[ModelType]):
         """
         query = self.db.query(self.model)
         
-        # Filter deleted entities if model has is_deleted attribute
         if hasattr(self.model, 'is_deleted') and not include_deleted:
             query = query.filter(self.model.is_deleted == False)
         
-        # Apply additional filters
         if filters:
             for key, value in filters.items():
                 if hasattr(self.model, key):
@@ -130,18 +125,15 @@ class BaseRepository(Generic[ModelType]):
         Returns:
             Updated entity or None if not found
         """
-        # Call base class method directly to avoid static method shadowing
         instance = BaseRepository.get_by_id(self, id)
         if not instance:
             return None
         
-        # Handle Pydantic models
         if hasattr(data, 'dict'):
             update_data = data.dict(exclude_unset=exclude_unset)
         elif isinstance(data, dict):
             update_data = data
         else:
-            # Try to convert to dict
             update_data = dict(data) if hasattr(data, '__dict__') else {}
         
         for key, value in update_data.items():
@@ -163,9 +155,6 @@ class BaseRepository(Generic[ModelType]):
         Returns:
             True if deleted, False if not found
         """
-        # Call base class method directly to avoid static method shadowing
-        # For hard delete, we need to find the entity even if soft-deleted
-        # For soft delete, we only want to find non-deleted entities
         include_deleted = hard_delete
         instance = BaseRepository.get_by_id(self, id, include_deleted=include_deleted)
         if not instance:
@@ -174,11 +163,9 @@ class BaseRepository(Generic[ModelType]):
         if hard_delete:
             self.db.delete(instance)
         else:
-            # Soft delete if model has is_deleted attribute
             if hasattr(instance, 'is_deleted'):
                 instance.is_deleted = True
             else:
-                # Fallback to hard delete if soft delete not supported
                 self.db.delete(instance)
         
         self.db.commit()
@@ -195,7 +182,6 @@ class BaseRepository(Generic[ModelType]):
         Returns:
             True if exists, False otherwise
         """
-        # Call base class method directly to avoid static method shadowing
         return BaseRepository.get_by_id(self, id, include_deleted) is not None
     
     def search(
@@ -224,11 +210,9 @@ class BaseRepository(Generic[ModelType]):
         
         query = self.db.query(self.model)
         
-        # Filter deleted entities if model has is_deleted attribute
         if hasattr(self.model, 'is_deleted'):
             query = query.filter(self.model.is_deleted == False)
         
-        # Apply search filter
         field = getattr(self.model, search_field)
         if case_sensitive:
             query = query.filter(field.contains(search_term))

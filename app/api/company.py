@@ -11,8 +11,10 @@ from ..utils.response_helpers import (
     success_response,
     not_found_error,
     bad_request_error,
-    validate_entity_exists
+    validate_entity_exists,
+    forbidden_error
 )
+from ..utils.permissions import is_admin_user
 from typing import List
 
 router = APIRouter(prefix="/companies", tags=["Companies"])
@@ -67,7 +69,6 @@ async def create_company(
     """Create a new company"""
     repo = CompanyRepository(db)
     
-    # Check if company with same name already exists
     existing_company = repo.get_company_by_name(company.name)
     if existing_company:
         raise bad_request_error("Company with this name already exists")
@@ -88,14 +89,14 @@ async def update_company(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Update an existing company"""
+    """Update an existing company (admin only)"""
+    if not is_admin_user(current_user.email):
+        raise forbidden_error("Only admin can update companies")
     repo = CompanyRepository(db)
     
-    # Check if company exists
     existing_company = repo.get_company_by_id(company_id)
     validate_entity_exists(existing_company, "Company")
     
-    # If updating name, check for duplicates
     if company.name and company.name != existing_company.name:
         duplicate_company = repo.get_company_by_name(company.name)
         if duplicate_company:
@@ -116,10 +117,11 @@ async def delete_company(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Delete a company (soft delete)"""
+    """Delete a company (soft delete, admin only)"""
+    if not is_admin_user(current_user.email):
+        raise forbidden_error("Only admin can delete companies")
     repo = CompanyRepository(db)
     
-    # Check if company exists
     existing_company = repo.get_company_by_id(company_id)
     validate_entity_exists(existing_company, "Company")
     

@@ -40,11 +40,10 @@ class PayPeriod(str, Enum):
     PER_YEAR = "PER_YEAR"
 
 
-# Base schema
 class FullTimeJobBase(BaseModel):
     title: str
     description: str
-    responsibilities: Optional[str] = None  # JSON string for responsibilities list
+    responsibilities: Optional[str] = None
     location: str = "Worldwide"
     job_type: JobType = JobType.FULL_TIME
     work_mode: WorkMode = WorkMode.ON_SITE
@@ -59,12 +58,10 @@ class FullTimeJobBase(BaseModel):
     corporate_profile_id: int = Field(..., description="Corporate profile ID")
 
 
-# Create schema
 class FullTimeJobCreate(FullTimeJobBase):
     pass
 
 
-# Update schema
 class FullTimeJobUpdate(BaseModel):
     title: Optional[str] = None
     description: Optional[str] = None
@@ -82,7 +79,6 @@ class FullTimeJobUpdate(BaseModel):
     subcategory_id: Optional[int] = None
 
 
-# Response schema
 class FullTimeJobResponse(BaseModel):
     id: int
     title: str
@@ -120,7 +116,6 @@ class FullTimeJobResponse(BaseModel):
         from_attributes = True
 
 
-# List response schema
 class FullTimeJobListResponse(BaseModel):
     jobs: List[FullTimeJobResponse]
     total: int
@@ -128,7 +123,6 @@ class FullTimeJobListResponse(BaseModel):
     size: int
 
 
-# User jobs response schema
 class UserFullTimeJobsResponse(BaseModel):
     user_jobs: List[FullTimeJobResponse]
     total: int

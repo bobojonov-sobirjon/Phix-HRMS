@@ -41,5 +41,4 @@ class CategorySearch(BaseModel):
     is_active: Optional[bool] = Field(None, description="Filter by active status")
 
 
-# Update forward references
 CategoryWithChildren.model_rebuild()

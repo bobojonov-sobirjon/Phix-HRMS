@@ -27,7 +27,6 @@ router = APIRouter(tags=["Education Facilities"])
 async def create_education_facility(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
-    # Query parametrlari swagger'da ko'rsatilishi uchun
     name: str = Query(..., description="Education facility name", example="Mansoura University"),
     icon: str = Query(None, description="Icon URL or path", example="https://example.com/icon.png"),
     country: str = Query(None, description="Country name", example="Egypt")
@@ -35,7 +34,6 @@ async def create_education_facility(
     """Create a new education facility"""
     repository = EducationFacilityRepository(db)
     
-    # Check if facility with same name already exists
     existing_facility = repository.get_education_facility_by_name(name)
     if existing_facility:
         raise bad_request_error("Education facility with this name already exists")
@@ -74,13 +72,12 @@ async def get_education_facilities(
     
     if search:
         facilities = repository.search_education_facilities(search, skip, limit)
-        total = len(facilities)  # For search, we get total from results
+        total = len(facilities)
     elif country:
         facilities = repository.get_education_facilities_by_country(country, skip, limit)
-        total = len(facilities)  # For country filter, we get total from results
+        total = len(facilities)
     else:
         facilities = repository.get_all_education_facilities(skip, limit)
-        # Get total count for pagination
         total = db.query(repository.db.query(EducationFacility).filter(
             EducationFacility.is_deleted == False
         ).subquery()).count()
@@ -103,17 +100,14 @@ async def update_education_facility(
     """Update education facility"""
     repository = EducationFacilityRepository(db)
     
-    # Check if facility exists
     existing_facility = repository.get_education_facility_by_id(facility_id)
     validate_entity_exists(existing_facility, "Education facility")
     
-    # If name is being updated, check for duplicates
     if facility_data.name and facility_data.name != existing_facility.name:
         duplicate_facility = repository.get_education_facility_by_name(facility_data.name)
         if duplicate_facility:
             raise bad_request_error("Education facility with this name already exists")
     
-    # Remove None values
     update_data = {k: v for k, v in facility_data.dict().items() if v is not None}
     
     if update_data:
@@ -132,7 +126,6 @@ async def delete_education_facility(
     """Delete education facility (soft delete)"""
     repository = EducationFacilityRepository(db)
     
-    # Check if facility exists
     existing_facility = repository.get_education_facility_by_id(facility_id)
     validate_entity_exists(existing_facility, "Education facility")
     

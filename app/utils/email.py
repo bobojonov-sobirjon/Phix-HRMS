@@ -10,7 +10,6 @@ from typing import Optional
 import socket
 
 
-# Thread pool executor for async email operations
 email_executor = ThreadPoolExecutor(max_workers=4, thread_name_prefix="email_worker")
 
 def test_smtp_connection(server: str, port: int, timeout: int = 5) -> bool:
@@ -27,17 +26,14 @@ def test_smtp_connection(server: str, port: int, timeout: int = 5) -> bool:
 def send_corporate_verification_email_sync(email: str, otp_code: str) -> bool:
     """Send corporate profile verification OTP code via email (synchronous version)"""
     try:
-        # First try Brevo if configured (free service - 300 emails/day)
         if settings.BREVO_API_KEY and settings.BREVO_FROM_EMAIL:
             from .brevo_email import send_email_brevo_sync
             if send_email_brevo_sync(email, otp_code, "corporate_verification"):
                 return True
         
-        # Check if email settings are configured
         if not settings.SMTP_USERNAME or not settings.SMTP_PASSWORD:
             return False
         
-        # Use the new retry mechanism with multiple SMTP configurations
         return send_email_with_retry(email, otp_code, "corporate_verification")
         
     except Exception as e:
@@ -46,7 +42,6 @@ def send_corporate_verification_email_sync(email: str, otp_code: str) -> bool:
 async def send_corporate_verification_email(email: str, otp_code: str) -> bool:
     """Send corporate profile verification OTP code via email (async version)"""
     try:
-        # Run email sending in thread pool to avoid blocking
         loop = asyncio.get_event_loop()
         result = await loop.run_in_executor(
             email_executor, 
@@ -61,7 +56,6 @@ async def send_corporate_verification_email(email: str, otp_code: str) -> bool:
 def send_email_with_retry(email: str, otp_code: str, email_type: str = "registration") -> bool:
     """Send email with multiple fallback methods"""
     
-    # Define multiple SMTP configurations to try
     smtp_configs = [
         {
             "name": "Gmail SSL (465)",
@@ -87,12 +81,10 @@ def send_email_with_retry(email: str, otp_code: str, email_type: str = "registra
     ]
     
     for config in smtp_configs:
-        # Test connection first
         if not test_smtp_connection(config['server'], config['port']):
             continue
             
         try:
-            # Create message - Use MIMEText instead of MIMEMultipart to avoid any header issues
             subject = f"Registration OTP - {settings.APP_NAME}" if email_type != "corporate_verification" else f"Corporate Profile Verification - {settings.APP_NAME}"
             
             if email_type == "corporate_verification":
@@ -123,13 +115,11 @@ def send_email_with_retry(email: str, otp_code: str, email_type: str = "registra
                 </html>
                 """
             
-            # Create simple MIMEText message to avoid any MIME header issues
             msg = MIMEText(body, 'html')
             msg['From'] = settings.SMTP_USERNAME
             msg['To'] = email
             msg['Subject'] = subject
             
-            # Create SMTP connection based on config
             if config['use_ssl']:
                 server = smtplib.SMTP_SSL(config['server'], config['port'], timeout=10)
             else:
@@ -137,7 +127,6 @@ def send_email_with_retry(email: str, otp_code: str, email_type: str = "registra
                 if config['use_tls']:
                     server.starttls()
             
-            # Login and send
             server.login(settings.SMTP_USERNAME, settings.SMTP_PASSWORD)
             
             text = msg.as_string()
@@ -151,25 +140,24 @@ def send_email_with_retry(email: str, otp_code: str, email_type: str = "registra
     
     return False
 
-def generate_otp(length: int = 6) -> str:
-    """Generate random OTP code"""
+def generate_otp(length: int = 6, email: Optional[str] = None) -> str:
+    """Generate random OTP code. Returns '1234' for test user (example@phix.com)"""
+    if email and email.lower() == "example@phix.com":
+        return "1234"
     return ''.join(random.choices(string.digits, k=length))
 
 def send_otp_email_sync(email: str, otp_code: str) -> bool:
     """Send OTP code via email (synchronous version)"""
     try:
-        # Check if email settings are configured
         if not settings.SMTP_USERNAME or not settings.SMTP_PASSWORD:
             return False
         
-        # Create message
         msg = MIMEMultipart()
         msg['From'] = settings.SMTP_USERNAME
         msg['To'] = email
         
         msg['Subject'] = f"Password Reset OTP - {settings.APP_NAME}"
         
-        # Email body
         body = f"""
         <html>
         <body>
@@ -186,7 +174,6 @@ def send_otp_email_sync(email: str, otp_code: str) -> bool:
         
         msg.attach(MIMEText(body, 'html'))
         
-        # Send email with optimized error handling
         server = smtplib.SMTP(settings.SMTP_SERVER, settings.SMTP_PORT, timeout=10)
         server.starttls()
         server.login(settings.SMTP_USERNAME, settings.SMTP_PASSWORD)
@@ -205,7 +192,6 @@ def send_otp_email_sync(email: str, otp_code: str) -> bool:
 async def send_otp_email(email: str, otp_code: str) -> bool:
     """Send OTP code via email (async version)"""
     try:
-        # Run email sending in thread pool to avoid blocking
         loop = asyncio.get_event_loop()
         result = await loop.run_in_executor(
             email_executor, 
@@ -220,17 +206,14 @@ async def send_otp_email(email: str, otp_code: str) -> bool:
 def send_registration_otp_email_sync(email: str, otp_code: str) -> bool:
     """Send registration verification OTP code via email (synchronous version)"""
     try:
-        # First try Brevo if configured (free service - 300 emails/day)
         if settings.BREVO_API_KEY and settings.BREVO_FROM_EMAIL:
             from .brevo_email import send_email_brevo_sync
             if send_email_brevo_sync(email, otp_code, "registration"):
                 return True
         
-        # Check if email settings are configured
         if not settings.SMTP_USERNAME or not settings.SMTP_PASSWORD:
             return False
         
-        # Use the new retry mechanism with multiple SMTP configurations
         return send_email_with_retry(email, otp_code, "registration")
         
     except Exception as e:
@@ -239,7 +222,6 @@ def send_registration_otp_email_sync(email: str, otp_code: str) -> bool:
 async def send_registration_otp_email(email: str, otp_code: str) -> bool:
     """Send registration verification OTP code via email (async version)"""
     try:
-        # Run email sending in thread pool to avoid blocking
         loop = asyncio.get_event_loop()
         result = await loop.run_in_executor(
             email_executor, 
@@ -255,13 +237,11 @@ async def send_otp_email_batch(emails_and_otps: list) -> dict:
     """Send OTP emails to multiple recipients concurrently"""
     results = {}
     
-    # Create tasks for all emails
     tasks = []
     for email, otp_code in emails_and_otps:
         task = asyncio.create_task(send_otp_email(email, otp_code))
         tasks.append((email, task))
     
-    # Wait for all emails to complete
     for email, task in tasks:
         try:
             success = await task
@@ -309,7 +289,6 @@ def send_email_with_fallback(email: str, otp_code: str, email_type: str = "regis
             continue
         
         try:
-            # Create message
             msg = MIMEMultipart()
             msg['From'] = service["username"]
             msg['To'] = email
@@ -348,13 +327,10 @@ def send_email_with_fallback(email: str, otp_code: str, email_type: str = "regis
             
             msg.attach(MIMEText(body, 'html'))
             
-            # Try different connection methods based on port
             if service["port"] == 465:
-                # Use SSL for port 465
                 import ssl
                 server = smtplib.SMTP_SSL(service["server"], service["port"], timeout=10)
             else:
-                # Use STARTTLS for port 587
                 server = smtplib.SMTP(service["server"], service["port"], timeout=10)
                 server.starttls()
             
@@ -372,13 +348,10 @@ def send_email_with_fallback(email: str, otp_code: str, email_type: str = "regis
 def send_email_simple_smtp(email: str, otp_code: str, email_type: str = "registration") -> bool:
     """Send email with SendGrid first, then fallback to SMTP"""
     try:
-        # Try SendGrid first (bypasses SMTP restrictions)
         if settings.SENDGRID_API_KEY:
             if send_email_sendgrid(email, otp_code, email_type):
                 return True
         
-        # Fallback to SMTP if SendGrid fails or not configured
-        # Use a simple approach - try different ports and methods
         smtp_servers = [
             {"name": "Gmail SSL (465)", "server": "smtp.gmail.com", "port": 465, "use_ssl": True},
             {"name": "Gmail TLS (587)", "server": "smtp.gmail.com", "port": 587, "use_ssl": False},
@@ -391,7 +364,6 @@ def send_email_simple_smtp(email: str, otp_code: str, email_type: str = "registr
                 continue
             
             try:
-                # Create message
                 msg = MIMEMultipart()
                 msg['From'] = settings.SMTP_USERNAME
                 msg['To'] = email
@@ -430,14 +402,12 @@ def send_email_simple_smtp(email: str, otp_code: str, email_type: str = "registr
                 
                 msg.attach(MIMEText(body, 'html'))
                 
-                # Connect to SMTP server
                 if smtp_config['use_ssl']:
                     server = smtplib.SMTP_SSL(smtp_config['server'], smtp_config['port'], timeout=15)
                 else:
                     server = smtplib.SMTP(smtp_config['server'], smtp_config['port'], timeout=15)
                     server.starttls()
                 
-                # Login and send
                 server.login(settings.SMTP_USERNAME, settings.SMTP_PASSWORD)
                 text = msg.as_string()
                 server.sendmail(settings.SMTP_USERNAME, email, text)
@@ -458,14 +428,12 @@ def send_email_sendgrid(email: str, otp_code: str, email_type: str = "registrati
         if not settings.SENDGRID_API_KEY:
             return False
         
-        # Import SendGrid (you'll need to install it: pip install sendgrid)
         try:
             from sendgrid import SendGridAPIClient
             from sendgrid.helpers.mail import Mail
         except ImportError:
             return False
         
-        # Create email message
         if email_type == "registration":
             subject = f"Email Verification - {settings.APP_NAME}"
             body = f"""
@@ -498,7 +466,6 @@ def send_email_sendgrid(email: str, otp_code: str, email_type: str = "registrati
             </html>
             """
         
-        # Create SendGrid message
         message = Mail(
             from_email=settings.SENDGRID_FROM_EMAIL,
             to_emails=email,
@@ -506,7 +473,6 @@ def send_email_sendgrid(email: str, otp_code: str, email_type: str = "registrati
             html_content=body
         )
         
-        # Send email
         sg = SendGridAPIClient(api_key=settings.SENDGRID_API_KEY)
         response = sg.send(message)
         
@@ -521,13 +487,11 @@ def send_email_sendgrid(email: str, otp_code: str, email_type: str = "registrati
 async def send_team_invitation_email(email: str, company_name: str, inviter_name: str, role: str) -> bool:
     """Send team invitation email to a user"""
     try:
-        # Create message
         msg = MIMEMultipart()
         msg['From'] = settings.SMTP_USERNAME
         msg['To'] = email
         msg['Subject'] = f"Team Invitation - {company_name}"
         
-        # Email body
         body = f"""
         <html>
         <body>
@@ -544,7 +508,6 @@ async def send_team_invitation_email(email: str, company_name: str, inviter_name
         
         msg.attach(MIMEText(body, 'html'))
         
-        # Try to send using available methods
         return await asyncio.get_event_loop().run_in_executor(
             email_executor, 
             lambda: send_email_with_retry(email, "", "team_invitation")
@@ -559,7 +522,6 @@ def send_team_invitation_email_sync(email: str, company_name: str, inviter_name:
     try:
         subject = f"Team Invitation from {company_name}"
         
-        # Create HTML content
         html_content = f"""
         <!DOCTYPE html>
         <html>
@@ -567,12 +529,12 @@ def send_team_invitation_email_sync(email: str, company_name: str, inviter_name:
             <meta charset="utf-8">
             <title>Team Invitation</title>
             <style>
-                body {{ font-family: Arial, sans-serif; line-height: 1.6; color: #333; }}
+                body {{ font-family: Arial, sans-serif; line-height: 1.6; color:
                 .container {{ max-width: 600px; margin: 0 auto; padding: 20px; }}
-                .header {{ background-color: #4CAF50; color: white; padding: 20px; text-align: center; }}
-                .content {{ padding: 20px; background-color: #f9f9f9; }}
-                .button {{ display: inline-block; padding: 12px 24px; background-color: #4CAF50; color: white; text-decoration: none; border-radius: 5px; margin: 20px 0; }}
-                .footer {{ text-align: center; padding: 20px; color: #666; font-size: 12px; }}
+                .header {{ background-color:
+                .content {{ padding: 20px; background-color:
+                .button {{ display: inline-block; padding: 12px 24px; background-color:
+                .footer {{ text-align: center; padding: 20px; color:
             </style>
         </head>
         <body>
@@ -594,7 +556,6 @@ def send_team_invitation_email_sync(email: str, company_name: str, inviter_name:
         </html>
         """
         
-        # Send email
         send_email_with_retry(
             email=email,
             subject=subject,
@@ -609,7 +570,6 @@ def send_team_invitation_email_sync(email: str, company_name: str, inviter_name:
 async def send_team_invitation_email(email: str, company_name: str, inviter_name: str, role: str):
     """Send team invitation email"""
     try:
-        # Run the sync function in a thread pool
         loop = asyncio.get_event_loop()
         with ThreadPoolExecutor() as executor:
             await loop.run_in_executor(
@@ -629,7 +589,6 @@ def send_team_invitation_email_direct(email: str, company_name: str, inviter_nam
     try:
         subject = f"Job Invitation - {company_name}"
         
-        # Create HTML content in English with Accept/Cancel buttons
         html_content = f"""
         <!DOCTYPE html>
         <html>
@@ -637,15 +596,15 @@ def send_team_invitation_email_direct(email: str, company_name: str, inviter_nam
             <meta charset="utf-8">
             <title>Job Invitation</title>
             <style>
-                body {{ font-family: Arial, sans-serif; line-height: 1.6; color: #333; }}
+                body {{ font-family: Arial, sans-serif; line-height: 1.6; color:
                 .container {{ max-width: 600px; margin: 0 auto; padding: 20px; }}
-                .header {{ background-color: #4CAF50; color: white; padding: 20px; text-align: center; }}
-                .content {{ padding: 20px; background-color: #f9f9f9; }}
+                .header {{ background-color:
+                .content {{ padding: 20px; background-color:
                 .button {{ display: inline-block; padding: 12px 24px; color: white; text-decoration: none; border-radius: 5px; margin: 10px; font-weight: bold; }}
-                .accept-btn {{ background-color: #4CAF50; }}
-                .cancel-btn {{ background-color: #f44336; }}
+                .accept-btn {{ background-color:
+                .cancel-btn {{ background-color:
                 .button-container {{ text-align: center; margin: 30px 0; }}
-                .footer {{ text-align: center; padding: 20px; color: #666; font-size: 12px; }}
+                .footer {{ text-align: center; padding: 20px; color:
             </style>
         </head>
         <body>
@@ -672,7 +631,6 @@ def send_team_invitation_email_direct(email: str, company_name: str, inviter_nam
         </html>
         """
         
-        # Use existing SMTP configurations
         smtp_configs = [
             {
                 "name": "Gmail SSL (465)",
@@ -708,13 +666,11 @@ def send_team_invitation_email_direct(email: str, company_name: str, inviter_nam
             }
         ]
         
-        # Try each SMTP configuration
         for config in smtp_configs:
             if not config["username"] or not config["password"]:
                 continue
                 
             try:
-                # Create message
                 msg = MIMEMultipart()
                 msg['From'] = config["username"]
                 msg['To'] = email
@@ -722,7 +678,6 @@ def send_team_invitation_email_direct(email: str, company_name: str, inviter_nam
                 
                 msg.attach(MIMEText(html_content, 'html'))
                 
-                # Connect and send
                 if config["use_ssl"]:
                     server = smtplib.SMTP_SSL(config["server"], config["port"])
                 else:
@@ -748,7 +703,6 @@ def send_team_invitation_email_direct(email: str, company_name: str, inviter_nam
 async def send_team_invitation_email_new(email: str, company_name: str, inviter_name: str, role: str, team_member_id: int = None):
     """Send team invitation email (new async version) with Accept/Cancel buttons"""
     try:
-        # Run the direct function in a thread pool
         loop = asyncio.get_event_loop()
         with ThreadPoolExecutor() as executor:
             await loop.run_in_executor(
@@ -769,7 +723,6 @@ def send_team_invitation_email_with_buttons(email: str, company_name: str, invit
     try:
         subject = f"Job Invitation - {company_name}"
         
-        # Create HTML content with Accept/Cancel buttons
         base_url = settings.BASE_URL.rstrip('/')
         accept_url = f"{base_url}/api/v1/team-members/accept-invitation?team_member_id={team_member_id}" if team_member_id else "#"
         reject_url = f"{base_url}/api/v1/team-members/reject-invitation?team_member_id={team_member_id}" if team_member_id else "#"
@@ -784,10 +737,10 @@ def send_team_invitation_email_with_buttons(email: str, company_name: str, invit
                 body {{ 
                     font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
                     line-height: 1.6; 
-                    color: #333; 
+                    color:
                     margin: 0; 
                     padding: 0; 
-                    background-color: #f8f9fa;
+                    background-color:
                 }}
                 .email-container {{ 
                     max-width: 600px; 
@@ -798,7 +751,7 @@ def send_team_invitation_email_with_buttons(email: str, company_name: str, invit
                     box-shadow: 0 4px 20px rgba(0,0,0,0.1);
                 }}
                 .header {{ 
-                    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                    background: linear-gradient(135deg,
                     color: white; 
                     padding: 30px 20px; 
                     text-align: center;
@@ -815,18 +768,18 @@ def send_team_invitation_email_with_buttons(email: str, company_name: str, invit
                 }}
                 .greeting {{ 
                     font-size: 18px; 
-                    color: #2c3e50; 
+                    color:
                     margin-bottom: 20px;
                 }}
                 .invitation-text {{ 
                     font-size: 16px; 
-                    color: #34495e; 
+                    color:
                     margin-bottom: 25px;
                     line-height: 1.7;
                 }}
                 .role-badge {{ 
                     display: inline-block; 
-                    background: linear-gradient(45deg, #3498db, #2980b9);
+                    background: linear-gradient(45deg,
                     color: white; 
                     padding: 8px 16px; 
                     border-radius: 20px; 
@@ -854,7 +807,7 @@ def send_team_invitation_email_with_buttons(email: str, company_name: str, invit
                     letter-spacing: 0.5px;
                 }}
                 .accept-btn {{ 
-                    background: linear-gradient(45deg, #27ae60, #2ecc71);
+                    background: linear-gradient(45deg,
                     color: white !important;
                 }}
                 .accept-btn:hover {{ 
@@ -863,7 +816,7 @@ def send_team_invitation_email_with_buttons(email: str, company_name: str, invit
                     color: white !important;
                 }}
                 .cancel-btn {{ 
-                    background: linear-gradient(45deg, #e74c3c, #c0392b);
+                    background: linear-gradient(45deg,
                     color: white !important;
                 }}
                 .cancel-btn:hover {{ 
@@ -874,21 +827,21 @@ def send_team_invitation_email_with_buttons(email: str, company_name: str, invit
                 .footer {{ 
                     text-align: center; 
                     padding: 25px; 
-                    background: #ecf0f1; 
-                    color: #7f8c8d; 
+                    background:
+                    color:
                     font-size: 13px;
                 }}
                 .company-name {{ 
-                    color: #2c3e50; 
+                    color:
                     font-weight: 600;
                 }}
                 .inviter-name {{ 
-                    color: #8e44ad; 
+                    color:
                     font-weight: 600;
                 }}
                 .divider {{ 
                     height: 1px; 
-                    background: linear-gradient(to right, transparent, #bdc3c7, transparent); 
+                    background: linear-gradient(to right, transparent,
                     margin: 30px 0;
                 }}
             </style>
@@ -932,7 +885,6 @@ def send_team_invitation_email_with_buttons(email: str, company_name: str, invit
         </html>
         """
         
-        # Use existing SMTP configurations
         smtp_configs = [
             {
                 "name": "Gmail SSL (465)",
@@ -952,13 +904,11 @@ def send_team_invitation_email_with_buttons(email: str, company_name: str, invit
             }
         ]
         
-        # Try each SMTP configuration
         for config in smtp_configs:
             if not config["username"] or not config["password"]:
                 continue
                 
             try:
-                # Create message
                 msg = MIMEMultipart()
                 msg['From'] = config["username"]
                 msg['To'] = email
@@ -966,7 +916,6 @@ def send_team_invitation_email_with_buttons(email: str, company_name: str, invit
                 
                 msg.attach(MIMEText(html_content, 'html'))
                 
-                # Connect and send
                 if config["use_ssl"]:
                     server = smtplib.SMTP_SSL(config["server"], config["port"])
                 else:

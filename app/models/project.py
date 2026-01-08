@@ -19,6 +19,5 @@ class Project(Base):
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
     is_deleted = Column(Boolean, default=False)
     
-    # Relationships
     user = relationship('User', back_populates='projects')
     images = relationship('ProjectImage', back_populates='project', cascade='all, delete-orphan') 

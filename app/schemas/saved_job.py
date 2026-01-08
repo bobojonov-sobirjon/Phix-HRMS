@@ -49,7 +49,6 @@ class SavedJobDetailedResponse(BaseModel):
     full_time_job_id: Optional[int] = None
     created_at: datetime
     
-    # Full details
     user: Optional[UserShortDetails] = None
     gig_job: Optional[GigJobResponse] = None
     full_time_job: Optional[FullTimeJobResponse] = None
@@ -94,18 +93,15 @@ class SavedJobDetailedResponse(BaseModel):
             "full_time_job": None
         }
         
-        # Include user details if available
         if hasattr(obj, 'user') and obj.user:
             data["user"] = UserShortDetails.model_validate(obj.user)
         
-        # Include gig job details if available
         if hasattr(obj, 'gig_job') and obj.gig_job and db_session:
             from ..repositories.gig_job_repository import GigJobRepository
             gig_repo = GigJobRepository(db_session)
             gig_data = gig_repo._prepare_gig_job_response(obj.gig_job, current_user_id)
             data["gig_job"] = gig_data
         
-        # Include full-time job details if available
         if hasattr(obj, 'full_time_job') and obj.full_time_job and db_session:
             from ..repositories.full_time_job_repository import FullTimeJobRepository
             ft_repo = FullTimeJobRepository(db_session)

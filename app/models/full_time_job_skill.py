@@ -10,7 +10,6 @@ class FullTimeJobSkill(Base):
     full_time_job_id = Column(Integer, ForeignKey("full_time_jobs.id"), nullable=False)
     skill_id = Column(Integer, ForeignKey("skills.id"), nullable=False)
     
-    # Timestamps
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     
     def __repr__(self):

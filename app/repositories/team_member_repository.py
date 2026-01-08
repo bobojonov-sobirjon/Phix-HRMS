@@ -14,12 +14,10 @@ class TeamMemberRepository:
 
     def create_team_member(self, team_member: TeamMemberCreate, corporate_profile_id: int, invited_by_user_id: int) -> TeamMember:
         """Create a new team member invitation"""
-        # Check if user exists
         user = self.db.query(User).filter(User.email == team_member.email).first()
         if not user:
             raise ValueError("User with this email does not exist")
         
-        # Check if user is already a team member
         existing_member = self.db.query(TeamMember).filter(
             and_(
                 TeamMember.corporate_profile_id == corporate_profile_id,
@@ -30,7 +28,6 @@ class TeamMemberRepository:
         if existing_member:
             raise ValueError("User is already a team member of this company")
         
-        # Create new team member
         db_team_member = TeamMember(
             corporate_profile_id=corporate_profile_id,
             user_id=user.id,
@@ -105,7 +102,6 @@ class TeamMemberRepository:
 
     def search_users(self, query: str, skip: int = 0, limit: int = 20) -> List[User]:
         """Search users by name or email"""
-        # Simple user search
         users = self.db.query(User).filter(
             and_(
                 or_(
@@ -138,13 +134,12 @@ class TeamMemberRepository:
         """Create owner team member for corporate profile creator"""
         from app.models.team_member import TeamMemberRole
         
-        # Create owner team member
         db_team_member = TeamMember(
             corporate_profile_id=corporate_profile_id,
             user_id=user_id,
-            invited_by_user_id=user_id,  # Self-invited as owner
+            invited_by_user_id=user_id,
             role=TeamMemberRole.OWNER,
-            status=TeamMemberStatus.ACCEPTED  # Auto-accepted for creator
+            status=TeamMemberStatus.ACCEPTED
         )
         
         self.db.add(db_team_member)

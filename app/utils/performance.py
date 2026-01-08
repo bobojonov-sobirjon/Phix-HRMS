@@ -26,8 +26,7 @@ class PerformanceMonitor:
             total = time.time() - conn.info['query_start_time'].pop(-1)
             self.query_times.append(total)
             
-            # Track slow queries
-            if total > 1.0:  # Track queries taking more than 1 second
+            if total > 1.0:
                 pass
     
     def get_database_stats(self) -> Dict[str, Any]:
@@ -39,7 +38,6 @@ class PerformanceMonitor:
                 "checked_in": pool.checkedin(),
                 "checked_out": pool.checkedout(),
                 "overflow": pool.overflow()
-                # Removed pool.invalid() as it doesn't exist in QueuePool
             }
         except Exception as e:
             return {}
@@ -89,7 +87,6 @@ class PerformanceMonitor:
         self.query_times.clear()
         self.request_times.clear()
 
-# Global performance monitor instance
 performance_monitor = PerformanceMonitor()
 
 def track_request_time(func):
@@ -101,8 +98,7 @@ def track_request_time(func):
             process_time = time.time() - start_time
             performance_monitor.request_times.append(process_time)
             
-            # Track slow requests
-            if process_time > 2.0:  # Track requests taking more than 2 seconds
+            if process_time > 2.0:
                 pass
             
             return result
@@ -122,12 +118,10 @@ async def monitor_performance_async():
         try:
             stats = performance_monitor.get_performance_stats()
             
-            # Track performance summary every 5 minutes
             if len(performance_monitor.query_times) > 0:
                 avg_query = sum(performance_monitor.query_times) / len(performance_monitor.query_times)
                 pass
             
-            # Check for performance issues
             system_metrics = stats.get("system_metrics", {})
             if system_metrics.get("cpu_percent", 0) > 80:
                 pass
@@ -135,7 +129,7 @@ async def monitor_performance_async():
             if system_metrics.get("memory_percent", 0) > 80:
                 pass
             
-            await asyncio.sleep(300)  # Check every 5 minutes
+            await asyncio.sleep(300)
             
         except Exception as e:
-            await asyncio.sleep(60)  # Wait 1 minute before retrying 
+            await asyncio.sleep(60)

@@ -15,14 +15,12 @@ class SavedJobRepository:
 
     def create(self, saved_job_data: SavedJobCreate, user_id: int) -> SavedJob:
         """Create a new saved job"""
-        # Validate that either gig_job_id or full_time_job_id is provided, but not both
         if not saved_job_data.gig_job_id and not saved_job_data.full_time_job_id:
             raise ValueError("Either gig_job_id or full_time_job_id must be provided")
         
         if saved_job_data.gig_job_id and saved_job_data.full_time_job_id:
             raise ValueError("Cannot save both gig_job_id and full_time_job_id in the same record")
 
-        # Check if already saved
         existing = self.get_by_user_and_job(
             user_id=user_id,
             gig_job_id=saved_job_data.gig_job_id,
@@ -88,10 +86,8 @@ class SavedJobRepository:
             joinedload(SavedJob.full_time_job).joinedload(FullTimeJob.skills)
         ).filter(SavedJob.user_id == user_id)
         
-        # Get total count
         total = query.count()
         
-        # Apply pagination
         saved_jobs = query.offset(pagination.offset).limit(pagination.limit).all()
         
         return saved_jobs, total
@@ -111,10 +107,8 @@ class SavedJobRepository:
             and_(SavedJob.user_id == user_id, SavedJob.gig_job_id.isnot(None))
         )
         
-        # Get total count
         total = query.count()
         
-        # Apply pagination
         saved_jobs = query.offset(pagination.offset).limit(pagination.limit).all()
         
         return saved_jobs, total
@@ -133,10 +127,8 @@ class SavedJobRepository:
             and_(SavedJob.user_id == user_id, SavedJob.full_time_job_id.isnot(None))
         )
         
-        # Get total count
         total = query.count()
         
-        # Apply pagination
         saved_jobs = query.offset(pagination.offset).limit(pagination.limit).all()
         
         return saved_jobs, total

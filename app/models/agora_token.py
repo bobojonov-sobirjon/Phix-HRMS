@@ -14,11 +14,10 @@ class AgoraToken(Base):
     uid = Column(Integer, nullable=True)
     role = Column(String(50), nullable=False, default="publisher")
     expire_seconds = Column(Integer, nullable=False, default=3600)
-    expire_at = Column(DateTime(timezone=True), nullable=False)  # When token expires
+    expire_at = Column(DateTime(timezone=True), nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
     
-    # Relationships
     room = relationship("ChatRoom", foreign_keys=[room_id])
     
     def __repr__(self):

@@ -16,25 +16,19 @@ class UserDeviceToken(Base):
     
     id = Column(Integer, primary_key=True, index=True)
     
-    # Foreign key to User
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     
-    # Device information
     device_token = Column(Text, nullable=False)
-    # Use PostgreSQL ENUM - SQLAlchemy will use enum values when properly configured
     device_type = Column(
         PG_ENUM('ios', 'android', name='devicetype', create_type=False),
         nullable=False
     )
     
-    # Status
     is_active = Column(Boolean, default=True, nullable=False)
     
-    # Timestamps
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
     
-    # Relationships
     user = relationship("User", back_populates="device_tokens")
     
     def __repr__(self):

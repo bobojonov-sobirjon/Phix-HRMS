@@ -35,7 +35,6 @@ def batch_get_by_ids(
     
     query = db.query(model).filter(model.id.in_(ids))
     
-    # Filter deleted entities if model has is_deleted attribute
     if hasattr(model, 'is_deleted') and not include_deleted:
         query = query.filter(model.is_deleted == False)
     
@@ -62,7 +61,6 @@ def optimize_query_with_eager_loading(
     
     for relationship in relationships:
         try:
-            # Handle nested relationships (e.g., "user.location")
             if '.' in relationship:
                 parts = relationship.split('.')
                 current_loader = loader(getattr(query.column_descriptions[0]['entity'], parts[0]))
@@ -163,11 +161,9 @@ def batch_update(
     if not updates:
         return 0
     
-    # Group updates by ID
     update_dict = {item[id_field]: {k: v for k, v in item.items() if k != id_field} for item in updates}
     ids = list(update_dict.keys())
     
-    # Get all entities to update
     entities = db.query(model).filter(getattr(model, id_field).in_(ids)).all()
     
     updated_count = 0

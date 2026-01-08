@@ -12,7 +12,6 @@ class CompanySize(str, Enum):
     ENTERPRISE = "1000+"
 
 
-# Category schema for response
 class CategoryResponse(BaseModel):
     id: int
     name: str
@@ -23,7 +22,6 @@ class CategoryResponse(BaseModel):
         from_attributes = True
 
 
-# Base schema
 class CorporateProfileBase(BaseModel):
     company_name: str
     phone_number: str
@@ -36,12 +34,10 @@ class CorporateProfileBase(BaseModel):
     category_id: Optional[int] = None
 
 
-# Create schema
 class CorporateProfileCreate(CorporateProfileBase):
     pass
 
 
-# Update schema
 class CorporateProfileUpdate(BaseModel):
     company_name: Optional[str] = None
     phone_number: Optional[str] = None
@@ -54,7 +50,6 @@ class CorporateProfileUpdate(BaseModel):
     category_id: Optional[int] = None
 
 
-# Location schema for response
 class LocationResponse(BaseModel):
     id: int
     name: str
@@ -66,7 +61,6 @@ class LocationResponse(BaseModel):
         from_attributes = True
 
 
-# User schema for response
 class UserResponse(BaseModel):
     id: int
     name: str
@@ -86,7 +80,6 @@ class UserResponse(BaseModel):
         from_attributes = True
 
 
-# Team member schema for response
 class TeamMemberResponse(BaseModel):
     id: int
     user_id: int
@@ -104,7 +97,6 @@ class TeamMemberResponse(BaseModel):
     class Config:
         from_attributes = True
 
-# Response schema
 class CorporateProfileResponse(CorporateProfileBase):
     id: int
     user_id: int
@@ -124,12 +116,10 @@ class CorporateProfileResponse(CorporateProfileBase):
         from_attributes = True
 
 
-# Verification schema
 class CorporateProfileVerification(BaseModel):
     otp_code: str
 
 
-# List response schema
 class CorporateProfileListResponse(BaseModel):
     corporate_profiles: List[CorporateProfileResponse]
     total: int

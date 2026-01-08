@@ -8,7 +8,6 @@ from .full_time_job import FullTimeJobResponse
 from .profile import UserFullResponse, UserShortDetails
 
 
-# ProposalAttachment schemas
 class ProposalAttachmentBase(BaseModel):
     attachment: str = Field(..., description="File path")
     size: int = Field(..., description="File size in bytes")
@@ -26,14 +25,12 @@ class ProposalAttachmentResponse(ProposalAttachmentBase):
     }
 
 
-# Base schema
 class ProposalBase(BaseModel):
     cover_letter: str = Field(..., min_length=10, description="Cover letter content")
     delivery_time: Optional[int] = Field(None, ge=1, description="Delivery time in days")
     offer_amount: Optional[float] = Field(None, ge=0, description="Offer amount in currency")
 
 
-# Create schema for form data
 class ProposalCreateForm(BaseModel):
     cover_letter: str = Field(..., min_length=10, description="Cover letter content")
     delivery_time: Optional[int] = Field(None, ge=1, description="Delivery time in days")
@@ -50,7 +47,6 @@ class ProposalCreateForm(BaseModel):
             raise ValueError("Only one of gig_job_id or full_time_job_id can be provided")
 
 
-# Create schema (for backward compatibility)
 class ProposalCreate(ProposalBase):
     gig_job_id: Optional[int] = Field(None, description="ID of the gig job (for gig jobs)")
     full_time_job_id: Optional[int] = Field(None, description="ID of the full-time job (for full-time jobs)")
@@ -63,7 +59,6 @@ class ProposalCreate(ProposalBase):
             raise ValueError("Only one of gig_job_id or full_time_job_id can be provided")
 
 
-# Update schema for form data
 class ProposalUpdateForm(BaseModel):
     cover_letter: Optional[str] = Field(None, min_length=10)
     delivery_time: Optional[int] = Field(None, ge=1)
@@ -71,14 +66,12 @@ class ProposalUpdateForm(BaseModel):
     attachments: Optional[List[UploadFile]] = None
 
 
-# Update schema (for backward compatibility)
 class ProposalUpdate(BaseModel):
     cover_letter: Optional[str] = Field(None, min_length=10)
     delivery_time: Optional[int] = Field(None, ge=1)
     offer_amount: Optional[float] = Field(None, ge=0)
 
 
-# Response schema
 class ProposalResponse(ProposalBase):
     id: int
     user_id: int
@@ -89,7 +82,6 @@ class ProposalResponse(ProposalBase):
     created_at: datetime
     updated_at: Optional[datetime] = None
     
-    # Full details
     user: Optional[UserShortDetails] = None
     gig_job: Optional[GigJobResponse] = None
     full_time_job: Optional[FullTimeJobResponse] = None
@@ -118,14 +110,11 @@ class ProposalResponse(ProposalBase):
             "full_time_job": None
         }
         
-        # Include attachments if available
         if hasattr(obj, 'attachments') and obj.attachments:
             attachment_list = []
             for attachment in obj.attachments:
-                # Create attachment dict with BASE_URL added to attachment path
                 attachment_url = attachment.attachment
                 if attachment_url and not attachment_url.startswith(('http://', 'https://')):
-                    # Add /static/ prefix and BASE_URL
                     attachment_url = f"{settings.BASE_URL}/static/{attachment_url}"
                 
                 attachment_dict = {
@@ -140,15 +129,12 @@ class ProposalResponse(ProposalBase):
                 attachment_list.append(ProposalAttachmentResponse(**attachment_dict))
             data["attachments"] = attachment_list
         
-        # Include user details if available
         if hasattr(obj, 'user') and obj.user:
             data["user"] = UserShortDetails.model_validate(obj.user)
         
-        # Include gig job details if available
         if hasattr(obj, 'gig_job') and obj.gig_job:
             data["gig_job"] = cls._prepare_gig_job_data(obj.gig_job)
         
-        # Include full-time job details if available
         if hasattr(obj, 'full_time_job') and obj.full_time_job:
             data["full_time_job"] = cls._prepare_full_time_job_data(obj.full_time_job)
         
@@ -160,12 +146,9 @@ class ProposalResponse(ProposalBase):
         if not gig_job:
             return None
         
-        # Handle both model objects and dictionaries
         if isinstance(gig_job, dict):
-            # If it's already a dictionary (from repository), return as is
             return gig_job
             
-        # Convert skills to dict format
         skills_data = []
         if hasattr(gig_job, 'skills') and gig_job.skills:
             for skill in gig_job.skills:
@@ -177,7 +160,6 @@ class ProposalResponse(ProposalBase):
                     "is_deleted": getattr(skill, 'is_deleted', False)
                 })
         
-        # Prepare location data
         location_data = None
         if hasattr(gig_job, 'location') and gig_job.location:
             location_data = {
@@ -235,12 +217,9 @@ class ProposalResponse(ProposalBase):
         if not full_time_job:
             return None
         
-        # Handle both model objects and dictionaries
         if isinstance(full_time_job, dict):
-            # If it's already a dictionary (from repository), return as is
             return full_time_job
             
-        # Convert skills to dict format
         skills_data = []
         if hasattr(full_time_job, 'skills') and full_time_job.skills:
             for skill in full_time_job.skills:
@@ -252,29 +231,24 @@ class ProposalResponse(ProposalBase):
                     "is_deleted": getattr(skill, 'is_deleted', False)
                 })
         
-        # Get category name from relationship
         category_name = 'Unknown Category'
         if hasattr(full_time_job, 'category') and full_time_job.category:
             category_name = full_time_job.category.name
         
-        # Get subcategory name from relationship
         subcategory_name = None
         if hasattr(full_time_job, 'subcategory') and full_time_job.subcategory:
             subcategory_name = full_time_job.subcategory.name
         
-        # Get company name from relationship
         company_name = 'Unknown Company'
         if hasattr(full_time_job, 'company') and full_time_job.company:
             company_name = full_time_job.company.company_name
         
-        # Get created_by_user_name from relationship
         created_by_user_name = 'Unknown User'
         created_by_user_id = 0
         if hasattr(full_time_job, 'created_by_user') and full_time_job.created_by_user:
             created_by_user_name = full_time_job.created_by_user.name
             created_by_user_id = full_time_job.created_by_user.id
         
-        # Get created_by_role
         created_by_role = 'UNKNOWN'
         if hasattr(full_time_job, 'created_by_role') and full_time_job.created_by_role:
             if hasattr(full_time_job.created_by_role, 'value'):
@@ -319,17 +293,13 @@ class ProposalResponse(ProposalBase):
     def _normalize_enum_value(cls, value, enum_type):
         """Normalize enum values to uppercase for Pydantic validation"""
         if hasattr(value, 'value'):
-            # It's already an enum object
             return value.value
         elif isinstance(value, str):
-            # It's a string, normalize to uppercase
             return value.upper()
         else:
-            # Fallback to string representation
             return str(value).upper()
 
 
-# List response schema
 class ProposalListResponse(BaseModel):
     items: List[ProposalResponse]
     total: int

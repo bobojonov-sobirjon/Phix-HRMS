@@ -33,16 +33,13 @@ def get_current_user_optional(authorization: Optional[str] = Header(None)) -> Op
     
     try:
         token = authorization.split(" ")[1]
-        # Import here to avoid circular imports
         from app.utils.auth import verify_token
         from app.repositories.user_repository import UserRepository
         from app.db.database import get_db
         
-        # Get database session
         db = next(get_db())
         user_repo = UserRepository(db)
         
-        # Verify token and get user
         payload = verify_token(token)
         if payload and 'sub' in payload:
             user_id = int(payload['sub'])
@@ -76,7 +73,6 @@ async def create_gig_job(
     """
     repository = GigJobRepository(db)
     
-    # Validate salary range
     if gig_job_data.min_salary >= gig_job_data.max_salary:
         raise bad_request_error("Minimum salary must be less than maximum salary")
     
@@ -241,7 +237,6 @@ async def update_gig_job(
     """
     repository = GigJobRepository(db)
     
-    # Validate salary range if both are provided
     if gig_job_data.min_salary is not None and gig_job_data.max_salary is not None:
         if gig_job_data.min_salary >= gig_job_data.max_salary:
             raise bad_request_error("Minimum salary must be less than maximum salary")

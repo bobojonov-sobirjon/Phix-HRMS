@@ -38,7 +38,6 @@ class SortBy(str, Enum):
     MOST_RELEVANT = "MOST_RELEVANT"
 
 
-# Base schema
 class GigJobBase(BaseModel):
     title: str = Field(..., min_length=1, max_length=255, description="Job title")
     description: str = Field(..., min_length=10, description="Detailed job description")
@@ -52,12 +51,10 @@ class GigJobBase(BaseModel):
     location_id: Optional[int] = Field(None, description="Location ID")
 
 
-# Create schema
 class GigJobCreate(GigJobBase):
     pass
 
 
-# Update schema
 class GigJobUpdate(BaseModel):
     title: Optional[str] = Field(None, min_length=1, max_length=255)
     description: Optional[str] = Field(None, min_length=10)
@@ -72,7 +69,6 @@ class GigJobUpdate(BaseModel):
     location_id: Optional[int] = None
 
 
-# Response schema
 class GigJobResponse(BaseModel):
     id: int
     title: str = Field(..., min_length=1, max_length=255, description="Job title")
@@ -100,7 +96,6 @@ class GigJobResponse(BaseModel):
     }
 
 
-# Filter schema for API requests
 class GigJobFilter(BaseModel):
     status_filter: Optional[str] = None
     experience_level: Optional[ExperienceLevel] = None
@@ -113,11 +108,9 @@ class GigJobFilter(BaseModel):
     sort_by: Optional[SortBy] = SortBy.MOST_RECENT
 
 
-# GigJobSkill removal schema
 class GigJobSkillRemove(BaseModel):
     gig_job_skill_id: int = Field(..., description="GigJobSkill ID to remove from the gig job")
 
-# List response schema
 class GigJobListResponse(BaseModel):
     items: List[GigJobResponse]
     total: int

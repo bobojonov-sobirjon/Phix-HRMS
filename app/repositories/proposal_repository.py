@@ -62,10 +62,8 @@ class ProposalRepository:
             joinedload(Proposal.full_time_job).joinedload(FullTimeJob.skills)
         ).filter(Proposal.user_id == user_id)
         
-        # Get total count
         total = query.count()
         
-        # Apply pagination
         proposals = query.offset(pagination.offset).limit(pagination.limit).all()
         
         return proposals, total
@@ -85,10 +83,8 @@ class ProposalRepository:
             and_(Proposal.user_id == user_id, Proposal.gig_job_id.isnot(None))
         )
         
-        # Get total count
         total = query.count()
         
-        # Apply pagination
         proposals = query.offset(pagination.offset).limit(pagination.limit).all()
         
         return proposals, total
@@ -110,10 +106,8 @@ class ProposalRepository:
             and_(Proposal.user_id == user_id, Proposal.full_time_job_id.isnot(None))
         )
         
-        # Get total count
         total = query.count()
         
-        # Apply pagination
         proposals = query.offset(pagination.offset).limit(pagination.limit).all()
         
         return proposals, total
@@ -137,14 +131,36 @@ class ProposalRepository:
             joinedload(Proposal.full_time_job).joinedload(FullTimeJob.skills)
         ).filter(Proposal.gig_job_id == gig_job_id)
         
-        # Get total count
         total = query.count()
         
-        # Apply pagination
         proposals = query.offset(pagination.offset).limit(pagination.limit).all()
         
         return proposals, total
 
+    def get_all_proposals(self, pagination: PaginationParams) -> tuple[List[Proposal], int]:
+        """Get all proposals with pagination (for admin)"""
+        from app.models.corporate_profile import CorporateProfile
+        query = self.db.query(Proposal).options(
+            joinedload(Proposal.user).joinedload(User.location),
+            joinedload(Proposal.user).joinedload(User.main_category),
+            joinedload(Proposal.user).joinedload(User.sub_category),
+            joinedload(Proposal.user).joinedload(User.skills),
+            joinedload(Proposal.gig_job).joinedload(GigJob.category),
+            joinedload(Proposal.gig_job).joinedload(GigJob.subcategory),
+            joinedload(Proposal.gig_job).joinedload(GigJob.location),
+            joinedload(Proposal.gig_job).joinedload(GigJob.skills),
+            joinedload(Proposal.full_time_job).joinedload(FullTimeJob.category),
+            joinedload(Proposal.full_time_job).joinedload(FullTimeJob.subcategory),
+            joinedload(Proposal.full_time_job).joinedload(FullTimeJob.company),
+            joinedload(Proposal.full_time_job).joinedload(FullTimeJob.created_by_user),
+            joinedload(Proposal.full_time_job).joinedload(FullTimeJob.skills)
+        ).filter(Proposal.is_deleted == False)
+        
+        total = query.count()
+        proposals = query.order_by(Proposal.created_at.desc()).offset(pagination.offset).limit(pagination.limit).all()
+        
+        return proposals, total
+    
     def get_full_time_job_proposals(self, full_time_job_id: int, pagination: PaginationParams) -> tuple[List[Proposal], int]:
         """Get paginated proposals for a specific full-time job with relationships"""
         from app.models.corporate_profile import CorporateProfile
@@ -164,10 +180,8 @@ class ProposalRepository:
             joinedload(Proposal.full_time_job).joinedload(FullTimeJob.skills)
         ).filter(Proposal.full_time_job_id == full_time_job_id)
         
-        # Get total count
         total = query.count()
         
-        # Apply pagination
         proposals = query.offset(pagination.offset).limit(pagination.limit).all()
         
         return proposals, total

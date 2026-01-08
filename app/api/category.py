@@ -16,8 +16,10 @@ from app.utils.response_helpers import (
     success_response,
     not_found_error,
     bad_request_error,
-    validate_entity_exists
+    validate_entity_exists,
+    forbidden_error
 )
+from app.utils.permissions import is_admin_user
 from app.models.user import User
 
 router = APIRouter(prefix="/categories", tags=["Categories"])
@@ -40,7 +42,6 @@ async def create_category(
     """
     repo = CategoryRepository(db)
     
-    # Validate parent if provided
     if category.parent_id and not repo.is_valid_parent(category.parent_id):
         raise bad_request_error("Invalid parent category")
     
@@ -66,28 +67,22 @@ async def get_categories(
     """
     repo = CategoryRepository(db)
     
-    # If name search is provided, use search by name
     if name:
         return repo.search_by_name(name, skip=skip, limit=limit)
     
-    # If is_main filter is provided, filter by main/sub categories
     if is_main is not None:
         if is_main:
-            # Get main categories only
             if is_active is not None:
                 return repo.get_categories_only_with_filter(is_active, skip=skip, limit=limit)
             return repo.get_categories_only(skip=skip, limit=limit)
         else:
-            # Get subcategories only
             if is_active is not None:
                 return repo.get_all_subcategories_with_filter(is_active, skip=skip, limit=limit)
             return repo.get_all_subcategories(skip=skip, limit=limit)
     
-    # If only is_active filter is provided
     if is_active is not None:
         return repo.get_all_with_filter(is_active, skip=skip, limit=limit)
     
-    # No filters - return all categories
     return repo.get_all(skip=skip, limit=limit)
 
 
@@ -153,11 +148,12 @@ async def update_category(
     current_user: User = Depends(get_current_user)
 ):
     """
-    Update an existing category.
+    Update an existing category (admin only).
     """
+    if not is_admin_user(current_user.email):
+        raise forbidden_error("Only admin can update categories")
     repo = CategoryRepository(db)
     
-    # Validate parent if provided
     if category_update.parent_id and not repo.is_valid_parent(category_update.parent_id):
         raise bad_request_error("Invalid parent category")
     
@@ -174,8 +170,10 @@ async def delete_category(
     current_user: User = Depends(get_current_user)
 ):
     """
-    Delete a category. If the category has children, it will be soft deleted (marked as inactive).
+    Delete a category. If the category has children, it will be soft deleted (marked as inactive). Admin only.
     """
+    if not is_admin_user(current_user.email):
+        raise forbidden_error("Only admin can delete categories")
     repo = CategoryRepository(db)
     success = repo.delete(category_id)
     if not success:

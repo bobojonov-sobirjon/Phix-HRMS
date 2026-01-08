@@ -8,10 +8,8 @@ from fastapi.security import OAuth2PasswordBearer
 from ..core.config import settings
 from ..db.database import get_db
 
-# OAuth2 scheme for token authentication
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="api/v1/auth/token")
 
-# Password hashing context
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
@@ -50,7 +48,6 @@ def verify_refresh_token(token: str) -> Optional[dict]:
     """Verify refresh token and return payload"""
     try:
         payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
-        # Check if it's a refresh token
         if payload.get("type") != "refresh":
             return None
         return payload
@@ -81,7 +78,6 @@ def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(
             detail="Invalid token"
         )
     
-    # Import here to avoid circular imports
     from ..repositories.user_repository import UserRepository
     user_repo = UserRepository(db)
     user = user_repo.get_user_by_id(int(user_id))

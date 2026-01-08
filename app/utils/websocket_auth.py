@@ -8,7 +8,6 @@ from typing import Optional
 async def authenticate_websocket(websocket: WebSocket) -> Optional[User]:
     """Authenticate WebSocket connection using token from query parameters"""
     try:
-        # Get token from query parameters
         query_params = websocket.query_params
         token = query_params.get("token")
         
@@ -16,14 +15,12 @@ async def authenticate_websocket(websocket: WebSocket) -> Optional[User]:
             await websocket.close(code=4001, reason="Missing authentication token")
             return None
         
-        # Verify the token
         try:
             payload = verify_token(token)
             if not payload:
                 await websocket.close(code=4001, reason="Invalid or expired token")
                 return None
                 
-            # Check token type
             token_type = payload.get("type")
             if token_type != "access":
                 await websocket.close(code=4001, reason="Invalid token type")
@@ -35,7 +32,6 @@ async def authenticate_websocket(websocket: WebSocket) -> Optional[User]:
                 await websocket.close(code=4001, reason="Invalid token payload - no user_id")
                 return None
             
-            # Get user from database
             db = SessionLocal()
             try:
                 user = db.query(User).filter(User.id == int(user_id)).first()

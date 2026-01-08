@@ -2,14 +2,11 @@ from pydantic import BaseModel, EmailStr, validator, computed_field
 from typing import Optional, List
 from datetime import datetime
 from ..core.config import settings
-# from ..schemas.profile import RoleResponse
 
-# Base User Schema
 class UserBase(BaseModel):
     name: str
     email: EmailStr
 
-# User Registration Schema
 class UserRegister(UserBase):
     password: str
     phone: str
@@ -26,12 +23,11 @@ class UserRegister(UserBase):
             raise ValueError('Phone number must contain only digits, spaces, hyphens, and plus sign')
         return v
 
-# User Login Schema
 class UserLogin(BaseModel):
     email: EmailStr
     password: str
     device_token: Optional[str] = None
-    device_type: Optional[str] = None  # "ios" or "android"
+    device_type: Optional[str] = None
     
     @validator('device_type')
     def validate_device_type(cls, v):
@@ -39,28 +35,24 @@ class UserLogin(BaseModel):
             raise ValueError('device_type must be either "ios" or "android"')
         return v
 
-# Social Login Schema
 class SocialLogin(BaseModel):
-    provider: str  # google, facebook, apple
+    provider: str
     access_token: str
 
-# OTP Request Schema
 class OTPRequest(BaseModel):
     email: EmailStr
 
-# OTP Verification Schema
 class OTPVerify(BaseModel):
     email: EmailStr
     otp_code: str
 
-# Registration OTP Request Schema
 class RegisterOTPRequest(BaseModel):
     name: str
     email: EmailStr
     password: str
     phone: Optional[str] = None
     device_token: Optional[str] = None
-    device_type: Optional[str] = None  # "ios" or "android"
+    device_type: Optional[str] = None
     
     @validator('password')
     def validate_password(cls, v):
@@ -80,12 +72,11 @@ class RegisterOTPRequest(BaseModel):
             raise ValueError('Phone number must contain only digits, spaces, hyphens, and plus sign')
         return v
 
-# Registration OTP Verification Schema
 class RegisterOTPVerify(BaseModel):
     email: EmailStr
     otp_code: str
     device_token: Optional[str] = None
-    device_type: Optional[str] = None  # "ios" or "android"
+    device_type: Optional[str] = None
     
     @validator('device_type')
     def validate_device_type(cls, v):
@@ -93,13 +84,11 @@ class RegisterOTPVerify(BaseModel):
             raise ValueError('device_type must be either "ios" or "android"')
         return v
 
-# Registration Response Schema
 class RegisterResponse(BaseModel):
     message: str
     email: EmailStr
-    otp_code: Optional[str] = None  # For development/testing
+    otp_code: Optional[str] = None
 
-# Password Reset Schema (with OTP)
 class PasswordReset(BaseModel):
     email: EmailStr
     otp_code: str
@@ -111,7 +100,6 @@ class PasswordReset(BaseModel):
             raise ValueError('Password must be at least 6 characters long')
         return v
 
-# Password Reset Schema (without OTP - after verify-otp)
 class PasswordResetVerified(BaseModel):
     email: EmailStr
     new_password: str
@@ -122,24 +110,20 @@ class PasswordResetVerified(BaseModel):
             raise ValueError('Password must be at least 6 characters long')
         return v
 
-# Token Schema
 class Token(BaseModel):
     access_token: str
     token_type: str = "bearer"
     expires_in: int
 
-# Refresh Token Schema
 class RefreshTokenRequest(BaseModel):
     refresh_token: str
 
-# Refresh Token Response Schema
 class RefreshTokenResponse(BaseModel):
     access_token: str
     refresh_token: str
     token_type: str = "bearer"
     expires_in: int
 
-# User Response Schema
 class UserResponse(BaseModel):
     id: int
     name: str
@@ -168,18 +152,15 @@ class UserResponse(BaseModel):
     class Config:
         from_attributes = True
 
-# Login Response Schema
 class LoginResponse(BaseModel):
     token: Token
     refresh_token: Optional[str] = None
 
-# OTP Response Schema
 class OTPResponse(BaseModel):
     message: str
     email: EmailStr
-    otp_code: Optional[str] = None  # For development/testing 
+    otp_code: Optional[str] = None
 
-# User Update Schema
 class UserUpdate(BaseModel):
     name: Optional[str] = None
     phone: Optional[str] = None
@@ -189,6 +170,5 @@ class UserUpdate(BaseModel):
     main_category_id: Optional[int] = None
     sub_category_id: Optional[int] = None
 
-# User Restore Schema
 class UserRestore(BaseModel):
     email: EmailStr 

@@ -27,7 +27,6 @@ router = APIRouter(prefix="/corporate-profile-follow", tags=["Corporate Profile 
 def get_user_device_tokens(db: Session, user_id: int) -> List[str]:
     """Get all active device tokens for a user"""
     from sqlalchemy import text
-    # Use raw SQL to avoid enum parsing issues with uppercase values in database
     try:
         result = db.execute(text("""
             SELECT device_token 
@@ -39,7 +38,6 @@ def get_user_device_tokens(db: Session, user_id: int) -> List[str]:
         return [row[0] for row in result if row[0]]
     except Exception as e:
         print(f"DEBUG: Error getting device tokens: {str(e)}")
-        # Fallback to ORM query with exception handling
         try:
             device_tokens = db.query(UserDeviceToken).filter(
                 UserDeviceToken.user_id == user_id,
@@ -88,14 +86,11 @@ def send_follow_notification(
                 data={str(k): str(v) for k, v in data.items()}
             )
         except FileNotFoundError as fe:
-            # Firebase service account file not found - this is OK
             print(f"WARNING: Firebase service account file not found. Push notification skipped: {str(fe)}")
         except Exception as fe:
-            # Other Firebase errors - log but don't fail
             print(f"WARNING: Failed to send push notification: {str(fe)}")
         
     except Exception as e:
-        # Log error but don't fail the request
         print(f"ERROR: Failed to send follow notification to user_id={recipient_user_id}: {str(e)}")
 
 
@@ -110,7 +105,6 @@ def add_base_url_to_profile(profile):
     if profile.user and profile.user.avatar_url:
         profile.user.avatar_url = f"{settings.BASE_URL}{profile.user.avatar_url}" if not profile.user.avatar_url.startswith('http') else profile.user.avatar_url
     
-    # Add base URL to team member avatars
     if hasattr(profile, 'team_members') and profile.team_members:
         for team_member in profile.team_members:
             if team_member.user and team_member.user.avatar_url:
@@ -123,7 +117,6 @@ def convert_profile_to_response(profile_with_urls, current_user_id: Optional[int
     """Convert CorporateProfile model to CorporateProfileResponse format"""
     from ..schemas.corporate_profile import TeamMemberResponse
     
-    # Prepare team members data
     team_members_data = []
     if hasattr(profile_with_urls, 'team_members') and profile_with_urls.team_members:
         for team_member in profile_with_urls.team_members:
@@ -143,14 +136,12 @@ def convert_profile_to_response(profile_with_urls, current_user_id: Optional[int
             }
             team_members_data.append(team_member_data)
     
-    # Check if current user is following this profile
     is_followed = False
     if current_user_id and db:
         from ..repositories.corporate_profile_follow_repository import CorporateProfileFollowRepository
         follow_repo = CorporateProfileFollowRepository(db)
         is_followed = follow_repo.is_following(current_user_id, profile_with_urls.id)
     
-    # Create profile data with team members
     profile_dict = {
         "id": profile_with_urls.id,
         "company_name": profile_with_urls.company_name,
@@ -210,7 +201,6 @@ async def follow_corporate_profile(
     try:
         repository = CorporateProfileFollowRepository(db)
         
-        # Get corporate profile to get owner info
         corporate_repo = CorporateProfileRepository(db)
         corporate_profile = corporate_repo.get_by_id(follow_data.corporate_profile_id)
         
@@ -225,8 +215,7 @@ async def follow_corporate_profile(
             user_id=current_user.id
         )
         
-        # Send push notification to corporate profile owner
-        if corporate_profile.user_id != current_user.id:  # Don't send notification if user follows their own profile
+        if corporate_profile.user_id != current_user.id:
             send_follow_notification(
                 db=db,
                 recipient_user_id=corporate_profile.user_id,
@@ -298,15 +287,11 @@ async def get_user_following(
     
     follows, total = repository.get_user_following(current_user.id, pagination)
     
-    # Convert follows to detailed response format
     follow_responses = []
     for follow in follows:
         if follow.corporate_profile:
-            # Add base URL to profile
             profile_with_urls = add_base_url_to_profile(follow.corporate_profile)
-            # Convert to response format
             corporate_profile_response = convert_profile_to_response(profile_with_urls, current_user.id, db)
-            # Since this is from user-following API, user is definitely following, so set is_followed to True
             corporate_profile_response.is_followed = True
             
             follow_response = CorporateProfileFollowDetailedResponse(
@@ -347,7 +332,6 @@ async def get_corporate_profile_followers(
     - **page**: Page number (default: 1)
     - **size**: Page size (default: 10, max: 100)
     """
-    # Check if corporate profile exists
     corporate_repo = CorporateProfileRepository(db)
     profile = corporate_repo.get_by_id(corporate_profile_id)
     
@@ -362,19 +346,16 @@ async def get_corporate_profile_followers(
     
     follows, total = repository.get_corporate_profile_followers(corporate_profile_id, pagination)
     
-    # Convert follows to detailed response format
     from ..schemas.profile import UserFullResponse
     from ..core.config import settings
     
     follower_responses = []
     for follow in follows:
         if follow.user:
-            # Add base URL to user avatar if exists
             user_data = follow.user
             if user_data.avatar_url:
                 user_data.avatar_url = f"{settings.BASE_URL}{user_data.avatar_url}" if not user_data.avatar_url.startswith('http') else user_data.avatar_url
             
-            # Convert user to full response
             user_response = UserFullResponse.model_validate(user_data)
             
             follower_response = CorporateProfileFollowerResponse(

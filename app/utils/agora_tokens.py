@@ -4,11 +4,9 @@ from typing import Optional, Dict, Any
 
 
 try:
-    # Use RtcTokenBuilder for 007 format
     from agora_token_builder import RtcTokenBuilder
     _RTC = RtcTokenBuilder
     
-    # Define roles manually since Role class doesn't exist
     class _Role:
         PUBLISHER = 1
         SUBSCRIBER = 2
@@ -94,10 +92,8 @@ def generate_rtc_token(
         raise ValueError("expire_seconds must be between 60 and 86400")
 
     target_role = _resolve_role(role)
-    # Use current time + expire_seconds for token expiration
     expire_at = int((datetime.now().timestamp() + expire_seconds))
 
-    # Debug logging
     print(f"DEBUG: Generating token with:")
     print(f"  App ID: {_AGORA_APP_ID}")
     print(f"  App Cert: {_AGORA_APP_CERT}")
@@ -108,10 +104,9 @@ def generate_rtc_token(
     print(f"  Expire: {expire_at}")
 
     if user_account is not None and user_account != "":
-        # Use buildTokenWithAccount for 007 format
         token = _RTC.buildTokenWithAccount(
-            _AGORA_APP_ID,  # type: ignore[arg-type]
-            _AGORA_APP_CERT,  # type: ignore[arg-type]
+            _AGORA_APP_ID,
+            _AGORA_APP_CERT,
             channel_name,
             user_account,
             target_role,
@@ -121,10 +116,9 @@ def generate_rtc_token(
         account_return: Optional[str] = user_account
     else:
         numeric_uid = int(uid or 0)
-        # Use buildTokenWithUid for 007 format
         token = _RTC.buildTokenWithUid(
-            _AGORA_APP_ID,  # type: ignore[arg-type]
-            _AGORA_APP_CERT,  # type: ignore[arg-type]
+            _AGORA_APP_ID,
+            _AGORA_APP_CERT,
             channel_name,
             numeric_uid,
             target_role,

@@ -27,7 +27,6 @@ import uuid
 
 router = APIRouter(tags=["Chat"])
 
-# Helper function to get user device tokens
 def get_user_device_tokens(db: Session, user_id: int) -> List[str]:
     """Get all active device tokens for a user"""
     from sqlalchemy import text
@@ -41,7 +40,6 @@ def get_user_device_tokens(db: Session, user_id: int) -> List[str]:
         """), {"user_id": user_id})
         return [row[0] for row in result if row[0]]
     except Exception as e:
-        # Minimal error log, without verbose debug tag
         from ..core.logging_config import logger
         logger.error(f"Chat notification error getting device tokens: {str(e)}", exc_info=True)
         try:
@@ -60,7 +58,6 @@ def get_user_device_tokens(db: Session, user_id: int) -> List[str]:
         except Exception:
             return []
 
-# Helper function to send chat push notification
 def send_chat_notification(
     db: Session,
     recipient_user_id: int,
@@ -77,10 +74,9 @@ def send_chat_notification(
         print(f"[Chat Notification] Found {len(device_tokens)} device token(s) for user_id={recipient_user_id}")
 
         if device_tokens:
-            # Create notification title and body based on message type
             if message_type == "text":
                 title = f"New message from {sender_name}"
-                body = message_content[:100] if message_content else "New message"  # Limit body length
+                body = message_content[:100] if message_content else "New message"
             elif message_type == "image":
                 title = f"New image from {sender_name}"
                 body = f"{sender_name} sent an image"
@@ -101,7 +97,6 @@ def send_chat_notification(
                     device_tokens=device_tokens,
                     title=title,
                     body=body,
-                    # FCM data payload keys: avoid reserved names like "message_type"
                     data={
                         "type": "chat_message",
                         "room_id": str(room_id),
@@ -117,7 +112,6 @@ def send_chat_notification(
 
                 print(f"[Chat Notification] Result - Success: {success}, Failed: {failed}, Skipped: {skipped}")
 
-                # If there are failures, log detailed errors for debugging
                 if failed > 0:
                     for item in result.get("results", []):
                         if not item.get("success"):
@@ -129,7 +123,6 @@ def send_chat_notification(
     except Exception as e:
         print(f"[Chat Notification] WARNING: Failed to send notification to user_id={recipient_user_id}: {str(e)}")
 
-# User Search Endpoints
 @router.get("/search-users", response_model=UserSearchListResponse)
 async def search_users(
     email: str = Query(..., min_length=1, description="Email to search for"),
@@ -157,7 +150,6 @@ async def search_users(
         total=len(user_responses)
     )
 
-# Chat Room Endpoints
 @router.post("/rooms", response_model=ChatRoomResponse)
 async def create_room(
     room_data: ChatRoomCreate,
@@ -167,14 +159,12 @@ async def create_room(
     """Create a direct chat room with another user"""
     chat_repo = ChatRepository(db)
     
-    # Validate receiver_id
     if room_data.receiver_id == current_user.id:
         raise HTTPException(
             status_code=400, 
             detail="You cannot create a room with yourself"
         )
     
-    # Check if receiver exists and is active
     receiver = db.query(User).filter(
         User.id == room_data.receiver_id,
         User.is_active == True
@@ -185,10 +175,8 @@ async def create_room(
             detail="User not found or inactive"
         )
     
-    # Check if room already exists between these users
     existing_room = chat_repo.get_direct_room(current_user.id, room_data.receiver_id)
     if existing_room:
-        # Return existing room instead of creating new one
         other_user = chat_repo.get_room_other_user(existing_room.id, current_user.id)
         other_user_info = None
         if other_user:
@@ -201,7 +189,6 @@ async def create_room(
                 "is_online": is_online
             }
         
-        # Get last message
         last_message = chat_repo.get_last_message(existing_room.id)
         last_message_info = None
         if last_message:
@@ -213,7 +200,6 @@ async def create_room(
                 "sender_name": last_message.sender.name
             }
         
-        # Get unread count
         unread_counts = chat_repo.get_unread_count(current_user.id)
         unread_count = unread_counts.get(existing_room.id, 0)
         
@@ -230,7 +216,6 @@ async def create_room(
             unread_count=unread_count
         )
     
-    # Create new room
     try:
         room = chat_repo.create_direct_room(current_user.id, room_data.receiver_id)
     except Exception as e:
@@ -239,7 +224,6 @@ async def create_room(
             detail=f"Failed to create room: {str(e)}"
         )
     
-    # Get other user info
     other_user = chat_repo.get_room_other_user(room.id, current_user.id)
     other_user_info = None
     if other_user:
@@ -252,7 +236,6 @@ async def create_room(
             "is_online": is_online
         }
     
-    # Get last message (should be None for new room)
     last_message = chat_repo.get_last_message(room.id)
     last_message_info = None
     if last_message:
@@ -264,7 +247,6 @@ async def create_room(
             "sender_name": last_message.sender.name
         }
     
-    # Get unread count (should be 0 for new room)
     unread_counts = chat_repo.get_unread_count(current_user.id)
     unread_count = unread_counts.get(room.id, 0)
     
@@ -290,12 +272,10 @@ async def get_user_rooms(
     chat_repo = ChatRepository(db)
     rooms = chat_repo.get_user_rooms(current_user.id)
     
-    # Get unread counts
     unread_counts = chat_repo.get_unread_count(current_user.id)
     
     room_responses = []
     for room in rooms:
-        # Get other user info
         other_user = chat_repo.get_room_other_user(room.id, current_user.id)
         other_user_info = None
         if other_user:
@@ -308,7 +288,6 @@ async def get_user_rooms(
                 "is_online": is_online
             }
         
-        # Get last message
         last_message = chat_repo.get_last_message(room.id)
         last_message_info = None
         if last_message:
@@ -353,7 +332,6 @@ async def get_room(
     if not room:
         raise HTTPException(status_code=404, detail="Room not found")
     
-    # Get other user info
     other_user = chat_repo.get_room_other_user(room.id, current_user.id)
     other_user_info = None
     if other_user:
@@ -366,7 +344,6 @@ async def get_room(
             "is_online": is_online
         }
     
-    # Get last message
     last_message = chat_repo.get_last_message(room.id)
     last_message_info = None
     if last_message:
@@ -378,29 +355,23 @@ async def get_room(
             "sender_name": last_message.sender.name
         }
     
-    # Get unread count
     unread_counts = chat_repo.get_unread_count(current_user.id)
     unread_count = unread_counts.get(room.id, 0)
     
-    # Get all messages for this room
-    messages = chat_repo.get_room_messages(room_id, current_user.id, page=1, per_page=1000)  # Get all messages
+    messages = chat_repo.get_room_messages(room_id, current_user.id, page=1, per_page=1000)
     
     message_responses = []
     for message in messages:
-        # Determine if current user is sender (for frontend positioning)
         is_sender = message.sender_id == current_user.id
         
-        # Check if current user liked this message
         is_liked = chat_repo.is_message_liked_by_user(message.id, current_user.id)
         like_count = chat_repo.get_message_like_count(message.id)
         
-        # Build full URLs for files
         file_url = None
         files_data_with_urls = None
         
         if message.file_path:
             from ..core.config import settings
-            # Replace backslashes with forward slashes for web URLs
             clean_path = message.file_path.replace("\\", "/")
             file_url = f"{settings.BASE_URL}/{clean_path}"
         
@@ -415,12 +386,10 @@ async def get_room(
                     "file_size": file_data["file_size"],
                     "mime_type": file_data["mime_type"]
                 }
-                # Add duration for voice/audio messages
                 if "duration" in file_data and file_data["duration"] is not None:
                     file_data_with_url["duration"] = file_data["duration"]
                 files_data_with_urls.append(file_data_with_url)
         
-        # Get sender details
         sender_details = None
         if message.sender:
             is_online = chat_repo.is_user_online(message.sender.id)
@@ -432,7 +401,6 @@ async def get_room(
                 "is_online": is_online
             }
         
-        # Get receiver details
         receiver_details = None
         if message.receiver:
             is_online = chat_repo.is_user_online(message.receiver.id)
@@ -444,7 +412,6 @@ async def get_room(
                 "is_online": is_online
             }
         
-        # Create message response based on message type
         message_response = {
             "id": message.id,
             "content": message.content,
@@ -452,17 +419,16 @@ async def get_room(
             "created_at": message.created_at.isoformat(),
             "is_read": message.is_read,
             "is_deleted": message.is_deleted,
-            "is_sender": is_sender,  # Frontend uchun: true = o'ng tomonda, false = chap tomonda
+            "is_sender": is_sender,
             "is_liked": is_liked,
             "like_count": like_count,
             "sender_details": sender_details,
             "receiver_details": receiver_details,
-            "local_temp_id": None,  # Har doim bo'lishi kerak (GET endpoint'da har doim null)
-            "files_data": files_data_with_urls if files_data_with_urls else None,  # Har doim bo'lishi kerak
-            "duration": message.duration if message.duration else None  # Duration for voice messages (backward compatibility)
+            "local_temp_id": None,
+            "files_data": files_data_with_urls if files_data_with_urls else None,
+            "duration": message.duration if message.duration else None
         }
         
-        # Add file-related fields only if they exist (backward compatibility)
         if message.file_name:
             message_response["file_name"] = message.file_name
         if file_url:
@@ -489,7 +455,6 @@ async def get_room(
         }
     }
 
-# Message Endpoints - All messages are sent via WebSocket for real-time delivery
 
 @router.get("/rooms/{room_id}/messages", response_model=MessageListResponse)
 async def get_room_messages(
@@ -502,33 +467,26 @@ async def get_room_messages(
     """Get messages for a room with pagination"""
     chat_repo = ChatRepository(db)
     
-    # Verify user has access to the room
     room = chat_repo.get_room(room_id, current_user.id)
     if not room:
         raise HTTPException(status_code=404, detail="Room not found")
     
-    # Get total count of messages in the room
     total_count = chat_repo.get_room_messages_count(room_id, current_user.id)
     
-    # Get paginated messages
     messages = chat_repo.get_room_messages(room_id, current_user.id, page, per_page)
     
     message_responses = []
     for message in messages:
-        # Determine if current user is sender (for frontend positioning)
         is_sender = message.sender_id == current_user.id
         
-        # Check if current user liked this message
         is_liked = chat_repo.is_message_liked_by_user(message.id, current_user.id)
         like_count = chat_repo.get_message_like_count(message.id)
         
-        # Build full URLs for files
         file_url = None
         files_data_with_urls = None
         
         if message.file_path:
             from ..core.config import settings
-            # Replace backslashes with forward slashes for web URLs
             clean_path = message.file_path.replace("\\", "/")
             file_url = f"{settings.BASE_URL}/{clean_path}"
         
@@ -543,12 +501,10 @@ async def get_room_messages(
                     "file_size": file_data["file_size"],
                     "mime_type": file_data["mime_type"]
                 }
-                # Add duration for voice/audio messages
                 if "duration" in file_data and file_data["duration"] is not None:
                     file_data_with_url["duration"] = file_data["duration"]
                 files_data_with_urls.append(file_data_with_url)
         
-        # Get sender details
         sender_details = None
         if message.sender:
             is_online = chat_repo.is_user_online(message.sender.id)
@@ -560,7 +516,6 @@ async def get_room_messages(
                 "is_online": is_online
             }
         
-        # Get receiver details
         receiver_details = None
         if message.receiver:
             is_online = chat_repo.is_user_online(message.receiver.id)
@@ -572,7 +527,6 @@ async def get_room_messages(
                 "is_online": is_online
             }
         
-        # Create message data based on message type
         message_data = {
             "id": message.id,
             "content": message.content,
@@ -585,11 +539,10 @@ async def get_room_messages(
             "like_count": like_count,
             "sender_details": sender_details,
             "receiver_details": receiver_details,
-            "local_temp_id": None,  # Har doim bo'lishi kerak (GET endpoint'da har doim null)
-            "files_data": files_data_with_urls if files_data_with_urls else None  # Har doim bo'lishi kerak
+            "local_temp_id": None,
+            "files_data": files_data_with_urls if files_data_with_urls else None
         }
         
-        # Add file-related fields only if they exist (backward compatibility)
         if message.file_name:
             message_data["file_name"] = message.file_name
         if file_url:
@@ -599,17 +552,16 @@ async def get_room_messages(
             
         message_responses.append(ChatMessageResponse(**message_data))
     
-    # Calculate pagination info
-    total_pages = (total_count + per_page - 1) // per_page  # Ceiling division
+    total_pages = (total_count + per_page - 1) // per_page
     has_more = page < total_pages
     
     return MessageListResponse(
         messages=message_responses,
-        total=total_count,  # Total count of all messages in the room
-        has_more=has_more,   # Whether there are more pages available
-        page=page,           # Current page number
-        per_page=per_page,   # Number of messages per page
-        total_pages=total_pages  # Total number of pages
+        total=total_count,
+        has_more=has_more,
+        page=page,
+        per_page=per_page,
+        total_pages=total_pages
     )
 
 @router.post("/rooms/{room_id}/read")
@@ -625,7 +577,6 @@ async def mark_room_read(
     if not success:
         raise HTTPException(status_code=404, detail="Room not found")
     
-    # Broadcast read status
     await manager.broadcast_message_read(room_id, current_user.id, current_user.name)
     
     return {"status": "success", "message": "Room marked as read"}
@@ -640,36 +591,29 @@ async def update_message(
     """Update a message (only text messages can be updated)"""
     chat_repo = ChatRepository(db)
     
-    # Get the message
     message = chat_repo.get_message(message_id)
     if not message:
         raise HTTPException(status_code=404, detail="Message not found")
     
-    # Check if user is the sender
     if message.sender_id != current_user.id:
         raise HTTPException(status_code=403, detail="You can only update your own messages")
     
-    # Check if message is text type
     if message.message_type != "text":
         raise HTTPException(status_code=400, detail="Only text messages can be updated")
     
-    # Update the message
     success = chat_repo.update_message(message_id, content, current_user.id)
     
     if not success:
         raise HTTPException(status_code=404, detail="Message not found")
     
-    # Get updated message with full details
     updated_message = chat_repo.get_message(message_id)
     other_user = chat_repo.get_room_other_user(updated_message.room_id, current_user.id)
     
-    # Build full URLs for files
     file_url = None
     files_data_with_urls = None
     
     if updated_message.file_path:
         from ..core.config import settings
-        # Replace backslashes with forward slashes for web URLs
         clean_path = updated_message.file_path.replace("\\", "/")
         file_url = f"{settings.BASE_URL}/{clean_path}"
     
@@ -684,12 +628,10 @@ async def update_message(
                 "file_size": file_data["file_size"],
                 "mime_type": file_data["mime_type"]
             }
-            # Add duration for voice/audio messages
             if "duration" in file_data and file_data["duration"] is not None:
                 file_data_with_url["duration"] = int(file_data["duration"])
             files_data_with_urls.append(file_data_with_url)
     
-    # Get sender details
     sender_details = None
     if updated_message.sender:
         is_online = chat_repo.is_user_online(updated_message.sender.id)
@@ -701,7 +643,6 @@ async def update_message(
             "is_online": is_online
         }
     
-    # Get receiver details
     receiver_details = None
     if updated_message.receiver:
         is_online = chat_repo.is_user_online(updated_message.receiver.id)
@@ -713,7 +654,6 @@ async def update_message(
             "is_online": is_online
         }
     
-    # Create response based on message type
     message_response = {
         "id": updated_message.id,
         "content": updated_message.content,
@@ -721,15 +661,14 @@ async def update_message(
         "created_at": updated_message.created_at.isoformat(),
         "is_read": updated_message.is_read,
         "is_deleted": updated_message.is_deleted,
-        "is_sender": True,  # Bu message yuboruvchi uchun
+        "is_sender": True,
         "sender_details": sender_details,
         "receiver_details": receiver_details,
-        "local_temp_id": None,  # Har doim bo'lishi kerak (update endpoint'da har doim null)
-        "files_data": files_data_with_urls if files_data_with_urls else None,  # Har doim bo'lishi kerak
-        "duration": updated_message.duration if updated_message.duration else None  # Duration for voice messages (backward compatibility)
+        "local_temp_id": None,
+        "files_data": files_data_with_urls if files_data_with_urls else None,
+        "duration": updated_message.duration if updated_message.duration else None
     }
     
-    # Add file-related fields only if they exist (backward compatibility)
     if updated_message.file_name:
         message_response["file_name"] = updated_message.file_name
     if file_url:
@@ -737,7 +676,6 @@ async def update_message(
     if updated_message.file_size:
         message_response["file_size"] = updated_message.file_size
     
-    # Broadcast updated message to all users in the room
     await manager.broadcast_message_update(
         message_response,
         updated_message.room_id,
@@ -781,7 +719,6 @@ async def toggle_message_like(
         message_id=message_id
     )
 
-# WebSocket Endpoint Handler (shared function)
 async def _websocket_endpoint_handler(websocket: WebSocket):
     """WebSocket endpoint handler for real-time chat with authentication and room_id"""
     import logging
@@ -792,10 +729,8 @@ async def _websocket_endpoint_handler(websocket: WebSocket):
         token = websocket.query_params.get("token")
         room_id = websocket.query_params.get("room_id")
         
-        # If token not found, try to parse from query string manually
         if not token:
             query_string = websocket.url.query
-            # Parse query string manually
             if query_string:
                 params = {}
                 for param in query_string.split("&"):
@@ -803,7 +738,6 @@ async def _websocket_endpoint_handler(websocket: WebSocket):
                         key, value = param.split("=", 1)
                         params[key] = value
                     elif "-" in param:
-                        # Handle malformed query params (token- instead of token=)
                         if param.startswith("token-"):
                             token = param.replace("token-", "", 1)
                 if not token:
@@ -834,7 +768,6 @@ async def _websocket_endpoint_handler(websocket: WebSocket):
             await websocket.close(code=4001, reason="Invalid or expired token")
             return
         
-        # Check token type (optional, for backward compatibility)
         token_type = payload.get("type")
         
         if token_type and token_type != "access":
@@ -847,7 +780,6 @@ async def _websocket_endpoint_handler(websocket: WebSocket):
             await websocket.close(code=4001, reason="Invalid token payload - no user_id")
             return
         
-        # Get user from database
         db = SessionLocal()
         user = None
         try:
@@ -867,10 +799,8 @@ async def _websocket_endpoint_handler(websocket: WebSocket):
         user_name = user.name
         
     except Exception as e:
-        # Compact auth error; traceback still printed for server logs
         print(f"WebSocket auth error ({type(e).__name__}): {str(e)}")
         traceback.print_exc()
-        # Close connection if authentication failed
         try:
             await websocket.close(code=4000, reason=f"Authentication error: {str(e)}")
         except Exception as close_error:
@@ -879,39 +809,28 @@ async def _websocket_endpoint_handler(websocket: WebSocket):
     
     await manager.connect(websocket, user_id)
     
-    # If room_id is provided in URL, automatically join the room
     if room_id:
         manager.set_user_room(user_id, room_id)
     
-    # Update user presence to online
     from ..db.database import SessionLocal
     db = SessionLocal()
     try:
         chat_repo = ChatRepository(db)
         chat_repo.update_user_presence(user_id, True)
         
-        # Broadcast presence update
         await manager.broadcast_presence(user_id, True, user_name)
     finally:
         db.close()
     
     try:
         while True:
-            # Receive message from client
             data = await websocket.receive_text()
             
-            # Clean JSON string - remove trailing commas and comments
             try:
                 import re
                 original_data = data
-                # Step 1: Remove multi-line comments (/* ... */) first
-                # This regex handles comments that span multiple lines
                 data = re.sub(r'/\*.*?\*/', '', data, flags=re.DOTALL)
                 
-                # Step 2: Remove single-line comments (// ...)
-                # This regex matches // followed by any characters until end of line
-                # We need to be careful not to match // inside strings
-                # Strategy: Remove // comments that are not inside quoted strings
                 lines = data.split('\n')
                 cleaned_lines = []
                 in_string = False
@@ -941,9 +860,8 @@ async def _websocket_endpoint_handler(websocket: WebSocket):
                             i += 1
                             continue
                         
-                        # If we find // and we're not in a string, remove rest of line
                         if not in_string and i < len(line) - 1 and line[i:i+2] == '//':
-                            break  # Skip rest of line
+                            break
                         
                         cleaned_line += char
                         i += 1
@@ -951,11 +869,7 @@ async def _websocket_endpoint_handler(websocket: WebSocket):
                     cleaned_lines.append(cleaned_line)
                 
                 data = '\n'.join(cleaned_lines)
-                # Step 3: Remove trailing commas before closing braces/brackets
-                # Remove trailing commas in objects: }, -> }
                 data = re.sub(r',(\s*[}\]])', r'\1', data)
-                # Step 4: Clean up any extra whitespace that might cause issues
-                # Remove whitespace before closing braces/brackets after commas were removed
                 data = re.sub(r'\s+([}\]])', r'\1', data)
 
                 message_data = json.loads(data)
@@ -966,7 +880,6 @@ async def _websocket_endpoint_handler(websocket: WebSocket):
                 }))
                 continue
             
-            # Handle different message types
             if message_data.get("type") == "typing":
                 typing_data = message_data.get("data", {})
                 await manager.broadcast_typing(
@@ -986,18 +899,14 @@ async def _websocket_endpoint_handler(websocket: WebSocket):
             
             
             elif message_data.get("type") == "send_message":
-                # Handle all message types (text, image, file) through WebSocket
                 message_info = message_data.get("data", {})
-                # Use room_id from URL if not provided in message
                 message_room_id = message_info.get("room_id") or room_id
                 receiver_id = message_info.get("receiver_id")
                 message_type = message_info.get("message_type", "text")
                 content = message_info.get("content", "")
-                local_temp_id = message_info.get("local_temp_id")  # Get local_temp_id from request body
+                local_temp_id = message_info.get("local_temp_id")
                 
-                # Handle files - all file data must be in files_data array
-                # files_data: [{"file_data": "", "file_name": "", "file_size": "", "mime_type": ""}, ...]
-                files_data = message_info.get("files_data", [])  # Array of file objects
+                files_data = message_info.get("files_data", [])
                 
                 if not message_room_id or not receiver_id:
                     await websocket.send_text(json.dumps({
@@ -1006,13 +915,11 @@ async def _websocket_endpoint_handler(websocket: WebSocket):
                     }))
                     continue
                 
-                # Create database session for message operations
                 from ..db.database import SessionLocal
                 message_db = SessionLocal()
                 try:
                     chat_repo = ChatRepository(message_db)
                 
-                    # Verify user has access to the room
                     room = chat_repo.get_room(message_room_id, user_id)
                     if not room:
                         await websocket.send_text(json.dumps({
@@ -1021,7 +928,6 @@ async def _websocket_endpoint_handler(websocket: WebSocket):
                         }))
                         continue
                     
-                    # Verify receiver is in the room
                     other_user = chat_repo.get_room_other_user(room.id, user_id)
                     if not other_user or other_user.id != receiver_id:
                         await websocket.send_text(json.dumps({
@@ -1030,15 +936,12 @@ async def _websocket_endpoint_handler(websocket: WebSocket):
                         }))
                         continue
                 
-                    # Handle file upload for image, file, and voice messages
                     processed_files_data = None
                     
-                    # File size limits (in bytes)
-                    MAX_IMAGE_SIZE = 10 * 1024 * 1024  # 10MB
-                    MAX_FILE_SIZE = 50 * 1024 * 1024   # 50MB
-                    MAX_VOICE_SIZE = 50 * 1024 * 1024  # 50MB
+                    MAX_IMAGE_SIZE = 10 * 1024 * 1024
+                    MAX_FILE_SIZE = 50 * 1024 * 1024
+                    MAX_VOICE_SIZE = 50 * 1024 * 1024
                     
-                    # Handle files - all file data must be in files_data array
                     if message_type in ["image", "file", "voice"] and files_data:
                         try:
                             import base64
@@ -1052,22 +955,18 @@ async def _websocket_endpoint_handler(websocket: WebSocket):
                                 file_name_item = file_info.get("file_name")
                                 file_size_item = file_info.get("file_size")
                                 mime_type_item = file_info.get("mime_type")
-                                duration_item = file_info.get("duration")  # Duration in seconds (for voice/audio messages)
+                                duration_item = file_info.get("duration")
                                 
                                 if not file_data_item or not file_name_item:
                                     continue
                                 
-                                # Decode base64 file data with padding fix
                                 try:
-                                    # Remove any whitespace or newlines
                                     file_data_item = file_data_item.strip()
                                     
-                                    # Fix padding if needed
                                     missing_padding = len(file_data_item) % 4
                                     if missing_padding:
                                         file_data_item += '=' * (4 - missing_padding)
                                     
-                                    # Decode base64
                                     file_bytes = base64.b64decode(file_data_item, validate=True)
                                 except Exception as decode_error:
                                     await websocket.send_text(json.dumps({
@@ -1076,7 +975,6 @@ async def _websocket_endpoint_handler(websocket: WebSocket):
                                     }))
                                     continue
                                 
-                                # Validate file size
                                 max_size = MAX_IMAGE_SIZE if message_type == "image" else (MAX_VOICE_SIZE if message_type == "voice" else MAX_FILE_SIZE)
                                 if len(file_bytes) > max_size:
                                     size_mb = max_size / (1024 * 1024)
@@ -1086,26 +984,22 @@ async def _websocket_endpoint_handler(websocket: WebSocket):
                                     }))
                                     continue
                                 
-                                # Create appropriate directory
                                 if message_type == "image":
                                     upload_dir = "static/chat_files/images"
                                 elif message_type == "voice":
                                     upload_dir = "static/chat_files/voices"
-                                else:  # file
+                                else:
                                     upload_dir = "static/chat_files/files"
                                 
                                 os.makedirs(upload_dir, exist_ok=True)
                                 
-                                # Generate unique filename
                                 timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
                                 unique_filename = f"{user_id}_{timestamp}_{len(processed_files)}_{file_name_item}"
                                 file_path_item = os.path.join(upload_dir, unique_filename)
                                 
-                                # Save file
                                 with open(file_path_item, "wb") as f:
                                     f.write(file_bytes)
                                 
-                                # Add to processed files
                                 file_data = {
                                     "file_name": file_name_item,
                                     "file_path": file_path_item,
@@ -1113,7 +1007,6 @@ async def _websocket_endpoint_handler(websocket: WebSocket):
                                     "mime_type": mime_type_item
                                 }
                                 
-                                # Add duration for voice/audio messages
                                 if message_type == "voice" and duration_item is not None:
                                     file_data["duration"] = int(duration_item)
                                 
@@ -1121,8 +1014,6 @@ async def _websocket_endpoint_handler(websocket: WebSocket):
                             
                             processed_files_data = processed_files if processed_files else None
                             
-                            # For backward compatibility, set single file fields if only one file
-                            # Also set duration for voice messages
                             duration = None
                             if processed_files_data and len(processed_files_data) == 1:
                                 single_file = processed_files_data[0]
@@ -1130,7 +1021,7 @@ async def _websocket_endpoint_handler(websocket: WebSocket):
                                 file_path = single_file["file_path"]
                                 file_size = single_file["file_size"]
                                 mime_type = single_file["mime_type"]
-                                duration = single_file.get("duration")  # Duration for voice messages
+                                duration = single_file.get("duration")
                             
                         except Exception as e:
                             await websocket.send_text(json.dumps({
@@ -1139,8 +1030,6 @@ async def _websocket_endpoint_handler(websocket: WebSocket):
                             }))
                             continue
                 
-                    # Create message in database
-                    # For backward compatibility, set single file fields if only one file
                     file_name = None
                     file_path = None
                     file_size = None
@@ -1153,7 +1042,7 @@ async def _websocket_endpoint_handler(websocket: WebSocket):
                         file_path = single_file["file_path"]
                         file_size = single_file["file_size"]
                         mime_type = single_file["mime_type"]
-                        duration = single_file.get("duration")  # Duration for voice messages
+                        duration = single_file.get("duration")
                     
                     message = chat_repo.create_message(
                     room_id=message_room_id,
@@ -1169,7 +1058,6 @@ async def _websocket_endpoint_handler(websocket: WebSocket):
                     files_data=processed_files_data
                 )
                 
-                    # Build full URLs for files - all files in files_data array
                     files_data_with_urls = None
                     
                     if message.files_data:
@@ -1183,12 +1071,10 @@ async def _websocket_endpoint_handler(websocket: WebSocket):
                                 "file_size": file_data["file_size"],
                                 "mime_type": file_data["mime_type"]
                             }
-                            # Add duration for voice/audio messages
                             if "duration" in file_data and file_data["duration"] is not None:
                                 file_data_with_url["duration"] = int(file_data["duration"])
                             files_data_with_urls.append(file_data_with_url)
                     
-                    # Get sender details
                     sender_details = None
                     if message.sender:
                         is_online = chat_repo.is_user_online(message.sender.id)
@@ -1200,7 +1086,6 @@ async def _websocket_endpoint_handler(websocket: WebSocket):
                             "is_online": is_online
                         }
                     
-                    # Get receiver details
                     receiver_details = None
                     if message.receiver:
                         is_online = chat_repo.is_user_online(message.receiver.id)
@@ -1212,7 +1097,6 @@ async def _websocket_endpoint_handler(websocket: WebSocket):
                             "is_online": is_online
                         }
                     
-                    # Create response based on message type
                     message_response = {
                         "id": message.id,
                         "content": message.content,
@@ -1222,23 +1106,20 @@ async def _websocket_endpoint_handler(websocket: WebSocket):
                         "is_deleted": message.is_deleted,
                         "sender_details": sender_details,
                         "receiver_details": receiver_details,
-                        "local_temp_id": local_temp_id if local_temp_id else None,  # Har doim bo'ladi
-                        "files_data": files_data_with_urls if files_data_with_urls else None,  # Har doim bo'ladi
-                        "duration": message.duration if message.duration else None  # Duration for voice messages (backward compatibility)
+                        "local_temp_id": local_temp_id if local_temp_id else None,
+                        "files_data": files_data_with_urls if files_data_with_urls else None,
+                        "duration": message.duration if message.duration else None
                     }
                     
-                    # Create notification for receiver and always send push notification
                     try:
                         from ..repositories.notification_repository import NotificationRepository
                         from ..models.notification import NotificationType
                         from ..db.database import SessionLocal
                         
-                        # Create a new database session for notification
                         notification_db = SessionLocal()
                         try:
                             notification_repo = NotificationRepository(notification_db)
                             
-                            # Create notification title and body
                             sender_name = user_name
                             if message_type == "text":
                                 notification_title = f"New message from {sender_name}"
@@ -1256,7 +1137,6 @@ async def _websocket_endpoint_handler(websocket: WebSocket):
                                 notification_title = f"New message from {sender_name}"
                                 notification_body = f"{sender_name} sent a message"
                             
-                            # Create notification in database
                             notification_repo.create(
                                 type=NotificationType.CHAT_MESSAGE,
                                 title=notification_title,
@@ -1267,7 +1147,6 @@ async def _websocket_endpoint_handler(websocket: WebSocket):
                                 sender_id=user_id
                             )
                             
-                            # Send push notification
                             send_chat_notification(
                                 db=notification_db,
                                 recipient_user_id=receiver_id,
@@ -1283,7 +1162,6 @@ async def _websocket_endpoint_handler(websocket: WebSocket):
                     except Exception as e:
                         print(f"Chat notification: failed to create/send notification: {str(e)}")
                 
-                    # Broadcast message to all users in the room
                     await manager.broadcast_new_message(
                         message_response,
                         message_room_id,
@@ -1296,22 +1174,18 @@ async def _websocket_endpoint_handler(websocket: WebSocket):
     except WebSocketDisconnect:
         manager.disconnect(user_id)
         
-        # Update user presence to offline
         db = SessionLocal()
         try:
             chat_repo = ChatRepository(db)
             chat_repo.update_user_presence(user_id, False)
             
-            # Get user info for presence broadcast
             user = db.query(User).filter(User.id == user_id).first()
             user_name = user.name if user else f"User {user_id}"
             
-            # Broadcast presence update
             await manager.broadcast_presence(user_id, False, user_name)
         finally:
             db.close()
 
-# Utility Endpoints
 @router.get("/unread-count")
 async def get_unread_count(
     current_user: User = Depends(get_current_user),
@@ -1331,7 +1205,6 @@ async def get_online_users(
     chat_repo = ChatRepository(db)
     online_users = chat_repo.get_online_users_in_rooms(current_user.id)
     
-    # Get presence information for each user
     online_user_details = []
     for user in online_users:
         presence = chat_repo.get_user_presence(user.id)
@@ -1361,7 +1234,6 @@ async def check_user_room(
     """Check if current user has a chat room with another user"""
     chat_repo = ChatRepository(db)
     
-    # Check if other user exists
     other_user = db.query(User).filter(User.id == user_id).first()
     if not other_user:
         return RoomCheckResponse(
@@ -1370,7 +1242,6 @@ async def check_user_room(
             data=[]
         )
     
-    # Check if room exists between users
     room = chat_repo.get_direct_room(current_user.id, user_id)
     
     if not room:
@@ -1380,7 +1251,6 @@ async def check_user_room(
             data=[]
         )
     
-    # Get other user info
     is_online = chat_repo.is_user_online(other_user.id)
     other_user_info = {
         "id": other_user.id,
@@ -1390,7 +1260,6 @@ async def check_user_room(
         "is_online": is_online
     }
     
-    # Get last message
     last_message = chat_repo.get_last_message(room.id)
     last_message_info = None
     if last_message:
@@ -1402,7 +1271,6 @@ async def check_user_room(
             "sender_name": last_message.sender.name
         }
     
-    # Get unread count
     unread_counts = chat_repo.get_unread_count(current_user.id)
     unread_count = unread_counts.get(room.id, 0)
     
@@ -1426,7 +1294,6 @@ async def check_user_room(
     )
 
 
-# Test WebSocket endpoint (no authentication)
 @router.websocket("/ws/test")
 async def websocket_test_endpoint(websocket: WebSocket):
     """Test WebSocket endpoint without authentication"""
@@ -1434,14 +1301,12 @@ async def websocket_test_endpoint(websocket: WebSocket):
         await websocket.accept()
         print("WebSocket connection accepted")
         
-        # Test user data
         user_id = 1
         user_name = "Test User"
         
         await manager.connect(websocket, user_id)
         print(f"User {user_id} connected to manager")
         
-        # Send welcome message
         await websocket.send_text(json.dumps({
             "type": "welcome",
             "message": "Connected to test WebSocket",
@@ -1455,7 +1320,6 @@ async def websocket_test_endpoint(websocket: WebSocket):
                 message_data = json.loads(data)
                 print(f"Received message: {message_data}")
                 
-                # Echo back the message
                 await websocket.send_text(json.dumps({
                     "type": "echo",
                     "data": message_data,
@@ -1478,7 +1342,6 @@ async def websocket_test_endpoint(websocket: WebSocket):
         except:
             pass
 
-# Register WebSocket endpoints (both with and without trailing slash)
 @router.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
     """WebSocket endpoint /ws"""
@@ -1502,12 +1365,10 @@ async def generate_video_call_token(
     try:
         chat_repo = ChatRepository(db)
         
-        # Get room and verify user is a participant
         room = chat_repo.get_room(token_request.room_id, current_user.id)
         if not room:
             raise HTTPException(status_code=404, detail="Room not found or you are not a participant")
         
-        # Get room with participants (excluding messages)
         room_with_participants = db.query(ChatRoom).options(
             joinedload(ChatRoom.participants).joinedload(ChatParticipant.user)
         ).filter(ChatRoom.id == token_request.room_id).first()
@@ -1515,7 +1376,6 @@ async def generate_video_call_token(
         if not room_with_participants:
             raise HTTPException(status_code=404, detail="Room not found")
         
-        # Check if token already exists for this room_id
         from ..models.agora_token import AgoraToken
         from datetime import datetime, timezone
         from ..utils.agora_tokens_standalone import get_agora_credentials
@@ -1524,16 +1384,13 @@ async def generate_video_call_token(
             AgoraToken.room_id == token_request.room_id
         ).first()
         
-        # Get Agora app_id for response
         agora_creds = get_agora_credentials()
         app_id = agora_creds.get("appId", "")
         
         current_time = datetime.now(timezone.utc)
         
-        # Check if token exists and is still valid (not expired)
         token_is_valid = False
         if existing_token:
-            # Check if token is expired (expire_at must be in the future)
             time_until_expiry = (existing_token.expire_at - current_time).total_seconds()
             token_is_valid = time_until_expiry > 0
             
@@ -1543,66 +1400,65 @@ async def generate_video_call_token(
                 print(f"Token for room_id {token_request.room_id} is EXPIRED. Time until expiry: {time_until_expiry:.0f} seconds. Generating new token...")
         
         if existing_token and token_is_valid:
-            # Token exists and is still valid - return existing token
+            existing_uid = existing_token.uid if existing_token.uid is not None else 0
+            if existing_uid == 0:
+                user_account_for_response = token_request.user_account or (current_user.email if current_user.email else f"user_{current_user.id}")
+                uid_for_response = 0
+            else:
+                user_account_for_response = None
+                uid_for_response = existing_uid
+            
             token_data = {
                 "appId": app_id,
                 "channel": existing_token.channel_name,
-                "uid": existing_token.uid if existing_token.uid is not None else 0,
-                "userAccount": token_request.user_account or (current_user.email if current_user.email else f"user_{current_user.id}"),
+                "uid": uid_for_response,
+                "userAccount": user_account_for_response,
                 "role": existing_token.role,
                 "expireAt": int(existing_token.expire_at.timestamp()),
                 "token": existing_token.token
             }
         else:
-            # Token doesn't exist OR token is expired - generate new token
             print(f"Generating new token for room_id {token_request.room_id}...")
             
-            # IMPORTANT: Use same channel_name for same room_id to ensure all participants join same channel
             if existing_token:
-                # Reuse existing channel_name for the same room_id (even if token expired)
                 channel_name = existing_token.channel_name
                 print(f"Reusing existing channel_name: {channel_name}")
             else:
-                # Generate channel name based on room_id only (no timestamp)
-                # This ensures same room_id always gets same channel_name
                 channel_name = f"room_{token_request.room_id}_call"
                 print(f"Creating new channel_name: {channel_name}")
             
-            # Use user email as user_account, or generate UUID if no email
             user_account = token_request.user_account or (current_user.email if current_user.email else f"user_{current_user.id}_{uuid.uuid4().hex[:8]}")
             
-            # Use uid from request if provided, otherwise use 0 (Agora will auto-assign)
-            # Always use 0 if not provided (not None)
-            request_uid = token_request.uid if token_request.uid is not None else 0
+            if token_request.uid is not None and token_request.uid != 0:
+                request_uid = token_request.uid
+                user_account_for_token = None
+            else:
+                request_uid = None
+                user_account_for_token = user_account
             
-            # Generate new token using Agora
             token_data = generate_rtc_token(
                 channel_name=channel_name,
-                uid=request_uid,  # Can be 0, None, or a specific UID
-                user_account=user_account,
+                uid=request_uid,
+                user_account=user_account_for_token,
                 role=token_request.role,
                 expire_seconds=token_request.expire_seconds
             )
             
-            # Calculate expire_at timestamp
             expire_at = datetime.fromtimestamp(token_data["expireAt"], tz=timezone.utc)
             
-            # Save or update token in database
             if existing_token:
-                # Token exists but expired - UPDATE existing token with new token
                 print(f"Updating expired token for room_id {token_request.room_id} with new token")
                 existing_token.token = token_data["token"]
-                existing_token.channel_name = channel_name  # Keep same channel_name
+                existing_token.channel_name = channel_name
                 existing_token.uid = token_data["uid"] if token_data["uid"] is not None else 0
                 existing_token.role = token_request.role
                 existing_token.expire_seconds = token_request.expire_seconds
                 existing_token.expire_at = expire_at
-                existing_token.updated_at = datetime.now(timezone.utc)  # Update timestamp
+                existing_token.updated_at = datetime.now(timezone.utc)
                 db.commit()
                 db.refresh(existing_token)
                 print(f"Token updated successfully. New expire_at: {expire_at}")
             else:
-                # Token doesn't exist - CREATE new token
                 print(f"Creating new token for room_id {token_request.room_id}")
                 new_token = AgoraToken(
                     room_id=token_request.room_id,
@@ -1618,7 +1474,6 @@ async def generate_video_call_token(
                 db.refresh(new_token)
                 print(f"New token created successfully. Expire_at: {expire_at}")
         
-        # Prepare participants response (excluding messages)
         participants_response = []
         for participant in room_with_participants.participants:
             if participant.is_active and participant.user:
@@ -1639,7 +1494,6 @@ async def generate_video_call_token(
                     user=user_info
                 ))
         
-        # Prepare room response (without messages)
         room_response = ChatRoomDetailResponse(
             id=room_with_participants.id,
             name=room_with_participants.name,
@@ -1651,13 +1505,12 @@ async def generate_video_call_token(
             participants=participants_response
         )
         
-        # Ensure uid is 0 if None (not null)
         uid_value = token_data["uid"] if token_data["uid"] is not None else 0
         
         return VideoCallTokenResponse(
             app_id=token_data["appId"],
             channel=token_data["channel"],
-            uid=uid_value,  # Always 0 if None
+            uid=uid_value,
             user_account=token_data["userAccount"],
             role=token_data["role"],
             expire_at=token_data["expireAt"],
@@ -1678,15 +1531,12 @@ async def start_video_call(
     """Start a video call with another user"""
     chat_repo = ChatRepository(db)
     
-    # Check if receiver exists
     receiver = db.query(User).filter(User.id == call_request.receiver_id).first()
     if not receiver:
         raise HTTPException(status_code=404, detail="User not found")
     
-    # Generate unique call ID
     call_id = str(uuid.uuid4())
     
-    # Generate token for the caller
     try:
         token_data = generate_rtc_token(
             channel_name=call_request.channel_name,
@@ -1705,11 +1555,8 @@ async def start_video_call(
             token=token_data["token"]
         )
         
-        # Create video call message in database
-        # First, create or get room between users
         room = chat_repo.create_direct_room(current_user.id, call_request.receiver_id)
         
-        # Create video call message
         message = chat_repo.create_message(
             room_id=room.id,
             sender_id=current_user.id,
@@ -1722,7 +1569,6 @@ async def start_video_call(
             mime_type=None
         )
         
-        # Broadcast video call notification via WebSocket
         await manager.broadcast_video_call(
             call_id=call_id,
             channel_name=call_request.channel_name,
@@ -1750,9 +1596,7 @@ async def answer_video_call(
     db: Session = Depends(get_db)
 ):
     """Answer a video call"""
-    # Generate token for the receiver
     try:
-        # For now, we'll use a simple channel name based on call_id
         channel_name = f"call_{call_id}"
         
         token_data = generate_rtc_token(
@@ -1762,7 +1606,6 @@ async def answer_video_call(
             expire_seconds=3600
         )
         
-        # Broadcast call answered notification
         await manager.broadcast_video_call_answer(
             call_id=call_id,
             receiver_id=current_user.id,
@@ -1792,7 +1635,6 @@ async def reject_video_call(
     current_user: User = Depends(get_current_user)
 ):
     """Reject a video call"""
-    # Broadcast call rejected notification
     await manager.broadcast_video_call_reject(
         call_id=call_id,
         receiver_id=current_user.id,
@@ -1807,7 +1649,6 @@ async def end_video_call(
     current_user: User = Depends(get_current_user)
 ):
     """End a video call"""
-    # Broadcast call ended notification
     await manager.broadcast_video_call_end(
         call_id=call_id,
         user_id=current_user.id,
@@ -1816,41 +1657,35 @@ async def end_video_call(
     
     return {"status": "ended", "call_id": call_id}
 
-# Test endpoints (no authentication required)
 @router.post("/video-call/token/test", response_model=VideoCallTokenResponse)
 async def generate_video_call_token_test(
     token_request: VideoCallTokenRequest
 ):
     """Generate Agora RTC token for video calling (TEST - No Auth) - Production Mode"""
     try:
-        # IMPORTANT: Use same channel_name for same room_id (without timestamp)
-        # This ensures all participants join the same channel
-        # Generate channel name based on room_id only (no timestamp)
         channel_name = f"room_{token_request.room_id}_call"
         
-        # Use user_account if provided, otherwise generate default
-        user_account = token_request.user_account or f"test_user_{token_request.room_id}"
+        if token_request.uid is not None and token_request.uid != 0:
+            request_uid = token_request.uid
+            user_account_for_token = None
+        else:
+            request_uid = None
+            user_account_for_token = token_request.user_account or f"test_user_{token_request.room_id}"
         
-        # Use uid from request if provided, otherwise use 0 (Agora will auto-assign)
-        # Always use 0 if not provided (not None)
-        request_uid = token_request.uid if token_request.uid is not None else 0
-        
-        # Generate real token using Agora
         token_data = generate_rtc_token(
             channel_name=channel_name,
-            uid=request_uid,  # Can be 0, None, or a specific UID
-            user_account=user_account,
+            uid=request_uid,
+            user_account=user_account_for_token,
             role=token_request.role,
             expire_seconds=token_request.expire_seconds
         )
         
-        # Ensure uid is 0 if None (not null)
         uid_value = token_data["uid"] if token_data["uid"] is not None else 0
         
         return VideoCallTokenResponse(
             app_id=token_data["appId"],
             channel=token_data["channel"],
-            uid=uid_value,  # Always 0 if None
+            uid=uid_value,
             user_account=token_data["userAccount"],
             role=token_data["role"],
             expire_at=token_data["expireAt"],
@@ -1859,7 +1694,6 @@ async def generate_video_call_token_test(
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Token generation failed: {str(e)}")
 
-# Test WebSocket endpoint (no authentication)
 @router.websocket("/ws/test")
 async def websocket_test_endpoint(websocket: WebSocket):
     """Test WebSocket endpoint without authentication"""
@@ -1867,14 +1701,12 @@ async def websocket_test_endpoint(websocket: WebSocket):
         await websocket.accept()
         print("WebSocket connection accepted")
         
-        # Test user data
         user_id = 1
         user_name = "Test User"
         
         await manager.connect(websocket, user_id)
         print(f"User {user_id} connected to manager")
         
-        # Send welcome message
         await websocket.send_text(json.dumps({
             "type": "welcome",
             "message": "Connected to test WebSocket",
@@ -1888,7 +1720,6 @@ async def websocket_test_endpoint(websocket: WebSocket):
                 message_data = json.loads(data)
                 print(f"Received message: {message_data}")
                 
-                # Echo back the message
                 await websocket.send_text(json.dumps({
                     "type": "echo",
                     "data": message_data,

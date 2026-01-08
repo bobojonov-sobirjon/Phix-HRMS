@@ -67,4 +67,4 @@ class InvitationResponse(BaseModel):
 
 
 class StatusUpdateRequest(BaseModel):
-    status: bool  # True for accept, False for reject
+    status: bool

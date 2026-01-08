@@ -32,7 +32,6 @@ class FAQRepository(BaseRepository[FAQ]):
     def update(db: Session, faq_id: int, faq: FAQUpdate):
         """Update FAQ (static method for backward compatibility)"""
         repo = FAQRepository(db)
-        # BaseRepository.update() handles Pydantic models automatically
         return repo.update(faq_id, faq, exclude_unset=True)
     
     @staticmethod

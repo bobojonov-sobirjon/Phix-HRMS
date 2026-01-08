@@ -19,7 +19,6 @@ def build_file_url(file_path: Optional[str]) -> Optional[str]:
     if not file_path:
         return None
     
-    # Replace backslashes with forward slashes for web URLs
     clean_path = file_path.replace("\\", "/")
     return f"{settings.BASE_URL}/{clean_path}"
 
@@ -46,7 +45,6 @@ def build_files_data_with_urls(files_data: Optional[List[Dict[str, Any]]]) -> Op
             "file_size": file_data["file_size"],
             "mime_type": file_data["mime_type"]
         }
-        # Add duration for voice/audio messages
         if "duration" in file_data and file_data["duration"] is not None:
             file_data_with_url["duration"] = file_data["duration"]
         files_data_with_urls.append(file_data_with_url)

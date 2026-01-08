@@ -18,9 +18,9 @@ class NotificationBase(BaseModel):
     job_id: Optional[int] = None
     job_type: Optional[str] = None
     applicant_id: Optional[int] = None
-    room_id: Optional[int] = None  # For chat messages
-    message_id: Optional[int] = None  # For chat messages
-    sender_id: Optional[int] = None  # For chat messages
+    room_id: Optional[int] = None
+    message_id: Optional[int] = None
+    sender_id: Optional[int] = None
 
 
 class NotificationResponse(BaseModel):
@@ -34,10 +34,10 @@ class NotificationResponse(BaseModel):
     job_type: Optional[str] = None
     applicant_id: Optional[int] = None
     applicant_name: Optional[str] = None
-    room_id: Optional[int] = None  # For chat messages
-    message_id: Optional[int] = None  # For chat messages
-    sender_id: Optional[int] = None  # For chat messages
-    sender_name: Optional[str] = None  # For chat messages
+    room_id: Optional[int] = None
+    message_id: Optional[int] = None
+    sender_id: Optional[int] = None
+    sender_name: Optional[str] = None
     is_read: bool
     created_at: datetime
     proposal: Optional[dict] = Field(None, description="Full proposal details")

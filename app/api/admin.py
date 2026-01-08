@@ -26,7 +26,6 @@ router = APIRouter(prefix="/admin", tags=["Admin"])
 
 def check_admin_role(current_user: User = Depends(get_current_user)) -> User:
     """Check if current user has admin role"""
-    # Check if user has admin role
     role_names = [role.name.lower() for role in current_user.roles]
     if "admin" not in role_names:
         raise HTTPException(
@@ -88,7 +87,6 @@ async def get_all_users(
     user_repo = UserRepository(db)
     skip = (page - 1) * limit
     
-    # Get users with filters
     users, total = user_repo.get_all_users_with_filters(
         skip=skip,
         limit=limit,
@@ -101,16 +99,13 @@ async def get_all_users(
         date_to=date_to
     )
     
-    # Prepare response data with statistics
     users_data = []
     for user in users:
-        # Count gig jobs
         gig_jobs_count = db.query(GigJob).filter(
             GigJob.author_id == user.id,
             GigJob.is_deleted == False
         ).count()
         
-        # Count full-time jobs (user as owner of corporate profile)
         full_time_jobs_count = 0
         corporate_profile = db.query(CorporateProfile).filter(
             CorporateProfile.user_id == user.id,
@@ -121,21 +116,17 @@ async def get_all_users(
                 FullTimeJob.company_id == corporate_profile.id
             ).count()
         
-        # Count proposals
         proposals_count = db.query(Proposal).filter(
             Proposal.user_id == user.id,
             Proposal.is_deleted == False
         ).count()
         
-        # Count saved jobs
         saved_jobs_count = db.query(SavedJob).filter(
             SavedJob.user_id == user.id
         ).count()
         
-        # Check if user has corporate profile
         has_corporate_profile = corporate_profile is not None
         
-        # Prepare user data
         user_dict = {
             "id": user.id,
             "name": user.name,
@@ -192,7 +183,6 @@ async def get_all_users(
         
         users_data.append(user_dict)
     
-    # Calculate pagination
     pages = (total + limit - 1) // limit if total > 0 else 0
     
     return success_response(
@@ -223,26 +213,22 @@ async def block_user(
     """
     user_repo = UserRepository(db)
     
-    # Check if user exists (including deleted users for admin)
     target_user = user_repo.get_user_by_id_including_deleted(user_id)
     if not target_user:
         raise not_found_error("User not found")
     
-    # Prevent blocking yourself
     if target_user.id == current_user.id:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="You cannot block yourself"
         )
     
-    # Check if user is already blocked
     if not target_user.is_active:
         return success_response(
             data={"user_id": user_id, "is_active": False},
             message="User is already blocked"
         )
     
-    # Block the user
     block_reason = request.reason if request and request.reason else None
     success = user_repo.block_user(user_id, current_user.id, block_reason)
     
@@ -277,19 +263,16 @@ async def unblock_user(
     """
     user_repo = UserRepository(db)
     
-    # Check if user exists (including deleted users for admin)
     target_user = user_repo.get_user_by_id_including_deleted(user_id)
     if not target_user:
         raise not_found_error("User not found")
     
-    # Check if user is already unblocked
     if target_user.is_active:
         return success_response(
             data={"user_id": user_id, "is_active": True},
             message="User is already active"
         )
     
-    # Unblock the user
     success = user_repo.unblock_user(user_id)
     
     if not success:

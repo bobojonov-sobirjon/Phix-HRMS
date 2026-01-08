@@ -12,11 +12,9 @@ class CorporateProfileFollow(Base):
     corporate_profile_id = Column(Integer, ForeignKey("corporate_profiles.id"), nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
-    # Relationships
     user = relationship("User", back_populates="corporate_profile_follows")
     corporate_profile = relationship("CorporateProfile", back_populates="followers")
 
-    # Unique constraint to prevent duplicate follows
     __table_args__ = (
         UniqueConstraint('user_id', 'corporate_profile_id', name='uq_user_corporate_profile_follow'),
     )

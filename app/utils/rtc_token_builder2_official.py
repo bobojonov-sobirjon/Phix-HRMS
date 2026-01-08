@@ -1,19 +1,10 @@
-# -*- coding: utf-8 -*-
 __copyright__ = "Copyright (c) 2014-2017 Agora.io, Inc."
 
 from .access_token2 import *
 
 
-# RECOMMENDED. Use this role for a voice/video call or a live broadcast, if
-# your scenario does not require authentication for
-# [Co-host](https://docs.agora.io/en/video-calling/get-started/authentication-workflow?#co-host-token-authentication).
 Role_Publisher = 1
 
-# Only use this role if your scenario require authentication for
-# [Co-host](https://docs.agora.io/en/video-calling/get-started/authentication-workflow?#co-host-token-authentication).
-# @note In order for this role to take effect, please contact our support team
-# to enable authentication for Hosting-in for you. Otherwise, Role_Subscriber
-# still has the same privileges as Role_Publisher.
 Role_Subscriber = 2
 
 
@@ -39,14 +30,12 @@ class RtcTokenBuilder:
         :return: The RTC token.
         """
         import time
-        # Calculate privilege expiration timestamp (current time + privilege_expire seconds)
         current_ts = int(time.time())
         privilege_expire_ts = current_ts + privilege_expire if privilege_expire > 0 else 0
         
-        # For uid, pass it directly to ServiceRtc (it accepts integer uid)
         token = AccessToken(app_id, app_certificate, expire=token_expire)
         
-        service_rtc = ServiceRtc(channel_name, uid)  # ServiceRtc accepts integer uid
+        service_rtc = ServiceRtc(channel_name, uid)
         service_rtc.add_privilege(ServiceRtc.kPrivilegeJoinChannel, privilege_expire_ts)
         if role == Role_Publisher:
             service_rtc.add_privilege(ServiceRtc.kPrivilegePublishAudioStream, privilege_expire_ts)
@@ -76,7 +65,6 @@ class RtcTokenBuilder:
         :return: The RTC token.
         """
         import time
-        # Calculate privilege expiration timestamp (current time + privilege_expire seconds)
         current_ts = int(time.time())
         privilege_expire_ts = current_ts + privilege_expire if privilege_expire > 0 else 0
         
@@ -284,7 +272,6 @@ class RtcTokenBuilder:
         return token.build()
 
 
-# Alias RtcTokenBuilder as RtcTokenBuilder2 for compatibility
 class RtcTokenBuilder2(RtcTokenBuilder):
     """RtcTokenBuilder2 for 007 format tokens - extends RtcTokenBuilder"""
     pass

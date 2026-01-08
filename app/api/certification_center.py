@@ -15,8 +15,10 @@ from ..utils.response_helpers import (
     success_response,
     not_found_error,
     bad_request_error,
-    validate_entity_exists
+    validate_entity_exists,
+    forbidden_error
 )
+from ..utils.permissions import is_admin_user
 from ..models.user import User
 
 router = APIRouter(prefix="/certification-centers", tags=["Certification centers"])
@@ -31,7 +33,6 @@ async def create_certification_center(
     """Create a new certification center"""
     repo = CertificationCenterRepository(db)
     
-    # Check if certification center with same name already exists
     existing_center = repo.get_certification_center_by_name(data.name)
     if existing_center:
         raise bad_request_error("Certification center with this name already exists")
@@ -74,20 +75,19 @@ async def update_certification_center(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """Update a certification center"""
+    """Update a certification center (admin only)"""
+    if not is_admin_user(current_user.email):
+        raise forbidden_error("Only admin can update certification centers")
     repo = CertificationCenterRepository(db)
     
-    # Check if center exists
     existing_center = repo.get_certification_center_by_id(center_id)
     validate_entity_exists(existing_center, "Certification center")
     
-    # Check if new name conflicts with existing centers
     if data.name and data.name != existing_center.name:
         name_conflict = repo.get_certification_center_by_name(data.name)
         if name_conflict:
             raise bad_request_error("Certification center with this name already exists")
     
-    # Filter out None values
     update_data = {k: v for k, v in data.dict().items() if v is not None}
     
     if not update_data:
@@ -106,10 +106,11 @@ async def delete_certification_center(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """Delete a certification center (soft delete)"""
+    """Delete a certification center (soft delete, admin only)"""
+    if not is_admin_user(current_user.email):
+        raise forbidden_error("Only admin can delete certification centers")
     repo = CertificationCenterRepository(db)
     
-    # Check if center exists
     existing_center = repo.get_certification_center_by_id(center_id)
     validate_entity_exists(existing_center, "Certification center")
     

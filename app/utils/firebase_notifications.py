@@ -8,11 +8,9 @@ import os
 from pathlib import Path
 from dotenv import load_dotenv
 
-# Load environment variables from .env file
 load_dotenv()
 
 
-# Global Firebase app instance
 _firebase_app = None
 
 
@@ -29,7 +27,6 @@ def initialize_firebase(service_account_path: Optional[str] = None):
     if _firebase_app is not None:
         return _firebase_app
     
-    # First, try to use environment variables (without FIREBASE_ prefix, as in main.py)
     firebase_type = os.getenv("TYPE")
     firebase_project_id = os.getenv("PROJECT_ID")
     firebase_private_key_id = os.getenv("PRIVATE_KEY_ID")
@@ -42,18 +39,12 @@ def initialize_firebase(service_account_path: Optional[str] = None):
     firebase_client_cert_url = os.getenv("CLIENT_CERT_URL")
     firebase_universe_domain = os.getenv("UNIVERSE_DOMAIN")
     
-    # Debug log removed for production; uncomment if low-level Firebase env debugging is needed
-    # print(f"DEBUG: Firebase env vars - Private Key: {'Found' if firebase_private_key else 'Not found'}, Client Email: {'Found' if firebase_client_email else 'Not found'}")
     
     if firebase_private_key and firebase_client_email:
-        # Use environment variables to create credentials
         try:
-            # Extract project_id from client_email if not provided
-            # Format: service-account@project-id.iam.gserviceaccount.com
             project_id = firebase_project_id
             if not project_id and firebase_client_email and "@" in firebase_client_email:
                 try:
-                    # Extract project_id from email: service-account@project-id.iam.gserviceaccount.com
                     email_parts = firebase_client_email.split("@")
                     if len(email_parts) > 1:
                         domain_parts = email_parts[1].split(".")
@@ -62,12 +53,11 @@ def initialize_firebase(service_account_path: Optional[str] = None):
                 except Exception:
                     project_id = None
             
-            # Build service account info dictionary
             service_account_info = {
                 "type": firebase_type or "service_account",
                 "project_id": project_id or "",
                 "private_key_id": firebase_private_key_id or "",
-                "private_key": firebase_private_key.replace("\\n", "\n"),  # Handle escaped newlines
+                "private_key": firebase_private_key.replace("\\n", "\n"),
                 "client_email": firebase_client_email,
                 "client_id": firebase_client_id or "",
                 "auth_uri": firebase_auth_uri or "https://accounts.google.com/o/oauth2/auth",
@@ -82,11 +72,8 @@ def initialize_firebase(service_account_path: Optional[str] = None):
             return _firebase_app
         except Exception as e:
             print(f"WARNING: Failed to initialize Firebase using environment variables: {str(e)}")
-            # Fall through to try file-based initialization
     
-    # If environment variables not available, try to find service account file
     if service_account_path is None:
-        # Check common locations
         possible_paths = [
             "phix-864d2-firebase-adminsdk-fbsvc-1f428184f0.json",
             "firebase-service-account.json",
@@ -139,7 +126,6 @@ def send_push_notification(
         bool: True if sent successfully, False otherwise
     """
     try:
-        # Ensure Firebase is initialized
         if _firebase_app is None:
             try:
                 initialize_firebase()
@@ -150,14 +136,12 @@ def send_push_notification(
                 print(f"WARNING: Cannot send push notification - Firebase initialization failed: {str(e)}")
                 return False
         
-        # Build notification
         notification = messaging.Notification(
             title=title,
             body=body,
             image=image_url
         )
         
-        # Build Android config
         android_config = messaging.AndroidConfig(
             priority="high",
             notification=messaging.AndroidNotification(
@@ -166,7 +150,6 @@ def send_push_notification(
             )
         )
         
-        # Build APNS (iOS) config
         apns_config = messaging.APNSConfig(
             headers={"apns-priority": "10"},
             payload=messaging.APNSPayload(
@@ -177,7 +160,6 @@ def send_push_notification(
             )
         )
         
-        # Create message
         message = messaging.Message(
             notification=notification,
             data=data or {},
@@ -186,7 +168,6 @@ def send_push_notification(
             apns=apns_config
         )
         
-        # Send message
         response = messaging.send(message)
         print(f"Successfully sent message: {response}")
         return True
@@ -195,8 +176,6 @@ def send_push_notification(
         print(f"Device token is unregistered: {device_token}")
         return False
     except Exception as e:
-        # Covers invalid arguments and other Firebase errors for SDK versions
-        # where messaging.InvalidArgumentError is not available
         print(f"Error sending push notification: {str(e)}")
         return False
 
@@ -224,12 +203,10 @@ def send_push_notification_multiple(
     Returns:
         Dict with success_count, failure_count, and results
     """
-    # Ensure Firebase is initialized
     if _firebase_app is None:
         try:
             initialize_firebase()
         except FileNotFoundError as e:
-            # If Firebase file not found, return skipped results instead of failure
             print(f"WARNING: Cannot send push notifications - Firebase not initialized: {str(e)}")
             return {
                 "success_count": 0,
@@ -238,7 +215,6 @@ def send_push_notification_multiple(
                 "results": [{"token": token, "success": False, "skipped": True, "error": "Firebase not initialized"} for token in device_tokens]
             }
         except Exception as e:
-            # Other initialization errors
             print(f"WARNING: Cannot send push notifications - Firebase initialization failed: {str(e)}")
             return {
                 "success_count": 0,
@@ -261,14 +237,12 @@ def send_push_notification_multiple(
         "results": []
     }
     
-    # Build notification
     notification = messaging.Notification(
         title=title,
         body=body,
         image=image_url
     )
     
-    # Build Android config
     android_config = messaging.AndroidConfig(
         priority="high",
         notification=messaging.AndroidNotification(
@@ -277,7 +251,6 @@ def send_push_notification_multiple(
         )
     )
     
-    # Build APNS (iOS) config
     apns_config = messaging.APNSConfig(
         headers={"apns-priority": "10"},
         payload=messaging.APNSPayload(
@@ -288,10 +261,8 @@ def send_push_notification_multiple(
         )
     )
     
-    # Send to each device individually (more reliable than batch)
     for token in device_tokens:
         try:
-            # Create message for this device
             message = messaging.Message(
                 notification=notification,
                 data=data or {},
@@ -300,7 +271,6 @@ def send_push_notification_multiple(
                 apns=apns_config
             )
             
-            # Send message
             response = messaging.send(message)
             results["success_count"] += 1
             results["results"].append({
@@ -317,8 +287,6 @@ def send_push_notification_multiple(
                 "error": "Device token is unregistered"
             })
         except Exception as e:
-            # Covers invalid arguments and other Firebase errors for SDK versions
-            # where messaging.InvalidArgumentError is not available
             results["failure_count"] += 1
             results["results"].append({
                 "token": token,

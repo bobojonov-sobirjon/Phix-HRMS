@@ -10,7 +10,6 @@ class ChatRepository:
     def __init__(self, db: Session):
         self.db = db
 
-    # User Search
     def search_users_by_email(self, email: str, current_user_id: int, limit: int = 20) -> List[User]:
         """Search users by email (excluding current user)"""
         return self.db.query(User).filter(
@@ -21,24 +20,20 @@ class ChatRepository:
             )
         ).limit(limit).all()
 
-    # Chat Room Methods
     def create_direct_room(self, user1_id: int, user2_id: int) -> ChatRoom:
         """Create a direct chat room between two users"""
-        # Check if room already exists
         existing_room = self.get_direct_room(user1_id, user2_id)
         if existing_room:
             return existing_room
         
-        # Create new room
         room = ChatRoom(
             name=f"Direct Chat",
             room_type="direct",
             created_by=user1_id
         )
         self.db.add(room)
-        self.db.flush()  # Get the room ID
+        self.db.flush()
         
-        # Add both users as participants
         participant1 = ChatParticipant(
             room_id=room.id,
             user_id=user1_id,
@@ -59,7 +54,6 @@ class ChatRepository:
 
     def get_direct_room(self, user1_id: int, user2_id: int) -> Optional[ChatRoom]:
         """Get existing direct room between two users"""
-        # Find rooms where both users are participants
         subquery = self.db.query(ChatParticipant.room_id).filter(
             and_(
                 ChatParticipant.user_id.in_([user1_id, user2_id]),
@@ -91,17 +85,14 @@ class ChatRepository:
 
     def fix_room_participants(self, room_id: int) -> bool:
         """Fix room participants if they have data integrity issues"""
-        # Get all participants for this room
         participants = self.db.query(ChatParticipant).filter(
             ChatParticipant.room_id == room_id
         ).all()
         
-        # Check for duplicate user_ids
         user_ids = [p.user_id for p in participants]
         unique_user_ids = list(set(user_ids))
         
         if len(user_ids) != len(unique_user_ids):
-            # Remove duplicate participants (keep the first one)
             seen_user_ids = set()
             participants_to_remove = []
             
@@ -111,7 +102,6 @@ class ChatRepository:
                 else:
                     seen_user_ids.add(participant.user_id)
             
-            # Remove duplicate participants
             for participant in participants_to_remove:
                 self.db.delete(participant)
             
@@ -122,12 +112,10 @@ class ChatRepository:
 
     def fix_missing_participants(self, room_id: int, expected_user_id: int) -> bool:
         """Fix missing participants in direct chat rooms"""
-        # Get the room
         room = self.db.query(ChatRoom).filter(ChatRoom.id == room_id).first()
         if not room or room.room_type != "direct":
             return False
         
-        # Check if user is already a participant
         existing_participant = self.db.query(ChatParticipant).filter(
             and_(
                 ChatParticipant.room_id == room_id,
@@ -138,7 +126,6 @@ class ChatRepository:
         if existing_participant:
             return False
         
-        # Add the missing participant
         new_participant = ChatParticipant(
             room_id=room_id,
             user_id=expected_user_id,
@@ -173,7 +160,6 @@ class ChatRepository:
         
         return other_participant.user if other_participant else None
 
-    # Message Methods
     def create_message(self, room_id: int, sender_id: int, receiver_id: int, 
                       message_type: MessageType, content: str = None, 
                       file_name: str = None, file_path: str = None, 
@@ -195,7 +181,6 @@ class ChatRepository:
         )
         self.db.add(message)
         
-        # Update room's updated_at timestamp
         room = self.db.query(ChatRoom).filter(ChatRoom.id == room_id).first()
         if room:
             room.updated_at = datetime.utcnow()
@@ -203,13 +188,11 @@ class ChatRepository:
         self.db.commit()
         self.db.refresh(message)
         
-        # Load sender relationship for immediate use
         self.db.refresh(message, ['sender'])
         return message
 
     def get_room_messages(self, room_id: int, user_id: int, page: int = 1, per_page: int = 50) -> List[ChatMessage]:
         """Get messages for a room with pagination"""
-        # Verify user has access to the room
         if not self.get_room(room_id, user_id):
             return []
         
@@ -225,7 +208,6 @@ class ChatRepository:
     
     def get_room_messages_count(self, room_id: int, user_id: int) -> int:
         """Get total count of messages in a room"""
-        # Verify user has access to the room
         if not self.get_room(room_id, user_id):
             return 0
         
@@ -247,7 +229,6 @@ class ChatRepository:
 
     def mark_messages_as_read(self, room_id: int, user_id: int) -> bool:
         """Mark all messages in a room as read for a user"""
-        # Update all unread messages from other users
         self.db.query(ChatMessage).filter(
             and_(
                 ChatMessage.room_id == room_id,
@@ -256,7 +237,6 @@ class ChatRepository:
             )
         ).update({"is_read": True})
         
-        # Update participant's last_read_at
         participant = self.db.query(ChatParticipant).filter(
             and_(
                 ChatParticipant.room_id == room_id,
@@ -330,7 +310,6 @@ class ChatRepository:
             return True
         return False
 
-    # Presence Methods
     def update_user_presence(self, user_id: int, is_online: bool) -> UserPresence:
         """Update user's online status"""
         from datetime import timezone
@@ -371,7 +350,6 @@ class ChatRepository:
         now = datetime.now(timezone.utc)
         five_minutes_ago = now - timedelta(minutes=5)
         
-        # Get all room IDs where current user is a participant
         user_room_ids = self.db.query(ChatParticipant.room_id).filter(
             and_(
                 ChatParticipant.user_id == current_user_id,
@@ -379,7 +357,6 @@ class ChatRepository:
             )
         ).subquery()
         
-        # Get all user IDs who are participants in those rooms (excluding current user)
         room_user_ids = self.db.query(ChatParticipant.user_id).filter(
             and_(
                 ChatParticipant.room_id.in_(user_room_ids),
@@ -388,7 +365,6 @@ class ChatRepository:
             )
         ).subquery()
         
-        # Get online users who are in the same rooms
         return self.db.query(User).join(UserPresence, User.id == UserPresence.user_id).filter(
             and_(
                 User.id.in_(room_user_ids),
@@ -414,7 +390,6 @@ class ChatRepository:
             return {}
         
         from datetime import datetime, timedelta
-        # Users are considered online if they were active in the last 5 minutes
         online_threshold = datetime.utcnow() - timedelta(minutes=5)
         
         online_users = self.db.query(UserPresence.user_id).filter(
@@ -433,16 +408,13 @@ class ChatRepository:
         if not presence:
             return False
         
-        # Consider user online if last seen within 5 minutes
         from datetime import timezone
         now = datetime.now(timezone.utc)
         five_minutes_ago = now - timedelta(minutes=5)
         return presence.is_online and presence.last_seen > five_minutes_ago
 
-    # Message Like Methods
     def toggle_message_like(self, message_id: int, user_id: int) -> Dict[str, Any]:
         """Toggle like/unlike for a message. Returns {'action': 'liked'/'unliked', 'like_count': int}"""
-        # Check if message exists and user has access to it
         message = self.db.query(ChatMessage).join(ChatRoom).join(ChatParticipant).filter(
             and_(
                 ChatMessage.id == message_id,
@@ -454,7 +426,6 @@ class ChatRepository:
         if not message:
             return None
         
-        # Check if user already liked this message
         existing_like = self.db.query(MessageLike).filter(
             and_(
                 MessageLike.message_id == message_id,
@@ -463,11 +434,9 @@ class ChatRepository:
         ).first()
         
         if existing_like:
-            # Unlike: remove the like
             self.db.delete(existing_like)
             action = "unliked"
         else:
-            # Like: add new like
             new_like = MessageLike(
                 message_id=message_id,
                 user_id=user_id
@@ -477,7 +446,6 @@ class ChatRepository:
         
         self.db.commit()
         
-        # Get updated like count
         like_count = self.db.query(MessageLike).filter(
             MessageLike.message_id == message_id
         ).count()

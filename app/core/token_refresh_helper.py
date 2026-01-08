@@ -51,11 +51,10 @@ def should_refresh_token(token: str, refresh_threshold_minutes: int = 60) -> boo
     """
     exp_info = check_token_expiration(token)
     if not exp_info:
-        return True  # Invalid token, should refresh
+        return True
     
     if exp_info["is_expired"]:
-        return True  # Already expired
+        return True
     
-    # Check if expiring soon
     threshold = timedelta(minutes=refresh_threshold_minutes)
     return exp_info["time_until_expiry"] < threshold

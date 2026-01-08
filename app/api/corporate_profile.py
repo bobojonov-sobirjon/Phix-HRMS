@@ -51,26 +51,24 @@ def get_current_user_optional(
         return None
 
 
-def generate_otp() -> str:
-    """Generate 6-digit OTP"""
+def generate_otp(email: Optional[str] = None) -> str:
+    """Generate 6-digit OTP. Returns '1234' for test user (example@phix.com)"""
+    if email and email.lower() == "example@phix.com":
+        return "1234"
     return ''.join(random.choices(string.digits, k=6))
 
 
 def save_logo_file(logo_file: UploadFile, profile_id: int) -> str:
     """Save logo file and return the URL"""
-    # Get absolute path to project root (where app folder is)
     project_root = Path(__file__).parent.parent.parent
     
-    # Create uploads directory if it doesn't exist
     upload_dir = project_root / "static" / "logos"
     upload_dir.mkdir(parents=True, exist_ok=True)
     
-    # Generate unique filename
     file_extension = logo_file.filename.split('.')[-1] if logo_file.filename else 'jpg'
     unique_filename = f"logo_{profile_id}_{uuid.uuid4().hex[:8]}.{file_extension}"
     file_path = upload_dir / unique_filename
     
-    # Save file
     try:
         with open(file_path, "wb") as buffer:
             content = logo_file.file.read()
@@ -86,7 +84,6 @@ def save_logo_file(logo_file: UploadFile, profile_id: int) -> str:
             detail=f"Failed to save file: {str(e)}"
         )
     
-    # Return the URL
     return f"/static/logos/{unique_filename}"
 
 
@@ -102,7 +99,6 @@ def add_base_url_to_profile(profile):
         if hasattr(profile, 'user') and profile.user and hasattr(profile.user, 'avatar_url') and profile.user.avatar_url:
             profile.user.avatar_url = f"{settings.BASE_URL}{profile.user.avatar_url}"
         
-        # Add base URL to team member avatars
         if hasattr(profile, 'team_members') and profile.team_members:
             for team_member in profile.team_members:
                 if team_member.user and hasattr(team_member.user, 'avatar_url') and team_member.user.avatar_url:
@@ -114,7 +110,6 @@ def add_base_url_to_profile(profile):
         error_msg = f"Error adding base URL to profile: {str(e)}"
         print(f"ERROR in add_base_url_to_profile: {error_msg}")
         print(traceback.format_exc())
-        # Return profile as-is if URL addition fails
         return profile
 
 
@@ -123,7 +118,6 @@ def convert_profile_to_response(profile_with_urls, current_user_id: Optional[int
     try:
         from ..schemas.corporate_profile import CorporateProfileResponse, TeamMemberResponse
         
-        # Prepare team members data
         team_members_data = []
         if hasattr(profile_with_urls, 'team_members') and profile_with_urls.team_members:
             for team_member in profile_with_urls.team_members:
@@ -144,11 +138,9 @@ def convert_profile_to_response(profile_with_urls, current_user_id: Optional[int
                     }
                     team_members_data.append(team_member_data)
                 except Exception as e:
-                    # Skip problematic team members
                     print(f"Error processing team member {getattr(team_member, 'id', 'unknown')}: {str(e)}")
                     continue
         
-        # Check if current user is following this profile
         is_followed = False
         follow_relation_id = None
         followers_count = 0
@@ -157,31 +149,23 @@ def convert_profile_to_response(profile_with_urls, current_user_id: Optional[int
                 from ..repositories.corporate_profile_follow_repository import CorporateProfileFollowRepository
                 follow_repo = CorporateProfileFollowRepository(db)
                 
-                # Get followers count
                 followers_count = follow_repo.count_followers(profile_with_urls.id)
                 
-                # Check if current user is following and get follow relation ID
-                # If token is provided, get user.id and corporate_profile_id, then filter CorporateProfileFollow
                 if current_user_id is not None and profile_with_urls.id:
                     from ..models.corporate_profile_follow import CorporateProfileFollow
                     from sqlalchemy import and_
-                    # Filter CorporateProfileFollow by user_id and corporate_profile_id
-                    # Get user_id from token and corporate_profile_id from profile, then check if follow exists
                     follow_relation = db.query(CorporateProfileFollow).filter(
                         and_(
                             CorporateProfileFollow.user_id == int(current_user_id),
                             CorporateProfileFollow.corporate_profile_id == int(profile_with_urls.id)
                         )
                     ).first()
-                    # If follow relation exists, get its id
                     if follow_relation:
                         is_followed = True
                         follow_relation_id = int(follow_relation.id)
             except Exception as e:
-                # If follow check fails, continue without follow info
                 print(f"Error checking follow status: {str(e)}")
         
-        # Create profile data with team members
         company_size_value = profile_with_urls.company_size.value if hasattr(profile_with_urls.company_size, 'value') else str(profile_with_urls.company_size)
         
         profile_dict = {
@@ -263,14 +247,12 @@ async def create_corporate_profile(
     user_repo = UserRepository(db)
     corporate_repo = CorporateProfileRepository(db)
     
-    # Check if user already has a corporate profile
     if corporate_repo.check_user_has_profile(current_user.id):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="User already has a corporate profile"
         )
     
-    # Validate location exists
     location = db.query(Location).filter(Location.id == location_id, Location.is_deleted == False).first()
     if not location:
         raise HTTPException(
@@ -278,7 +260,6 @@ async def create_corporate_profile(
             detail="Invalid location ID"
         )
     
-    # Validate category_id if provided
     if category_id is not None:
         category_obj = db.query(Category).filter(
             Category.id == category_id,
@@ -290,7 +271,6 @@ async def create_corporate_profile(
                 detail="Invalid category ID"
             )
     
-    # Validate logo file if provided
     logo_url = None
     if logo:
         if not logo.content_type.startswith('image/'):
@@ -299,7 +279,6 @@ async def create_corporate_profile(
                 detail="Only image files are allowed for logo"
             )
     
-    # Create corporate profile data
     profile_data = CorporateProfileCreate(
         company_name=company_name,
         phone_number=phone_number,
@@ -308,22 +287,18 @@ async def create_corporate_profile(
         overview=overview,
         website_url=website_url,
         company_size=company_size,
-        logo_url=None,  # Will be set after saving
+        logo_url=None,
         category_id=category_id,
     )
     
-    # Create corporate profile
     db_profile = corporate_repo.create(profile_data, current_user.id)
     
-    # Handle logo upload if provided
     if logo:
         try:
             logo_url = save_logo_file(logo, db_profile.id)
-            # Update profile with logo URL
             db_profile.logo_url = logo_url
             db.commit()
         except Exception as e:
-            # If logo upload fails, delete the profile
             db.delete(db_profile)
             db.commit()
             raise HTTPException(
@@ -331,8 +306,7 @@ async def create_corporate_profile(
                 detail=f"Failed to upload logo: {str(e)}"
             )
     
-    # Generate and send OTP
-    otp_code = generate_otp()
+    otp_code = generate_otp(email=current_user.email)
     otp = OTP.create_otp(
         email=current_user.email,
         otp_code=otp_code,
@@ -343,7 +317,6 @@ async def create_corporate_profile(
     db.add(otp)
     db.commit()
     
-    # Create owner team member for the creator
     try:
         from ..repositories.team_member_repository import TeamMemberRepository
         team_repo = TeamMemberRepository(db)
@@ -352,20 +325,16 @@ async def create_corporate_profile(
             user_id=current_user.id
         )
     except Exception as e:
-        # Log error but don't fail the request
         print(f"Failed to create owner team member: {e}")
     
-    # Send verification email using dedicated corporate verification function
     try:
         await send_corporate_verification_email(
             email=current_user.email,
             otp_code=otp_code
         )
     except Exception as e:
-        # Log error but don't fail the request
         print(f"Failed to send corporate verification email: {e}")
     
-    # Get the updated profile with relationships for response
     updated_profile = corporate_repo.get_by_id(db_profile.id)
     profile_with_urls = add_base_url_to_profile(updated_profile)
     profile_response = convert_profile_to_response(profile_with_urls, current_user.id, db)
@@ -385,15 +354,20 @@ async def get_corporate_profiles(
     current_user: Optional[dict] = Depends(get_current_user_optional),
     db: Session = Depends(get_db)
 ):
-    """Get all verified corporate profiles with pagination"""
+    """Get all verified corporate profiles with pagination. Admin can see all profiles including unverified."""
     try:
         corporate_repo = CorporateProfileRepository(db)
         skip = (page - 1) * size
 
-        profiles = corporate_repo.get_verified_profiles(skip=skip, limit=size)
-        total = corporate_repo.count_verified()
+        is_admin = current_user and is_admin_user(current_user.get("email", ""))
+        
+        if is_admin:
+            profiles = corporate_repo.get_all_profiles(skip=skip, limit=size)
+            total = corporate_repo.count_all()
+        else:
+            profiles = corporate_repo.get_verified_profiles(skip=skip, limit=size)
+            total = corporate_repo.count_verified()
 
-        # Add base URL to all profiles and convert to response format
         profiles_with_urls = [add_base_url_to_profile(profile) for profile in profiles]
         current_user_id = current_user.get("id") if current_user else None
         profiles_response = [convert_profile_to_response(profile, current_user_id, db) for profile in profiles_with_urls]
@@ -431,7 +405,6 @@ async def get_active_corporate_profiles(
     profiles = corporate_repo.get_active_profiles(skip=skip, limit=size)
     total = corporate_repo.count_active()
 
-    # Add base URL to all profiles and convert to response format
     profiles_with_urls = [add_base_url_to_profile(profile) for profile in profiles]
     current_user_id = current_user.get("id") if current_user else None
     profiles_response = [convert_profile_to_response(profile, current_user_id, db) for profile in profiles_with_urls]
@@ -461,15 +434,11 @@ async def get_corporate_profile(
         )
     
     profile_with_urls = add_base_url_to_profile(profile)
-    # Get user.id from token if token is provided
-    # Token bo'lsa, user.id ni olish kerak
     current_user_id = None
     if current_user:
-        # current_user dict bo'lishi kerak va "id" key bo'lishi kerak
         if isinstance(current_user, dict) and "id" in current_user:
             current_user_id = int(current_user["id"])
         elif hasattr(current_user, "id"):
-            # Agar current_user obyekt bo'lsa
             current_user_id = int(current_user.id)
     
     return convert_profile_to_response(profile_with_urls, current_user_id, db)
@@ -488,7 +457,6 @@ async def get_recently_posted_jobs(
     Returns jobs ordered by created_at DESC (most recent first).
     Only returns ACTIVE jobs.
     """
-    # Check if corporate profile exists
     corporate_repo = CorporateProfileRepository(db)
     profile = corporate_repo.get_by_id(profile_id)
     
@@ -504,12 +472,10 @@ async def get_recently_posted_jobs(
             detail="Corporate profile is not active"
         )
     
-    # Get recently posted jobs for this company (only ACTIVE jobs)
     job_repo = FullTimeJobRepository(db)
     current_user_id = current_user.get("id") if current_user else None
     skip = (page - 1) * size
     
-    # Get jobs ordered by created_at DESC (recently posted first), only ACTIVE
     jobs = job_repo.get_by_company_id(
         company_id=profile_id,
         skip=skip,
@@ -518,14 +484,12 @@ async def get_recently_posted_jobs(
         status="ACTIVE"
     )
     
-    # Get total count of active jobs
     from ..models.full_time_job import FullTimeJob, JobStatus
     total = db.query(FullTimeJob).filter(
         FullTimeJob.company_id == profile_id,
         FullTimeJob.status == JobStatus.ACTIVE
     ).count()
     
-    # Convert dict responses to FullTimeJobResponse objects
     response_jobs = []
     for job in jobs:
         response_data = FullTimeJobResponse(**job)
@@ -579,7 +543,6 @@ async def update_corporate_profile(
     
     corporate_repo = CorporateProfileRepository(db)
     
-    # Check if profile exists and belongs to current user
     profile = corporate_repo.get_by_id(profile_id)
     if not profile:
         raise HTTPException(
@@ -587,13 +550,12 @@ async def update_corporate_profile(
             detail="Corporate profile not found"
         )
     
-    if profile.user_id != current_user.id:
+    if not check_admin_or_owner(current_user.email, current_user.id, profile.user_id):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Not authorized to update this profile"
         )
     
-    # Validate location if provided
     if location_id is not None:
         location = db.query(Location).filter(Location.id == location_id, Location.is_deleted == False).first()
         if not location:
@@ -602,7 +564,6 @@ async def update_corporate_profile(
                 detail="Invalid location ID"
             )
     
-    # Validate category_id if provided
     if category_id is not None:
         category_obj = db.query(Category).filter(
             Category.id == category_id,
@@ -614,14 +575,12 @@ async def update_corporate_profile(
                 detail="Invalid category ID"
             )
     
-    # Validate logo file if provided
     if logo and not logo.content_type.startswith('image/'):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Only image files are allowed for logo"
         )
     
-    # Prepare update data
     update_data = CorporateProfileUpdate()
     if company_name is not None:
         update_data.company_name = company_name
@@ -640,7 +599,6 @@ async def update_corporate_profile(
     if category_id is not None:
         update_data.category_id = category_id
     
-    # Update profile
     updated_profile = corporate_repo.update(profile_id, update_data)
     if not updated_profile:
         raise HTTPException(
@@ -648,11 +606,9 @@ async def update_corporate_profile(
             detail="Failed to update profile"
         )
     
-    # Handle logo upload if provided
     if logo:
         try:
             logo_url = save_logo_file(logo, profile_id)
-            # Update profile with new logo URL
             updated_profile.logo_url = logo_url
             db.commit()
             db.refresh(updated_profile)
@@ -662,7 +618,6 @@ async def update_corporate_profile(
                 detail=f"Failed to upload logo: {str(e)}"
             )
     
-    # Get the updated profile with relationships
     updated_profile_with_relations = corporate_repo.get_by_id(profile_id)
     profile_with_urls = add_base_url_to_profile(updated_profile_with_relations)
     
@@ -678,7 +633,6 @@ async def delete_corporate_profile(
     """Delete corporate profile"""
     corporate_repo = CorporateProfileRepository(db)
     
-    # Check if profile exists and belongs to current user
     profile = corporate_repo.get_by_id(profile_id)
     if not profile:
         raise HTTPException(
@@ -686,14 +640,13 @@ async def delete_corporate_profile(
             detail="Corporate profile not found"
         )
     
-    # Check if profile is already deleted
     if profile.is_deleted:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Corporate profile is already deleted"
         )
     
-    if profile.user_id != current_user.id:
+    if not check_admin_or_owner(current_user.email, current_user.id, profile.user_id):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Not authorized to delete this profile"
@@ -717,7 +670,6 @@ async def resend_corporate_otp(
     """Resend OTP code for corporate profile verification - only for the authenticated user's corporate profile"""
     corporate_repo = CorporateProfileRepository(db)
     
-    # Get the user's corporate profile (filtered by current_user from token)
     profile = corporate_repo.get_by_user_id(current_user.id)
     
     if not profile:
@@ -726,38 +678,31 @@ async def resend_corporate_otp(
             detail="Corporate profile not found for this user"
         )
     
-    # Verify the profile belongs to the current user (double check)
     if profile.user_id != current_user.id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Unauthorized: This corporate profile does not belong to you"
         )
     
-    # Check if profile is already verified
     if profile.is_verified:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Corporate profile is already verified"
         )
     
-    # Check if there's a valid (non-expired and unused) OTP for this profile
     existing_otp = db.query(OTP).filter(
         OTP.email == current_user.email,
         OTP.otp_type == "corporate_verification",
         OTP.is_used == False
     ).order_by(OTP.created_at.desc()).first()
     
-    # Only generate new OTP if:
-    # 1. No OTP exists, OR
-    # 2. The existing OTP has expired
     if existing_otp and not existing_otp.is_expired():
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="A valid OTP code has already been sent. Please check your email or wait for the current code to expire before requesting a new one."
         )
     
-    # Generate new OTP
-    otp_code = generate_otp()
+    otp_code = generate_otp(email=current_user.email)
     otp = OTP.create_otp(
         email=current_user.email,
         otp_code=otp_code,
@@ -768,7 +713,6 @@ async def resend_corporate_otp(
     db.add(otp)
     db.commit()
     
-    # Send verification email
     try:
         await send_corporate_verification_email(
             email=current_user.email,
@@ -776,7 +720,6 @@ async def resend_corporate_otp(
         )
     except Exception as e:
         print(f"Failed to send corporate verification email: {e}")
-        # Return OTP in response for testing/development
         return SuccessResponse(
             msg="OTP code generated (email failed to send, check console for OTP)",
             data={"otp_code": otp_code}
@@ -798,7 +741,6 @@ async def verify_corporate_profile(
     db: Session = Depends(get_db)
 ):
     """Verify corporate profile with OTP - only for the authenticated user's corporate profile"""
-    # Find valid OTP for this user
     otp = db.query(OTP).filter(
         OTP.email == current_user.email,
         OTP.otp_code == verification.otp_code,
@@ -812,7 +754,6 @@ async def verify_corporate_profile(
             detail="Invalid or expired OTP"
         )
     
-    # Get profile ID from OTP data
     profile_data = otp.get_data()
     profile_id = profile_data.get("profile_id")
     
@@ -822,7 +763,6 @@ async def verify_corporate_profile(
             detail="Invalid OTP data"
         )
     
-    # Get the profile and verify it belongs to the current user
     corporate_repo = CorporateProfileRepository(db)
     profile = corporate_repo.get_by_id(profile_id)
     
@@ -832,14 +772,12 @@ async def verify_corporate_profile(
             detail="Corporate profile not found"
         )
     
-    # Verify the profile belongs to the current user
     if profile.user_id != current_user.id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Unauthorized: This OTP is not for your corporate profile"
         )
     
-    # Verify profile
     verified_profile = corporate_repo.verify_profile(profile_id)
     
     if not verified_profile:
@@ -848,7 +786,6 @@ async def verify_corporate_profile(
             detail="Corporate profile not found"
         )
     
-    # Mark OTP as used
     otp.is_used = True
     db.commit()
     

@@ -14,12 +14,10 @@ class CorporateProfileFollowRepository:
 
     def create(self, corporate_profile_id: int, user_id: int) -> CorporateProfileFollow:
         """Create a new corporate profile follow"""
-        # Check if already following
         existing = self.get_by_user_and_profile(user_id=user_id, corporate_profile_id=corporate_profile_id)
         if existing:
             raise ValueError("Already following this corporate profile")
 
-        # Check if corporate profile exists
         corporate_profile = self.db.query(CorporateProfile).filter(
             CorporateProfile.id == corporate_profile_id,
             CorporateProfile.is_deleted == False
@@ -68,7 +66,6 @@ class CorporateProfileFollowRepository:
         pagination: PaginationParams
     ) -> tuple[List[CorporateProfileFollow], int]:
         """Get paginated corporate profiles that user is following with full details"""
-        # First get total count
         total = self.db.query(CorporateProfileFollow).join(CorporateProfile).filter(
             and_(
                 CorporateProfileFollow.user_id == user_id,
@@ -76,7 +73,6 @@ class CorporateProfileFollowRepository:
             )
         ).count()
         
-        # Then get paginated results with relationships
         query = self.db.query(CorporateProfileFollow).options(
             joinedload(CorporateProfileFollow.corporate_profile).joinedload(CorporateProfile.location),
             joinedload(CorporateProfileFollow.corporate_profile).joinedload(CorporateProfile.user),
@@ -98,7 +94,6 @@ class CorporateProfileFollowRepository:
         pagination: PaginationParams
     ) -> tuple[List[CorporateProfileFollow], int]:
         """Get paginated users who follow a corporate profile with full user details"""
-        # First get total count
         total = self.db.query(CorporateProfileFollow).join(User).filter(
             and_(
                 CorporateProfileFollow.corporate_profile_id == corporate_profile_id,
@@ -106,7 +101,6 @@ class CorporateProfileFollowRepository:
             )
         ).count()
         
-        # Then get paginated results with relationships
         query = self.db.query(CorporateProfileFollow).options(
             joinedload(CorporateProfileFollow.user).joinedload(User.location),
             joinedload(CorporateProfileFollow.user).joinedload(User.main_category),

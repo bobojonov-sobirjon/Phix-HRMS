@@ -28,31 +28,25 @@ class GigJobRepository:
 
     def create(self, gig_job_data: GigJobCreate, author_id: int) -> dict:
         """Create a new gig job"""
-        # Extract skill_ids for separate handling
         skill_ids = gig_job_data.skill_ids
         
-        # Create gig job data dict without skills
         gig_job_dict = gig_job_data.model_dump(exclude={'skill_ids'})
         
-        # Create the gig job
         db_gig_job = GigJob(
             **gig_job_dict,
             author_id=author_id
         )
         self.db.add(db_gig_job)
-        self.db.flush()  # Flush to get the ID
+        self.db.flush()
         
-        # Get skills by IDs and add them to the gig job (no duplicates)
         if skill_ids:
             skills = self._get_skills_by_ids(skill_ids)
-            # Remove duplicates by converting to set and back to list
-            unique_skills = list(dict.fromkeys(skills))  # Preserves order while removing duplicates
+            unique_skills = list(dict.fromkeys(skills))
             db_gig_job.skills = unique_skills
         
         self.db.commit()
         self.db.refresh(db_gig_job)
         
-        # Load category, subcategory, location and proposals relationships
         db_gig_job = self.db.query(GigJob).options(
             joinedload(GigJob.category),
             joinedload(GigJob.subcategory),
@@ -94,13 +88,10 @@ class GigJobRepository:
             GigJob.is_deleted == False
         ).order_by(desc(GigJob.created_at))
         
-        # Get total count
         total = base_query.count()
         
-        # Apply pagination
         gig_jobs = base_query.offset(pagination.offset).limit(pagination.limit).all()
         
-        # Prepare response data for each gig job
         prepared_gig_jobs = []
         for gig_job in gig_jobs:
             prepared_gig_jobs.append(self._prepare_gig_job_response(gig_job, current_user_id))
@@ -135,7 +126,6 @@ class GigJobRepository:
             GigJob.is_deleted == False
         )
         
-        # Apply filters
         if status:
             query = query.filter(GigJob.status == status)
         
@@ -160,7 +150,6 @@ class GigJobRepository:
         if subcategory_id:
             query = query.filter(GigJob.subcategory_id == subcategory_id)
         
-        # Date filter
         if date_posted:
             now = datetime.utcnow()
             if date_posted == "past_24_hours":
@@ -170,19 +159,15 @@ class GigJobRepository:
             elif date_posted == "past_month":
                 query = query.filter(GigJob.created_at >= now - timedelta(days=30))
         
-        # Sorting
         if sort_by == "most_recent":
             query = query.order_by(desc(GigJob.created_at))
-        else:  # most_relevant or default
+        else:
             query = query.order_by(desc(GigJob.created_at))
         
-        # Get total count
         total = query.count()
         
-        # Apply pagination
         gig_jobs = query.offset(pagination.offset).limit(pagination.limit).all()
         
-        # Prepare response data for each gig job
         prepared_gig_jobs = []
         for gig_job in gig_jobs:
             prepared_gig_jobs.append(self._prepare_gig_job_response(gig_job, current_user_id))
@@ -200,25 +185,18 @@ class GigJobRepository:
         if not gig_job:
             return None
         
-        # Extract skill_ids for separate handling
         skill_ids = gig_job_data.skill_ids
         
-        # Update other fields
         update_data = gig_job_data.model_dump(exclude_unset=True, exclude={'skill_ids'})
         
-        # Update fields
         gig_job.updated_at = func.now()
         
-        # Update other fields
         for field, value in update_data.items():
             setattr(gig_job, field, value)
         
-        # Update skills if provided - add new skills without removing existing ones
         if skill_ids is not None:
             new_skills = self._get_skills_by_ids(skill_ids)
-            # Get existing skills
             existing_skills = list(gig_job.skills)
-            # Add only new skills that don't already exist
             for new_skill in new_skills:
                 if new_skill not in existing_skills:
                     existing_skills.append(new_skill)
@@ -227,7 +205,6 @@ class GigJobRepository:
         self.db.commit()
         self.db.refresh(gig_job)
         
-        # Load category, subcategory, location and proposals relationships
         gig_job = self.db.query(GigJob).options(
             joinedload(GigJob.category),
             joinedload(GigJob.subcategory),
@@ -279,7 +256,6 @@ class GigJobRepository:
             joinedload(GigJob.author)
         ).filter(GigJob.is_deleted == False)
         
-        # Apply filters
         if status:
             query = query.filter(GigJob.status == status)
         
@@ -304,7 +280,6 @@ class GigJobRepository:
         if subcategory_id:
             query = query.filter(GigJob.subcategory_id == subcategory_id)
         
-        # Date filter
         if date_posted:
             now = datetime.utcnow()
             if date_posted == "past_24_hours":
@@ -314,19 +289,15 @@ class GigJobRepository:
             elif date_posted == "past_month":
                 query = query.filter(GigJob.created_at >= now - timedelta(days=30))
         
-        # Sorting
         if sort_by == "most_recent":
             query = query.order_by(desc(GigJob.created_at))
-        else:  # most_relevant or default
+        else:
             query = query.order_by(desc(GigJob.created_at))
         
-        # Get total count
         total = query.count()
         
-        # Apply pagination
         gig_jobs = query.offset(pagination.offset).limit(pagination.limit).all()
         
-        # Prepare response data for each gig job
         prepared_gig_jobs = []
         for gig_job in gig_jobs:
             prepared_gig_jobs.append(self._prepare_gig_job_response(gig_job, current_user_id))
@@ -335,42 +306,35 @@ class GigJobRepository:
 
     def _prepare_gig_job_response(self, gig_job: GigJob, current_user_id: Optional[int] = None) -> dict:
         """Prepare gig job response data"""
-        # Count proposals for this gig job
         proposal_count = self.db.query(Proposal).filter(
             Proposal.gig_job_id == gig_job.id,
             Proposal.is_deleted == False
         ).count()
         
-        # Count all jobs by the author
         all_jobs_count = self.db.query(GigJob).filter(
             GigJob.author_id == gig_job.author_id,
             GigJob.is_deleted == False
         ).count()
         
-        # Calculate relevance score if current user is provided
         relevance_score = None
         is_saved = False
         is_send_proposal = False
         if current_user_id:
             relevance_score = self._calculate_relevance_score(gig_job, current_user_id)
-            # Check if job is saved by current user
             from ..models.saved_job import SavedJob
             is_saved = self.db.query(SavedJob).filter(
                 SavedJob.user_id == current_user_id,
                 SavedJob.gig_job_id == gig_job.id
             ).first() is not None
-            # Check if user has sent a proposal for this job
             is_send_proposal = self.db.query(Proposal).filter(
                 Proposal.user_id == current_user_id,
                 Proposal.gig_job_id == gig_job.id,
                 Proposal.is_deleted == False
             ).first() is not None
         
-        # Prepare skills data with gig_job_skill ID
         skills_data = []
         for skill in gig_job.skills:
             if not skill.is_deleted:
-                # Get the gig_job_skill relationship ID
                 gig_job_skill = self.db.query(GigJobSkill).filter(
                     GigJobSkill.gig_job_id == gig_job.id,
                     GigJobSkill.skill_id == skill.id
@@ -384,7 +348,6 @@ class GigJobRepository:
                     "is_deleted": skill.is_deleted
                 }
                 
-                # Add gig_job_skill_id if relationship exists
                 if gig_job_skill:
                     skill_data["gig_job_skill_id"] = gig_job_skill.id
                 
@@ -455,7 +418,6 @@ class GigJobRepository:
         from ..models.user_skill import UserSkill
         from ..models.user import User
         
-        # Get user's skills
         user_skills = self.db.query(UserSkill).filter(
             UserSkill.user_id == current_user_id,
             UserSkill.is_deleted == False
@@ -470,37 +432,29 @@ class GigJobRepository:
         if not job_skill_ids:
             return 0.0
         
-        # Calculate skill match percentage (primary factor)
         matching_skills = user_skill_ids.intersection(job_skill_ids)
         skill_match_percentage = (len(matching_skills) / len(job_skill_ids)) * 100
         
-        # Get user details for additional factors
         user = self.db.query(User).filter(User.id == current_user_id).first()
         if not user:
             return round(skill_match_percentage, 2)
         
-        # Additional relevance factors
         bonus_score = 0.0
         
-        # Experience level match bonus
         if hasattr(gig_job, 'experience_level') and hasattr(user, 'experience_level'):
             if gig_job.experience_level == user.experience_level:
                 bonus_score += 10.0
         
-        # Location match bonus (if user has location preference)
         if hasattr(gig_job, 'location_id') and gig_job.location_id and hasattr(user, 'location_id'):
             if gig_job.location_id == user.location_id:
                 bonus_score += 5.0
         
-        # Salary range match bonus (if user's expected salary is within job range)
         if hasattr(user, 'expected_salary') and user.expected_salary:
             if gig_job.min_salary <= user.expected_salary <= gig_job.max_salary:
                 bonus_score += 15.0
             elif user.expected_salary < gig_job.min_salary:
-                # User expects less than minimum, but still relevant
                 bonus_score += 5.0
         
-        # Calculate final score (skill match + bonuses, capped at 100)
         final_score = min(skill_match_percentage + bonus_score, 100.0)
         
         return round(final_score, 2)
@@ -521,13 +475,10 @@ class GigJobRepository:
             )
         ).order_by(GigJob.created_at.desc())
         
-        # Get total count
         total = query.count()
         
-        # Apply pagination
         gig_jobs = query.offset(pagination.offset).limit(pagination.limit).all()
         
-        # Prepare response data for each gig job
         prepared_gig_jobs = []
         for gig_job in gig_jobs:
             prepared_gig_jobs.append(self._prepare_gig_job_response(gig_job, current_user_id))
@@ -540,7 +491,6 @@ class GigJobRepository:
         from ..models.gig_job_skill import GigJobSkill
         from ..models.skill import Skill
         
-        # Get the gig job
         gig_job = self.db.query(GigJob).filter(
             GigJob.id == gig_job_id,
             GigJob.author_id == user_id,
@@ -550,7 +500,6 @@ class GigJobRepository:
         if not gig_job:
             raise ValueError("Gig job not found or you don't have permission to modify it")
         
-        # Get the GigJobSkill relationship to remove
         gig_job_skill = self.db.query(GigJobSkill).filter(
             GigJobSkill.id == gig_job_skill_id,
             GigJobSkill.gig_job_id == gig_job_id
@@ -559,17 +508,14 @@ class GigJobRepository:
         if not gig_job_skill:
             raise ValueError("GigJobSkill relationship not found")
         
-        # Get the skill name before removing
         skill = self.db.query(Skill).filter(Skill.id == gig_job_skill.skill_id).first()
         skill_name = skill.name if skill else "Unknown"
         
-        # Remove the GigJobSkill relationship
         self.db.delete(gig_job_skill)
         
         self.db.commit()
         self.db.refresh(gig_job)
         
-        # Load relationships for response
         gig_job = self.db.query(GigJob).options(
             joinedload(GigJob.category),
             joinedload(GigJob.subcategory),

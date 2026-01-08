@@ -13,7 +13,6 @@ class Skill(Base):
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
     is_deleted = Column(Boolean, default=False)
     
-    # Relationships
     users = relationship('User', secondary='user_skills', back_populates='skills', viewonly=True)
     gig_jobs = relationship('GigJob', secondary='gig_job_skills', back_populates='skills', viewonly=True)
     full_time_jobs = relationship('FullTimeJob', secondary='full_time_job_skills', back_populates='skills', viewonly=True) 

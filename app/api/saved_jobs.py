@@ -59,7 +59,6 @@ async def get_my_saved_jobs(
     
     saved_jobs, total = repository.get_user_saved_jobs(current_user.id, pagination)
     
-    # Convert saved jobs to detailed response format
     saved_job_responses = [SavedJobDetailedResponse.from_orm(saved_job, db, current_user.id) for saved_job in saved_jobs]
     
     return create_pagination_response(
@@ -88,7 +87,6 @@ async def get_my_saved_gig_jobs(
     
     saved_jobs, total = repository.get_user_saved_gig_jobs(current_user.id, pagination)
     
-    # Convert saved jobs to detailed response format
     saved_job_responses = [SavedJobDetailedResponse.from_orm(saved_job, db, current_user.id) for saved_job in saved_jobs]
     
     return create_pagination_response(
@@ -116,7 +114,6 @@ async def get_my_saved_full_time_jobs(
     
     saved_jobs, total = repository.get_user_saved_full_time_jobs(current_user.id, pagination)
     
-    # Convert saved jobs to detailed response format
     saved_job_responses = [SavedJobDetailedResponse.from_orm(saved_job, db, current_user.id) for saved_job in saved_jobs]
     
     return create_pagination_response(

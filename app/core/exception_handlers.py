@@ -19,7 +19,6 @@ async def http_exception_handler(request: Request, exc: HTTPException) -> JSONRe
     Returns:
         JSONResponse with error format
     """
-    # Only apply custom format for API endpoints
     if request.url.path.startswith("/api/"):
         logger.warning(
             f"HTTP {exc.status_code} error: {exc.detail}",
@@ -36,7 +35,6 @@ async def http_exception_handler(request: Request, exc: HTTPException) -> JSONRe
                 "msg": exc.detail
             }
         )
-    # For non-API endpoints, use FastAPI's default behavior
     raise exc
 
 
@@ -51,9 +49,7 @@ async def general_exception_handler(request: Request, exc: Exception) -> JSONRes
     Returns:
         JSONResponse with error format
     """
-    # Only apply custom format for API endpoints
     if request.url.path.startswith("/api/"):
-        # Log the full error for debugging
         logger.error(
             f"Unhandled exception: {type(exc).__name__}",
             exc_info=True,
@@ -73,5 +69,4 @@ async def general_exception_handler(request: Request, exc: Exception) -> JSONRes
                 "msg": ERROR_MESSAGES["INTERNAL_ERROR"]
             }
         )
-    # For non-API endpoints, let FastAPI handle it
     raise exc

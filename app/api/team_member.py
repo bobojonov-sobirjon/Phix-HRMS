@@ -42,7 +42,6 @@ async def search_users(
     """Search users by name or email"""
     from sqlalchemy import and_, or_
     
-    # Simple user search without corporate profile filtering
     users = db.query(User).filter(
         and_(
             or_(
@@ -51,7 +50,7 @@ async def search_users(
             ),
             User.is_active == True,
             User.is_deleted == False,
-            User.id != current_user.id  # Exclude current user
+            User.id != current_user.id
         )
     ).offset(skip).limit(limit).all()
     
@@ -76,7 +75,6 @@ async def invite_team_member(
     current_user: User = Depends(get_current_user)
 ):
     """Invite a new team member to the company"""
-    # Verify user has access to this corporate profile
     corporate_profile_repo = CorporateProfileRepository(db)
     corporate_profile = corporate_profile_repo.get_by_id(corporate_profile_id)
     validate_entity_exists(corporate_profile, "Corporate profile")
@@ -91,7 +89,6 @@ async def invite_team_member(
             team_member, corporate_profile_id, current_user.id
         )
         
-        # Send invitation email with team member ID
         await send_team_invitation_email_new(
             email=team_member.email,
             company_name=corporate_profile.company_name if corporate_profile else "Company",
@@ -119,7 +116,6 @@ async def get_team_members(
     current_user: User = Depends(get_current_user)
 ):
     """Get all team members for a corporate profile"""
-    # Verify user has access to this corporate profile
     corporate_profile_repo = CorporateProfileRepository(db)
     corporate_profile = corporate_profile_repo.get_by_id(corporate_profile_id)
     validate_entity_exists(corporate_profile, "Corporate profile")
@@ -131,10 +127,8 @@ async def get_team_members(
     team_members = team_member_repo.get_team_members(corporate_profile_id, skip, limit)
     total = team_member_repo.get_team_member_count(corporate_profile_id)
     
-    # Convert to response format
     team_member_responses = []
     for member in team_members:
-        # Get user details
         user = db.query(User).filter(User.id == member.user_id).first()
         invited_by_user = db.query(User).filter(User.id == member.invited_by_user_id).first()
         
@@ -172,7 +166,6 @@ async def update_team_member_role(
     current_user: User = Depends(get_current_user)
 ):
     """Update team member role"""
-    # Verify user has access to this corporate profile
     corporate_profile_repo = CorporateProfileRepository(db)
     corporate_profile = corporate_profile_repo.get_by_id(corporate_profile_id)
     validate_entity_exists(corporate_profile, "Corporate profile")
@@ -184,7 +177,6 @@ async def update_team_member_role(
     updated_member = team_member_repo.update_team_member_role(team_member_id, role_update)
     validate_entity_exists(updated_member, "Team member")
     
-    # Get user details for response
     user = db.query(User).filter(User.id == updated_member.user_id).first()
     invited_by_user = db.query(User).filter(User.id == updated_member.invited_by_user_id).first()
     
@@ -245,7 +237,6 @@ async def remove_team_member(
     current_user: User = Depends(get_current_user)
 ):
     """Remove team member from company"""
-    # Verify user has access to this corporate profile
     corporate_profile_repo = CorporateProfileRepository(db)
     corporate_profile = corporate_profile_repo.get_by_id(corporate_profile_id)
     validate_entity_exists(corporate_profile, "Corporate profile")
@@ -275,10 +266,8 @@ async def get_pending_invitations(
     team_member_repo = TeamMemberRepository(db)
     pending_invitations = team_member_repo.get_pending_invitations(current_user.id)
     
-    # Convert to response format
     invitation_responses = []
     for invitation in pending_invitations:
-        # Get company and inviter details
         corporate_profile = db.query(CorporateProfile).filter(
             CorporateProfile.id == invitation.corporate_profile_id
         ).first()
@@ -319,11 +308,9 @@ async def accept_invitation(
     if team_member.status != TeamMemberStatus.PENDING:
         raise bad_request_error("Invitation has already been processed")
     
-    # Accept the invitation
     updated_member = team_member_repo.update_team_member_status(team_member_id, True)
     validate_entity_exists(updated_member, "Team member")
     
-    # Return HTML response for better user experience
     html_response = """
     <!DOCTYPE html>
     <html>
@@ -331,11 +318,11 @@ async def accept_invitation(
         <meta charset="utf-8">
         <title>Invitation Accepted</title>
         <style>
-            body { font-family: Arial, sans-serif; text-align: center; padding: 50px; background-color: #f5f5f5; }
+            body { font-family: Arial, sans-serif; text-align: center; padding: 50px; background-color:
             .container { max-width: 500px; margin: 0 auto; background: white; padding: 40px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
-            .success { color: #4CAF50; font-size: 24px; margin-bottom: 20px; }
-            .message { color: #333; font-size: 16px; margin-bottom: 30px; }
-            .button { display: inline-block; padding: 12px 24px; background-color: #4CAF50; color: white; text-decoration: none; border-radius: 5px; }
+            .success { color:
+            .message { color:
+            .button { display: inline-block; padding: 12px 24px; background-color:
         </style>
     </head>
     <body>
@@ -366,11 +353,9 @@ async def reject_invitation(
     if team_member.status != TeamMemberStatus.PENDING:
         raise bad_request_error("Invitation has already been processed")
     
-    # Reject the invitation
     updated_member = team_member_repo.update_team_member_status(team_member_id, False)
     validate_entity_exists(updated_member, "Team member")
     
-    # Return HTML response for better user experience
     html_response = """
     <!DOCTYPE html>
     <html>
@@ -378,11 +363,11 @@ async def reject_invitation(
         <meta charset="utf-8">
         <title>Invitation Rejected</title>
         <style>
-            body { font-family: Arial, sans-serif; text-align: center; padding: 50px; background-color: #f5f5f5; }
+            body { font-family: Arial, sans-serif; text-align: center; padding: 50px; background-color:
             .container { max-width: 500px; margin: 0 auto; background: white; padding: 40px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
-            .rejected { color: #f44336; font-size: 24px; margin-bottom: 20px; }
-            .message { color: #333; font-size: 16px; margin-bottom: 30px; }
-            .button { display: inline-block; padding: 12px 24px; background-color: #f44336; color: white; text-decoration: none; border-radius: 5px; }
+            .rejected { color:
+            .message { color:
+            .button { display: inline-block; padding: 12px 24px; background-color:
         </style>
     </head>
     <body>

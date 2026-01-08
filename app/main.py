@@ -14,16 +14,13 @@ from .core.router_setup import register_routers
 from .core.database_setup import create_all_tables
 from .utils.admin_setup import ensure_admin_user_exists
 
-# Load environment variables
 load_dotenv()
 
-# If .env doesn't exist, create it from env.example
 if not os.path.exists('.env') and os.path.exists('env.example'):
     import shutil
     shutil.copy('env.example', '.env')
     load_dotenv()
 
-# Initialize FastAPI app
 app = FastAPI(
     title="Phix HRMS API", 
     version="1.0.0", 
@@ -33,35 +30,28 @@ app = FastAPI(
     openapi_url="/openapi.json"
 )
 
-# Add middleware
 app.add_middleware(RequestLoggingMiddleware)
 app.add_middleware(ErrorLoggingMiddleware)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # TODO: Restrict in production
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Register exception handlers
 app.add_exception_handler(HTTPException, http_exception_handler)
 app.add_exception_handler(Exception, general_exception_handler)
 
-# Register routers
 register_routers(app)
 
-# Mount static files
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
-# Create database tables
 create_all_tables()
 
-# Ensure admin user exists (create if not exists)
 logger.info("Checking admin user...")
 ensure_admin_user_exists()
 
-# Firebase configuration (loaded from environment)
 FIREBASE_TYPE = os.getenv("TYPE")
 FIREBASE_PROJECT_ID = os.getenv("PROJECT_ID")
 FIREBASE_PRIVATE_KEY_ID = os.getenv("PRIVATE_KEY_ID")

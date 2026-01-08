@@ -5,7 +5,8 @@ from ..repositories.skill_repository import SkillRepository
 from ..schemas.profile import SkillResponse, SkillCreate, SkillUpdate
 from ..schemas.common import SuccessResponse
 from ..utils.decorators import handle_errors
-from ..utils.response_helpers import success_response, not_found_error, validate_entity_exists
+from ..utils.response_helpers import success_response, not_found_error, validate_entity_exists, forbidden_error
+from ..utils.permissions import is_admin_user
 from typing import List, Optional
 from ..models.user import User
 from ..utils.auth import get_current_user
@@ -24,7 +25,6 @@ async def get_skills(
         skills = repo.get_skills_by_name(name)
     else:
         skills = repo.get_all_skills()
-    # Convert SQLAlchemy models to Pydantic response models
     skill_responses = [SkillResponse.model_validate(skill) for skill in skills]
     return success_response(
         data=skill_responses,
@@ -41,7 +41,6 @@ async def create_skill(
     """Create a new skill"""
     repo = SkillRepository(db)
     created_skill = repo.create_skill(skill.name)
-    # Convert SQLAlchemy model to Pydantic response model
     skill_response = SkillResponse.model_validate(created_skill)
     return success_response(
         data=skill_response,
@@ -56,11 +55,12 @@ async def update_skill(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Update skill"""
+    """Update skill (admin only)"""
+    if not is_admin_user(current_user.email):
+        raise forbidden_error("Only admin can update skills")
     repo = SkillRepository(db)
     updated = repo.update_skill(skill_id, skill.name)
     validate_entity_exists(updated, "Skill")
-    # Convert SQLAlchemy model to Pydantic response model
     skill_response = SkillResponse.model_validate(updated)
     return success_response(
         data=skill_response,
@@ -74,7 +74,9 @@ async def delete_skill(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Delete skill"""
+    """Delete skill (admin only)"""
+    if not is_admin_user(current_user.email):
+        raise forbidden_error("Only admin can delete skills")
     repo = SkillRepository(db)
     if not repo.delete_skill(skill_id):
         raise not_found_error("Skill not found")

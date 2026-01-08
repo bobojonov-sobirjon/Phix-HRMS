@@ -14,6 +14,5 @@ class UserSkill(Base):
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
     is_deleted = Column(Boolean, default=False)
     
-    # Relationships (for association object)
     user = relationship('User')
     skill = relationship('Skill') 

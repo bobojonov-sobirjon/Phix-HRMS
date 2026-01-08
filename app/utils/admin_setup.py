@@ -12,7 +12,7 @@ def create_admin_user(db: Session = None) -> bool:
     """
     Create admin user if it doesn't exist
     Email: admin@admin.com
-    Password: Admin@2024!Secure#PhixHRMS
+    Password: Admin@2024!Secure
     
     Returns:
         bool: True if admin user was created or already exists, False on error
@@ -27,21 +27,18 @@ def create_admin_user(db: Session = None) -> bool:
         user_repo = UserRepository(db)
         role_repo = RoleRepository(db)
         
-        # Check if admin user already exists
         admin_user = user_repo.get_user_by_email("admin@admin.com")
         
         if admin_user:
             print("✅ Admin user already exists: admin@admin.com")
             return True
         
-        # Get or create admin role
         admin_role = role_repo.get_role_by_name("admin")
         if not admin_role:
             print("📝 Creating admin role...")
             admin_role = role_repo.create_role("admin")
             print("✅ Admin role created")
         
-        # Create admin user with secure password
         admin_password = "Admin@2024!Secure#PhixHRMS"
         
         print("📝 Creating admin user...")
@@ -49,13 +46,11 @@ def create_admin_user(db: Session = None) -> bool:
             name="Admin User",
             email="admin@admin.com",
             password=admin_password,
-            phone=None  # Admin doesn't need phone
+            phone=None
         )
         
-        # Assign admin role
         user_repo.assign_roles_to_user(admin_user.id, ['admin'])
         
-        # Set admin as verified and active
         admin_user.is_verified = True
         admin_user.is_active = True
         db.commit()

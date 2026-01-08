@@ -41,29 +41,24 @@ async def get_applications(
         pagination=pagination
     )
     
-    # Get unread count
     unread_count = repository.get_unread_count(
         user_id=current_user.id,
         notification_type=NotificationType.APPLICATION
     )
     
-    # Convert to response format
     notification_responses = []
     for notification in notifications:
         applicant_name = None
         if notification.applicant:
             applicant_name = notification.applicant.name
         
-        # Prepare proposal details
         proposal_details = None
         if notification.proposal:
             proposal_details = ProposalResponse.from_orm(notification.proposal).model_dump()
         
-        # Prepare recipient user details
         recipient_user_details = None
         if notification.recipient:
             user_data = UserShortDetails.model_validate(notification.recipient).model_dump()
-            # Format avatar_url if needed
             if user_data.get("avatar_url") and not user_data["avatar_url"].startswith(('http://', 'https://')):
                 user_data["avatar_url"] = f"{settings.BASE_URL}{user_data['avatar_url']}"
             recipient_user_details = user_data
@@ -115,25 +110,20 @@ async def get_my_proposals(
         pagination=pagination
     )
     
-    # Get unread count
     unread_count = repository.get_unread_count(
         user_id=current_user.id,
         notification_type=NotificationType.PROPOSAL_VIEWED
     )
     
-    # Convert to response format
     notification_responses = []
     for notification in notifications:
-        # Prepare proposal details
         proposal_details = None
         if notification.proposal:
             proposal_details = ProposalResponse.from_orm(notification.proposal).model_dump()
         
-        # Prepare recipient user details
         recipient_user_details = None
         if notification.recipient:
             user_data = UserShortDetails.model_validate(notification.recipient).model_dump()
-            # Format avatar_url if needed
             if user_data.get("avatar_url") and not user_data["avatar_url"].startswith(('http://', 'https://')):
                 user_data["avatar_url"] = f"{settings.BASE_URL}{user_data['avatar_url']}"
             recipient_user_details = user_data
@@ -214,24 +204,20 @@ async def get_chat_messages(
         pagination=pagination
     )
     
-    # Get unread count
     unread_count = repository.get_unread_count(
         user_id=current_user.id,
         notification_type=NotificationType.CHAT_MESSAGE
     )
     
-    # Convert to response format
     notification_responses = []
     for notification in notifications:
         sender_name = None
         if notification.sender:
             sender_name = notification.sender.name
         
-        # Prepare recipient user details
         recipient_user_details = None
         if notification.recipient:
             user_data = UserShortDetails.model_validate(notification.recipient).model_dump()
-            # Format avatar_url if needed
             if user_data.get("avatar_url") and not user_data["avatar_url"].startswith(('http://', 'https://')):
                 user_data["avatar_url"] = f"{settings.BASE_URL}{user_data['avatar_url']}"
             recipient_user_details = user_data

@@ -29,7 +29,6 @@ async def create_role(role_data: RoleCreate, db: Session = Depends(get_db)):
     if existing:
         raise bad_request_error('Role already exists')
     role = repo.create_role(role_data.name)
-    # Convert SQLAlchemy model to Pydantic response model
     role_response = RoleResponse.model_validate(role)
     return success_response(
         data=role_response,
@@ -42,7 +41,6 @@ async def get_roles(db: Session = Depends(get_db)):
     """Get all roles"""
     repo = RoleRepository(db)
     roles = repo.get_all_roles()
-    # Convert SQLAlchemy models to Pydantic response models
     role_responses = [RoleResponse.model_validate(role) for role in roles]
     return success_response(
         data=role_responses,
@@ -56,7 +54,6 @@ async def get_role(role_id: int, db: Session = Depends(get_db)):
     repo = RoleRepository(db)
     role = repo.get_role_by_id(role_id)
     validate_entity_exists(role, "Role")
-    # Convert SQLAlchemy model to Pydantic response model
     role_response = RoleResponse.model_validate(role)
     return success_response(
         data=role_response,
@@ -70,7 +67,6 @@ async def update_role(role_id: int, role_data: RoleCreate, db: Session = Depends
     repo = RoleRepository(db)
     role = repo.update_role(role_id, role_data.name)
     validate_entity_exists(role, "Role")
-    # Convert SQLAlchemy model to Pydantic response model
     role_response = RoleResponse.model_validate(role)
     return success_response(
         data=role_response,

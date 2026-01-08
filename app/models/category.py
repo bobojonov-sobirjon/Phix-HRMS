@@ -12,22 +12,17 @@ class Category(Base):
     description = Column(Text, nullable=True)
     is_active = Column(Boolean, default=True)
     
-    # Self-referencing foreign key for parent-child relationship
     parent_id = Column(Integer, ForeignKey("categories.id"), nullable=True)
     
-    # Timestamps
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
     
-    # Relationships
     parent = relationship("Category", remote_side=[id], back_populates="children")
     children = relationship("Category", back_populates="parent")
     
-    # Job relationships
     full_time_jobs = relationship("FullTimeJob", foreign_keys="FullTimeJob.category_id", back_populates="category")
     gig_jobs = relationship("GigJob", foreign_keys="GigJob.category_id", back_populates="category")
     
-    # User relationships
     users_main = relationship("User", foreign_keys="User.main_category_id", back_populates="main_category")
     users_sub = relationship("User", foreign_keys="User.sub_category_id", back_populates="sub_category")
     

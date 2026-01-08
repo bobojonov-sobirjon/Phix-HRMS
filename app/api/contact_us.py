@@ -15,7 +15,6 @@ router = APIRouter(prefix="/contact-us", tags=["Contact Us"])
 async def get_contacts(db: Session = Depends(get_db)):
     """Get all contacts"""
     contacts = ContactUsRepository.get_all(db)
-    # Convert SQLAlchemy models to Pydantic schemas
     contact_schemas = [ContactUsOut.model_validate(contact) for contact in contacts]
     return success_response(
         data=contact_schemas,
@@ -28,7 +27,6 @@ async def get_contact(contact_id: int, db: Session = Depends(get_db)):
     """Get contact by ID"""
     contact = ContactUsRepository.get_by_id(db, contact_id)
     validate_entity_exists(contact, "Contact")
-    # Convert SQLAlchemy model to Pydantic schema
     contact_schema = ContactUsOut.model_validate(contact)
     return success_response(
         data=contact_schema,
@@ -40,7 +38,6 @@ async def get_contact(contact_id: int, db: Session = Depends(get_db)):
 async def create_contact(contact: ContactUsCreate, db: Session = Depends(get_db)):
     """Create a new contact"""
     created_contact = ContactUsRepository.create(db, contact)
-    # Convert SQLAlchemy model to Pydantic schema
     contact_schema = ContactUsOut.model_validate(created_contact)
     return success_response(
         data=contact_schema,
@@ -53,7 +50,6 @@ async def update_contact(contact_id: int, contact: ContactUsUpdate, db: Session 
     """Update contact"""
     updated = ContactUsRepository.update(db, contact_id, contact)
     validate_entity_exists(updated, "Contact")
-    # Convert SQLAlchemy model to Pydantic schema
     contact_schema = ContactUsOut.model_validate(updated)
     return success_response(
         data=contact_schema,
@@ -67,7 +63,6 @@ async def delete_contact(contact_id: int, db: Session = Depends(get_db)):
     deleted = ContactUsRepository.delete(db, contact_id)
     if not deleted:
         raise not_found_error("Contact not found")
-    # Convert SQLAlchemy model to Pydantic schema
     contact_schema = ContactUsOut.model_validate(deleted)
     return success_response(
         data=contact_schema,

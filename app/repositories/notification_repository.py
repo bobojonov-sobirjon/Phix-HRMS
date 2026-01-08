@@ -78,25 +78,21 @@ class NotificationRepository:
             joinedload(Notification.proposal).joinedload(Proposal.full_time_job).joinedload(FullTimeJob.subcategory),
             joinedload(Notification.proposal).joinedload(Proposal.full_time_job).joinedload(FullTimeJob.skills),
             joinedload(Notification.applicant),
-            joinedload(Notification.sender),  # For chat messages
+            joinedload(Notification.sender),
             joinedload(Notification.recipient).joinedload(User.location),
             joinedload(Notification.recipient).joinedload(User.main_category),
             joinedload(Notification.recipient).joinedload(User.sub_category),
             joinedload(Notification.recipient).joinedload(User.skills)
         ).filter(Notification.recipient_user_id == user_id)
 
-        # Filter by type
         if notification_type:
             query = query.filter(Notification.type == notification_type)
 
-        # Filter by read status
         if is_read is not None:
             query = query.filter(Notification.is_read == is_read)
 
-        # Get total count
         total = query.count()
 
-        # Apply pagination
         if pagination:
             query = query.order_by(desc(Notification.created_at)).offset(pagination.offset).limit(pagination.limit)
         else:
@@ -114,7 +110,7 @@ class NotificationRepository:
         return self.get_user_notifications(
             user_id=user_id,
             notification_type=NotificationType.APPLICATION,
-            is_read=False,  # Only return unread notifications
+            is_read=False,
             pagination=pagination
         )
 
@@ -127,7 +123,7 @@ class NotificationRepository:
         return self.get_user_notifications(
             user_id=user_id,
             notification_type=NotificationType.PROPOSAL_VIEWED,
-            is_read=False,  # Only return unread notifications
+            is_read=False,
             pagination=pagination
         )
 
@@ -140,7 +136,7 @@ class NotificationRepository:
         return self.get_user_notifications(
             user_id=user_id,
             notification_type=NotificationType.CHAT_MESSAGE,
-            is_read=False,  # Only return unread notifications
+            is_read=False,
             pagination=pagination
         )
 

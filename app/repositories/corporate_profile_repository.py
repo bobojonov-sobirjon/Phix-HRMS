@@ -59,6 +59,24 @@ class CorporateProfileRepository:
             joinedload(CorporateProfile.team_members).joinedload(TeamMember.invited_by)
         ).offset(skip).limit(limit).all()
     
+    def get_all_profiles(self, skip: int = 0, limit: int = 100) -> List[CorporateProfile]:
+        """Get all corporate profiles including unverified (for admin)"""
+        return self.db.query(CorporateProfile).options(
+            joinedload(CorporateProfile.location),
+            joinedload(CorporateProfile.user),
+            joinedload(CorporateProfile.category),
+            joinedload(CorporateProfile.team_members).joinedload(TeamMember.user),
+            joinedload(CorporateProfile.team_members).joinedload(TeamMember.invited_by)
+        ).filter(
+            CorporateProfile.is_deleted == False
+        ).offset(skip).limit(limit).all()
+    
+    def count_all(self) -> int:
+        """Count all corporate profiles including unverified (for admin)"""
+        return self.db.query(CorporateProfile).filter(
+            CorporateProfile.is_deleted == False
+        ).count()
+    
     def get_active_profiles(self, skip: int = 0, limit: int = 100) -> List[CorporateProfile]:
         """Get only active corporate profiles"""
         return self.db.query(CorporateProfile).options(
@@ -91,9 +109,8 @@ class CorporateProfileRepository:
         if not db_profile:
             return False
         
-        # Soft delete: set is_deleted flag instead of hard delete
         db_profile.is_deleted = True
-        db_profile.is_active = False  # Also deactivate the profile
+        db_profile.is_active = False
         self.db.commit()
         self.db.refresh(db_profile)
         return True

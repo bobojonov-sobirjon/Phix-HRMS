@@ -8,19 +8,15 @@ import json
 class OTP(Base):
     __tablename__ = "otps"
     
-    # Primary key
     id = Column(Integer, primary_key=True, index=True)
     
-    # OTP details
     email = Column(String(255), nullable=False, index=True)
     otp_code = Column(String(10), nullable=False)
-    otp_type = Column(String(50), nullable=False, default="password_reset")  # password_reset, registration, corporate_verification, etc.
+    otp_type = Column(String(50), nullable=False, default="password_reset")
     is_used = Column(Boolean, default=False)
     
-    # Additional data (for storing registration info, etc.)
     data = Column(Text, nullable=True)
     
-    # Expiration
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     expires_at = Column(DateTime(timezone=True), nullable=False)
     

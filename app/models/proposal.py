@@ -9,23 +9,19 @@ class Proposal(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     cover_letter = Column(Text, nullable=False)
-    delivery_time = Column(Integer, nullable=True)  # Delivery time in days
-    offer_amount = Column(Float, nullable=True)  # Offer amount in currency
+    delivery_time = Column(Integer, nullable=True)
+    offer_amount = Column(Float, nullable=True)
     
-    # Foreign keys - one of these must be set
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
-    gig_job_id = Column(Integer, ForeignKey("gig_jobs.id"), nullable=True)  # For gig jobs
-    full_time_job_id = Column(Integer, ForeignKey("full_time_jobs.id"), nullable=True)  # For full-time jobs
+    gig_job_id = Column(Integer, ForeignKey("gig_jobs.id"), nullable=True)
+    full_time_job_id = Column(Integer, ForeignKey("full_time_jobs.id"), nullable=True)
     
-    # Status
     is_read = Column(Boolean, default=False, nullable=False)
     
-    # Timestamps
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
     is_deleted = Column(Boolean, default=False)
     
-    # Relationships
     user = relationship("User", back_populates="proposals")
     gig_job = relationship("GigJob", back_populates="proposals")
     full_time_job = relationship("FullTimeJob", back_populates="proposals")
