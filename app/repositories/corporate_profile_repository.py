@@ -22,9 +22,9 @@ class CorporateProfileRepository:
         self.db.refresh(db_corporate_profile)
         return db_corporate_profile
     
-    def get_by_id(self, profile_id: int) -> Optional[CorporateProfile]:
-        """Get corporate profile by ID"""
-        return self.db.query(CorporateProfile).options(
+    def get_by_id(self, profile_id: int, include_deleted: bool = False) -> Optional[CorporateProfile]:
+        """Get corporate profile by ID (excludes deleted by default)"""
+        query = self.db.query(CorporateProfile).options(
             joinedload(CorporateProfile.location),
             joinedload(CorporateProfile.user),
             joinedload(CorporateProfile.category),
@@ -32,7 +32,12 @@ class CorporateProfileRepository:
             joinedload(CorporateProfile.team_members).joinedload(TeamMember.invited_by)
         ).filter(
             CorporateProfile.id == profile_id
-        ).first()
+        )
+        
+        if not include_deleted:
+            query = query.filter(CorporateProfile.is_deleted == False)
+        
+        return query.first()
     
     def get_by_user_id(self, user_id: int) -> Optional[CorporateProfile]:
         """Get corporate profile by user ID (excluding deleted)"""
@@ -91,7 +96,7 @@ class CorporateProfileRepository:
     
     def update(self, profile_id: int, corporate_profile: CorporateProfileUpdate) -> Optional[CorporateProfile]:
         """Update corporate profile"""
-        db_profile = self.get_by_id(profile_id)
+        db_profile = self.get_by_id(profile_id, include_deleted=False)
         if not db_profile:
             return None
         

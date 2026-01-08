@@ -19,6 +19,7 @@ from ..schemas.corporate_profile import (
 from ..schemas.full_time_job import FullTimeJobResponse, FullTimeJobListResponse
 from ..schemas.common import MessageResponse, SuccessResponse
 from ..utils.auth import get_current_user, verify_token
+from ..utils.permissions import check_admin_or_owner, is_admin_user
 from ..utils.email import send_email_with_retry, send_corporate_verification_email
 from ..core.config import settings
 from ..models.otp import OTP
@@ -58,7 +59,7 @@ def generate_otp(email: Optional[str] = None) -> str:
     return ''.join(random.choices(string.digits, k=6))
 
 
-def save_logo_file(logo_file: UploadFile, profile_id: int) -> str:
+async def save_logo_file(logo_file: UploadFile, profile_id: int) -> str:
     """Save logo file and return the URL"""
     project_root = Path(__file__).parent.parent.parent
     
@@ -70,8 +71,8 @@ def save_logo_file(logo_file: UploadFile, profile_id: int) -> str:
     file_path = upload_dir / unique_filename
     
     try:
+        content = await logo_file.read()
         with open(file_path, "wb") as buffer:
-            content = logo_file.file.read()
             buffer.write(content)
     except PermissionError as e:
         raise HTTPException(
@@ -295,7 +296,7 @@ async def create_corporate_profile(
     
     if logo:
         try:
-            logo_url = save_logo_file(logo, db_profile.id)
+            logo_url = await save_logo_file(logo, db_profile.id)
             db_profile.logo_url = logo_url
             db.commit()
         except Exception as e:
@@ -423,9 +424,9 @@ async def get_corporate_profile(
     current_user: Optional[dict] = Depends(get_current_user_optional),
     db: Session = Depends(get_db)
 ):
-    """Get corporate profile by ID"""
+    """Get corporate profile by ID (excludes deleted profiles)"""
     corporate_repo = CorporateProfileRepository(db)
-    profile = corporate_repo.get_by_id(profile_id)
+    profile = corporate_repo.get_by_id(profile_id, include_deleted=False)
     
     if not profile:
         raise HTTPException(
@@ -458,7 +459,7 @@ async def get_recently_posted_jobs(
     Only returns ACTIVE jobs.
     """
     corporate_repo = CorporateProfileRepository(db)
-    profile = corporate_repo.get_by_id(profile_id)
+    profile = corporate_repo.get_by_id(profile_id, include_deleted=False)
     
     if not profile:
         raise HTTPException(
@@ -543,7 +544,7 @@ async def update_corporate_profile(
     
     corporate_repo = CorporateProfileRepository(db)
     
-    profile = corporate_repo.get_by_id(profile_id)
+    profile = corporate_repo.get_by_id(profile_id, include_deleted=False)
     if not profile:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -608,7 +609,7 @@ async def update_corporate_profile(
     
     if logo:
         try:
-            logo_url = save_logo_file(logo, profile_id)
+            logo_url = await save_logo_file(logo, profile_id)
             updated_profile.logo_url = logo_url
             db.commit()
             db.refresh(updated_profile)
@@ -618,7 +619,7 @@ async def update_corporate_profile(
                 detail=f"Failed to upload logo: {str(e)}"
             )
     
-    updated_profile_with_relations = corporate_repo.get_by_id(profile_id)
+    updated_profile_with_relations = corporate_repo.get_by_id(profile_id, include_deleted=False)
     profile_with_urls = add_base_url_to_profile(updated_profile_with_relations)
     
     return convert_profile_to_response(profile_with_urls, current_user.id, db)
@@ -633,7 +634,7 @@ async def delete_corporate_profile(
     """Delete corporate profile"""
     corporate_repo = CorporateProfileRepository(db)
     
-    profile = corporate_repo.get_by_id(profile_id)
+    profile = corporate_repo.get_by_id(profile_id, include_deleted=True)
     if not profile:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -764,7 +765,7 @@ async def verify_corporate_profile(
         )
     
     corporate_repo = CorporateProfileRepository(db)
-    profile = corporate_repo.get_by_id(profile_id)
+    profile = corporate_repo.get_by_id(profile_id, include_deleted=False)
     
     if not profile:
         raise HTTPException(
