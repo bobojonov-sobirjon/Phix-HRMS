@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form, Header, Query
+from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form, Header, Query, Request
 from sqlalchemy.orm import Session
 from typing import List, Optional
 import os
@@ -30,6 +30,8 @@ import string
 router = APIRouter(prefix="/corporate-profile", tags=["Corporate Profile"])
 
 
+
+
 def get_current_user_optional(
     authorization: Optional[str] = Header(None),
     db: Session = Depends(get_db)
@@ -57,6 +59,8 @@ def generate_otp(email: Optional[str] = None) -> str:
     if email and email.lower() == "example@phix.com":
         return "1234"
     return ''.join(random.choices(string.digits, k=6))
+
+
 
 
 async def save_logo_file(logo_file: UploadFile, profile_id: int) -> str:
@@ -229,6 +233,7 @@ def convert_profile_to_response(profile_with_urls, current_user_id: Optional[int
 
 @router.post("/", response_model=SuccessResponse, tags=["Corporate Profile"])
 async def create_corporate_profile(
+    request: Request,
     company_name: str = Form(...),
     phone_number: str = Form(...),
     country_code: str = Form(default="+1"),
@@ -237,13 +242,24 @@ async def create_corporate_profile(
     website_url: Optional[str] = Form(None),
     company_size: CompanySize = Form(...),
     category_id: Optional[int] = Form(None),
-    logo: Optional[UploadFile] = File(None),
     current_user: dict = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """Create a new corporate profile with logo upload"""
     from ..models.location import Location
     from ..models.category import Category
+    
+    # Extract logo from request form, handling empty strings gracefully
+    logo: Optional[UploadFile] = None
+    try:
+        form = await request.form()
+        logo_field = form.get("logo")
+        # Only treat as valid if it's an UploadFile (not a string) with a filename
+        if logo_field and not isinstance(logo_field, str) and hasattr(logo_field, 'filename') and logo_field.filename and logo_field.filename.strip():
+            logo = logo_field
+    except Exception:
+        # If there's any error reading the logo, treat it as None (logo is optional)
+        logo = None
     
     user_repo = UserRepository(db)
     corporate_repo = CorporateProfileRepository(db)
@@ -274,7 +290,8 @@ async def create_corporate_profile(
     
     logo_url = None
     if logo:
-        if not logo.content_type.startswith('image/'):
+        # Validate logo is an image file
+        if not logo.content_type or not logo.content_type.startswith('image/'):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Only image files are allowed for logo"
@@ -526,6 +543,7 @@ async def get_my_corporate_profile(
 @router.put("/{profile_id}", response_model=CorporateProfileResponse, tags=["Corporate Profile"])
 async def update_corporate_profile(
     profile_id: int,
+    request: Request,
     company_name: Optional[str] = Form(None),
     phone_number: Optional[str] = Form(None),
     country_code: Optional[str] = Form(None),
@@ -534,13 +552,24 @@ async def update_corporate_profile(
     website_url: Optional[str] = Form(None),
     company_size: Optional[CompanySize] = Form(None),
     category_id: Optional[int] = Form(None),
-    logo: Optional[UploadFile] = File(None),
     current_user: dict = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """Update corporate profile with logo upload"""
     from ..models.location import Location
     from ..models.category import Category
+    
+    # Extract logo from request form, handling empty strings gracefully
+    logo: Optional[UploadFile] = None
+    try:
+        form = await request.form()
+        logo_field = form.get("logo")
+        # Only treat as valid if it's an UploadFile (not a string) with a filename
+        if logo_field and not isinstance(logo_field, str) and hasattr(logo_field, 'filename') and logo_field.filename and logo_field.filename.strip():
+            logo = logo_field
+    except Exception:
+        # If there's any error reading the logo, treat it as None (logo is optional)
+        logo = None
     
     corporate_repo = CorporateProfileRepository(db)
     
@@ -576,11 +605,13 @@ async def update_corporate_profile(
                 detail="Invalid category ID"
             )
     
-    if logo and not logo.content_type.startswith('image/'):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Only image files are allowed for logo"
-        )
+    if logo:
+        # Validate logo is an image file
+        if not logo.content_type or not logo.content_type.startswith('image/'):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Only image files are allowed for logo"
+            )
     
     update_data = CorporateProfileUpdate()
     if company_name is not None:

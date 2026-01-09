@@ -9,7 +9,8 @@ import os
 
 from .core.logging_config import logger
 from .core.middleware import RequestLoggingMiddleware, ErrorLoggingMiddleware
-from .core.exception_handlers import http_exception_handler, general_exception_handler
+from .core.exception_handlers import http_exception_handler, general_exception_handler, request_validation_exception_handler
+from fastapi.exceptions import RequestValidationError
 from .core.router_setup import register_routers
 from .core.database_setup import create_all_tables
 from .utils.admin_setup import ensure_admin_user_exists
@@ -30,16 +31,32 @@ app = FastAPI(
     openapi_url="/openapi.json"
 )
 
-app.add_middleware(RequestLoggingMiddleware)
-app.add_middleware(ErrorLoggingMiddleware)
+# CORS middleware birinchi bo'lishi kerak (middleware'lar teskari tartibda ishlaydi)
+# Environment variable'dan CORS origin'larni o'qish
+cors_origins = os.getenv("CORS_ORIGINS", "*")
+if cors_origins == "*":
+    # Agar "*" bo'lsa, credentials bilan ishlamaydi
+    allow_origins = ["*"]
+    allow_credentials = False
+else:
+    # Agar aniq origin'lar bo'lsa, ularni listga aylantiramiz
+    allow_origins = [origin.strip() for origin in cors_origins.split(",")]
+    allow_credentials = True
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
+    allow_origins=allow_origins,
+    allow_credentials=allow_credentials,
+    allow_methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS", "HEAD"],
     allow_headers=["*"],
+    expose_headers=["*"],
+    max_age=3600,  # Preflight cache vaqti (1 soat)
 )
 
+app.add_middleware(RequestLoggingMiddleware)
+app.add_middleware(ErrorLoggingMiddleware)
+
+app.add_exception_handler(RequestValidationError, request_validation_exception_handler)
 app.add_exception_handler(HTTPException, http_exception_handler)
 app.add_exception_handler(Exception, general_exception_handler)
 
