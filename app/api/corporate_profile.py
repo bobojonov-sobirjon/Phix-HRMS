@@ -233,7 +233,6 @@ def convert_profile_to_response(profile_with_urls, current_user_id: Optional[int
 
 @router.post("/", response_model=SuccessResponse, tags=["Corporate Profile"])
 async def create_corporate_profile(
-    request: Request,
     company_name: str = Form(...),
     phone_number: str = Form(...),
     country_code: str = Form(default="+1"),
@@ -242,6 +241,7 @@ async def create_corporate_profile(
     website_url: Optional[str] = Form(None),
     company_size: CompanySize = Form(...),
     category_id: Optional[int] = Form(None),
+    logo: Optional[UploadFile] = File(None),
     current_user: dict = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
@@ -249,17 +249,12 @@ async def create_corporate_profile(
     from ..models.location import Location
     from ..models.category import Category
     
-    # Extract logo from request form, handling empty strings gracefully
-    logo: Optional[UploadFile] = None
-    try:
-        form = await request.form()
-        logo_field = form.get("logo")
-        # Only treat as valid if it's an UploadFile (not a string) with a filename
-        if logo_field and not isinstance(logo_field, str) and hasattr(logo_field, 'filename') and logo_field.filename and logo_field.filename.strip():
-            logo = logo_field
-    except Exception:
-        # If there's any error reading the logo, treat it as None (logo is optional)
-        logo = None
+    # Handle logo - check if it's a valid file (not empty string or None)
+    if logo:
+        # Check if logo is actually a valid file with filename
+        if not hasattr(logo, 'filename') or not logo.filename or not logo.filename.strip():
+            # If logo is sent but has no filename (empty string case), treat it as None
+            logo = None
     
     user_repo = UserRepository(db)
     corporate_repo = CorporateProfileRepository(db)
@@ -543,7 +538,6 @@ async def get_my_corporate_profile(
 @router.put("/{profile_id}", response_model=CorporateProfileResponse, tags=["Corporate Profile"])
 async def update_corporate_profile(
     profile_id: int,
-    request: Request,
     company_name: Optional[str] = Form(None),
     phone_number: Optional[str] = Form(None),
     country_code: Optional[str] = Form(None),
@@ -552,6 +546,7 @@ async def update_corporate_profile(
     website_url: Optional[str] = Form(None),
     company_size: Optional[CompanySize] = Form(None),
     category_id: Optional[int] = Form(None),
+    logo: Optional[UploadFile] = File(None),
     current_user: dict = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
@@ -559,17 +554,12 @@ async def update_corporate_profile(
     from ..models.location import Location
     from ..models.category import Category
     
-    # Extract logo from request form, handling empty strings gracefully
-    logo: Optional[UploadFile] = None
-    try:
-        form = await request.form()
-        logo_field = form.get("logo")
-        # Only treat as valid if it's an UploadFile (not a string) with a filename
-        if logo_field and not isinstance(logo_field, str) and hasattr(logo_field, 'filename') and logo_field.filename and logo_field.filename.strip():
-            logo = logo_field
-    except Exception:
-        # If there's any error reading the logo, treat it as None (logo is optional)
-        logo = None
+    # Handle logo - check if it's a valid file (not empty string or None)
+    if logo:
+        # Check if logo is actually a valid file with filename
+        if not hasattr(logo, 'filename') or not logo.filename or not logo.filename.strip():
+            # If logo is sent but has no filename (empty string case), treat it as None
+            logo = None
     
     corporate_repo = CorporateProfileRepository(db)
     
