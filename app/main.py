@@ -8,7 +8,7 @@ from dotenv import load_dotenv
 import os
 
 from .core.logging_config import logger
-from .core.middleware import RequestLoggingMiddleware, ErrorLoggingMiddleware
+from .core.middleware import RequestLoggingMiddleware, ErrorLoggingMiddleware, CORSHeaderMiddleware
 from .core.exception_handlers import http_exception_handler, general_exception_handler, request_validation_exception_handler
 from fastapi.exceptions import RequestValidationError
 from .core.router_setup import register_routers
@@ -25,7 +25,7 @@ if not os.path.exists('.env') and os.path.exists('env.example'):
 app = FastAPI(
     title="Phix HRMS API", 
     version="1.0.0", 
-    redirect_slashes=True,
+    redirect_slashes=False,  # Redirect'lar CORS header'larni yo'qotadi, shuning uchun False
     docs_url="/docs",
     redoc_url="/redoc",
     openapi_url="/openapi.json"
@@ -43,6 +43,7 @@ else:
     allow_origins = [origin.strip() for origin in cors_origins.split(",")]
     allow_credentials = True
 
+# CORS middleware birinchi bo'lishi kerak
 app.add_middleware(
     CORSMiddleware,
     allow_origins=allow_origins,
@@ -52,6 +53,9 @@ app.add_middleware(
     expose_headers=["*"],
     max_age=3600,  # Preflight cache vaqti (1 soat)
 )
+
+# Qo'shimcha CORS header middleware - barcha response'larda CORS header'larini ta'minlash uchun
+app.add_middleware(CORSHeaderMiddleware)
 
 app.add_middleware(RequestLoggingMiddleware)
 app.add_middleware(ErrorLoggingMiddleware)

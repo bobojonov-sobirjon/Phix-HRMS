@@ -16,15 +16,15 @@ class LanguageRepository(BaseRepository[Language]):
     
     def get_all(self) -> List[Language]:
         """Get all languages"""
-        return self.get_all(include_deleted=False)
+        return super().get_all(include_deleted=False)
     
     def create(self, name: str) -> Language:
         """Create a new language"""
-        return self.create({"name": name})
+        return super().create({"name": name})
     
     def update(self, language_id: int, name: str) -> Optional[Language]:
         """Update language"""
-        return self.update(language_id, {"name": name}, exclude_unset=False)
+        return super().update(language_id, {"name": name}, exclude_unset=False)
     
     def delete(self, language_id: int) -> bool:
         """Hard delete language (languages don't have is_deleted)"""

@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CORS API Test</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            padding: 30px;
+        }
+        
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 2.5em;
+        }
+        
+        .subtitle {
+            color: #666;
+            margin-bottom: 30px;
+            font-size: 1.1em;
+        }
+        
+        .test-section {
+            margin-bottom: 30px;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 10px;
+            border-left: 4px solid #667eea;
+        }
+        
+        .test-section h2 {
+            color: #333;
+            margin-bottom: 15px;
+            font-size: 1.5em;
+        }
+        
+        .url {
+            background: #e9ecef;
+            padding: 10px;
+            border-radius: 5px;
+            font-family: 'Courier New', monospace;
+            margin-bottom: 15px;
+            word-break: break-all;
+            color: #495057;
+        }
+        
+        .status {
+            display: inline-block;
+            padding: 5px 15px;
+            border-radius: 20px;
+            font-weight: bold;
+            margin-bottom: 15px;
+        }
+        
+        .status.loading {
+            background: #ffc107;
+            color: #000;
+        }
+        
+        .status.success {
+            background: #28a745;
+            color: white;
+        }
+        
+        .status.error {
+            background: #dc3545;
+            color: white;
+        }
+        
+        .response {
+            background: #fff;
+            border: 1px solid #dee2e6;
+            border-radius: 5px;
+            padding: 15px;
+            margin-top: 15px;
+            max-height: 300px;
+            overflow-y: auto;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9em;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+        
+        .response.success {
+            border-color: #28a745;
+            background: #d4edda;
+        }
+        
+        .response.error {
+            border-color: #dc3545;
+            background: #f8d7da;
+        }
+        
+        .btn {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 1em;
+            margin-right: 10px;
+            transition: background 0.3s;
+        }
+        
+        .btn:hover {
+            background: #5568d3;
+        }
+        
+        .btn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        
+        .btn-test-all {
+            background: #28a745;
+            padding: 15px 30px;
+            font-size: 1.2em;
+            margin: 20px 0;
+        }
+        
+        .btn-test-all:hover {
+            background: #218838;
+        }
+        
+        .summary {
+            background: #e7f3ff;
+            border: 2px solid #0066cc;
+            border-radius: 10px;
+            padding: 20px;
+            margin-top: 30px;
+        }
+        
+        .summary h2 {
+            color: #0066cc;
+            margin-bottom: 15px;
+        }
+        
+        .summary-stats {
+            display: flex;
+            gap: 20px;
+            flex-wrap: wrap;
+        }
+        
+        .stat {
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            flex: 1;
+            min-width: 150px;
+            text-align: center;
+        }
+        
+        .stat-value {
+            font-size: 2em;
+            font-weight: bold;
+            color: #0066cc;
+        }
+        
+        .stat-label {
+            color: #666;
+            margin-top: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🌐 CORS API Test</h1>
+        <p class="subtitle">Barcha API endpoint'larini test qilish</p>
+        
+        <button class="btn btn-test-all" onclick="testAll()">🚀 Barchasini Test Qilish</button>
+        
+        <div class="test-section" id="test-companies">
+            <h2>1. Companies API</h2>
+            <div class="url">GET http://api.migfastkg.ru/api/v1/companies/1</div>
+            <button class="btn" onclick="testAPI('companies', 'http://api.migfastkg.ru/api/v1/companies/1')">Test Qilish</button>
+            <div id="status-companies" class="status" style="display: none;"></div>
+            <div id="response-companies" class="response" style="display: none;"></div>
+        </div>
+        
+        <div class="test-section" id="test-jobs">
+            <h2>2. Full-Time Jobs Search API</h2>
+            <div class="url">GET http://api.migfastkg.ru/api/v1/full-time-jobs/search?page=1&size=10</div>
+            <button class="btn" onclick="testAPI('jobs', 'http://api.migfastkg.ru/api/v1/full-time-jobs/search?page=1&size=10')">Test Qilish</button>
+            <div id="status-jobs" class="status" style="display: none;"></div>
+            <div id="response-jobs" class="response" style="display: none;"></div>
+        </div>
+        
+        <div class="test-section" id="test-skills">
+            <h2>3. Skills API</h2>
+            <div class="url">GET http://api.migfastkg.ru/api/v1/skills/1</div>
+            <button class="btn" onclick="testAPI('skills', 'http://api.migfastkg.ru/api/v1/skills/1')">Test Qilish</button>
+            <div id="status-skills" class="status" style="display: none;"></div>
+            <div id="response-skills" class="response" style="display: none;"></div>
+        </div>
+        
+        <div class="test-section" id="test-locations">
+            <h2>4. Locations API</h2>
+            <div class="url">GET http://api.migfastkg.ru/api/v1/locations/4</div>
+            <button class="btn" onclick="testAPI('locations', 'http://api.migfastkg.ru/api/v1/locations/4')">Test Qilish</button>
+            <div id="status-locations" class="status" style="display: none;"></div>
+            <div id="response-locations" class="response" style="display: none;"></div>
+        </div>
+        
+        <div class="test-section" id="test-certification">
+            <h2>5. Certification Centers API</h2>
+            <div class="url">GET http://api.migfastkg.ru/api/v1/certification-centers/1</div>
+            <button class="btn" onclick="testAPI('certification', 'http://api.migfastkg.ru/api/v1/certification-centers/1')">Test Qilish</button>
+            <div id="status-certification" class="status" style="display: none;"></div>
+            <div id="response-certification" class="response" style="display: none;"></div>
+        </div>
+        
+        <div class="summary" id="summary" style="display: none;">
+            <h2>📊 Test Natijalari</h2>
+            <div class="summary-stats">
+                <div class="stat">
+                    <div class="stat-value" id="total-tests">0</div>
+                    <div class="stat-label">Jami Testlar</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-value" id="success-tests" style="color: #28a745;">0</div>
+                    <div class="stat-label">Muvaffaqiyatli</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-value" id="error-tests" style="color: #dc3545;">0</div>
+                    <div class="stat-label">Xatoliklar</div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        const testResults = {
+            total: 0,
+            success: 0,
+            error: 0
+        };
+        
+        async function testAPI(name, url) {
+            const statusEl = document.getElementById(`status-${name}`);
+            const responseEl = document.getElementById(`response-${name}`);
+            
+            // Reset
+            statusEl.style.display = 'inline-block';
+            responseEl.style.display = 'block';
+            statusEl.className = 'status loading';
+            statusEl.textContent = '⏳ Yuklanmoqda...';
+            responseEl.className = 'response';
+            responseEl.textContent = '';
+            
+            try {
+                const startTime = Date.now();
+                const response = await fetch(url, {
+                    method: 'GET',
+                    headers: {
+                        'Accept': 'application/json',
+                    },
+                    mode: 'cors',
+                    credentials: 'omit'
+                });
+                
+                const endTime = Date.now();
+                const duration = endTime - startTime;
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    statusEl.className = 'status success';
+                    statusEl.textContent = `✅ Muvaffaqiyatli (${response.status}) - ${duration}ms`;
+                    responseEl.className = 'response success';
+                    responseEl.textContent = JSON.stringify(data, null, 2);
+                    
+                    testResults.success++;
+                } else {
+                    const errorText = await response.text();
+                    statusEl.className = 'status error';
+                    statusEl.textContent = `❌ Xatolik (${response.status}) - ${duration}ms`;
+                    responseEl.className = 'response error';
+                    responseEl.textContent = `Status: ${response.status}\nStatus Text: ${response.statusText}\n\nResponse:\n${errorText}`;
+                    
+                    testResults.error++;
+                }
+            } catch (error) {
+                const errorMessage = error.message;
+                statusEl.className = 'status error';
+                statusEl.textContent = '❌ CORS yoki Network Xatolik';
+                responseEl.className = 'response error';
+                responseEl.textContent = `Xatolik turi: ${error.name}\nXatolik xabari: ${errorMessage}\n\nBu CORS muammosi bo'lishi mumkin.`;
+                
+                testResults.error++;
+            }
+            
+            testResults.total++;
+            updateSummary();
+        }
+        
+        async function testAll() {
+            const apis = [
+                { name: 'companies', url: 'http://api.migfastkg.ru/api/v1/companies/1' },
+                { name: 'jobs', url: 'http://api.migfastkg.ru/api/v1/full-time-jobs/search?page=1&size=10' },
+                { name: 'skills', url: 'http://api.migfastkg.ru/api/v1/skills/1' },
+                { name: 'locations', url: 'http://api.migfastkg.ru/api/v1/locations/4' },
+                { name: 'certification', url: 'http://api.migfastkg.ru/api/v1/certification-centers/1' }
+            ];
+            
+            // Reset results
+            testResults.total = 0;
+            testResults.success = 0;
+            testResults.error = 0;
+            
+            // Test all APIs sequentially
+            for (const api of apis) {
+                await testAPI(api.name, api.url);
+                // Small delay between requests
+                await new Promise(resolve => setTimeout(resolve, 500));
+            }
+        }
+        
+        function updateSummary() {
+            const summaryEl = document.getElementById('summary');
+            if (testResults.total > 0) {
+                summaryEl.style.display = 'block';
+                document.getElementById('total-tests').textContent = testResults.total;
+                document.getElementById('success-tests').textContent = testResults.success;
+                document.getElementById('error-tests').textContent = testResults.error;
+            }
+        }
+        
+        // Auto-test on page load
+        window.addEventListener('load', () => {
+            console.log('CORS API Test sahifasi yuklandi. "Barchasini Test Qilish" tugmasini bosing.');
+        });
+    </script>
+</body>
+</html>

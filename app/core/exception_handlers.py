@@ -29,13 +29,18 @@ async def http_exception_handler(request: Request, exc: HTTPException) -> JSONRe
                 "status_code": exc.status_code
             }
         )
-        return JSONResponse(
+        response = JSONResponse(
             status_code=exc.status_code,
             content={
                 "status": "error",
                 "msg": exc.detail
             }
         )
+        # Add CORS headers
+        response.headers["Access-Control-Allow-Origin"] = "*"
+        response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, PATCH, OPTIONS, HEAD"
+        response.headers["Access-Control-Allow-Headers"] = "*"
+        return response
     raise exc
 
 
@@ -76,13 +81,18 @@ async def request_validation_exception_handler(request: Request, exc: RequestVal
             # We'll handle this by allowing the request to continue without logo
             # But we need to modify the request or handle it differently
             # For now, return a helpful message
-            return JSONResponse(
+            response = JSONResponse(
                 status_code=422,
                 content={
                     "status": "error",
                     "msg": "Logo field should be a file upload or omitted entirely. If you don't want to upload a logo, simply don't include the 'logo' field in your request."
                 }
             )
+            # Add CORS headers
+            response.headers["Access-Control-Allow-Origin"] = "*"
+            response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, PATCH, OPTIONS, HEAD"
+            response.headers["Access-Control-Allow-Headers"] = "*"
+            return response
         
         # For other validation errors, return the standard format
         logger.warning(
@@ -141,7 +151,7 @@ async def request_validation_exception_handler(request: Request, exc: RequestVal
             else:
                 error_msg = f"Multiple validation errors ({len(cleaned_errors)} errors)"
         
-        return JSONResponse(
+        response = JSONResponse(
             status_code=422,
             content={
                 "status": "error",
@@ -149,6 +159,11 @@ async def request_validation_exception_handler(request: Request, exc: RequestVal
                 "detail": cleaned_errors
             }
         )
+        # Add CORS headers
+        response.headers["Access-Control-Allow-Origin"] = "*"
+        response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, PATCH, OPTIONS, HEAD"
+        response.headers["Access-Control-Allow-Headers"] = "*"
+        return response
     raise exc
 
 
@@ -176,11 +191,16 @@ async def general_exception_handler(request: Request, exc: Exception) -> JSONRes
             }
         )
         
-        return JSONResponse(
+        response = JSONResponse(
             status_code=500,
             content={
                 "status": "error",
                 "msg": ERROR_MESSAGES["INTERNAL_ERROR"]
             }
         )
+        # Add CORS headers
+        response.headers["Access-Control-Allow-Origin"] = "*"
+        response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, PATCH, OPTIONS, HEAD"
+        response.headers["Access-Control-Allow-Headers"] = "*"
+        return response
     raise exc
