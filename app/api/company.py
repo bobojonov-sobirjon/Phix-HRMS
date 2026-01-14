@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 from ..db.database import get_db
 from ..models.user import User
-from ..utils.auth import get_current_user
+from ..utils.auth import get_current_user, get_current_user_optional
 from ..repositories.company_repository import CompanyRepository
 from ..schemas.profile import CompanyResponse, CompanyCreate, CompanyUpdate
 from ..schemas.common import SuccessResponse
@@ -15,7 +15,7 @@ from ..utils.response_helpers import (
     forbidden_error
 )
 from ..utils.permissions import is_admin_user
-from typing import List
+from typing import List, Optional
 
 router = APIRouter(prefix="/companies", tags=["Companies"])
 
@@ -45,7 +45,7 @@ async def get_companies(
 @handle_errors
 async def get_company(
     company_id: int,
-    current_user: User = Depends(get_current_user),
+    current_user: Optional[User] = Depends(get_current_user_optional),
     db: Session = Depends(get_db)
 ):
     """Get a specific company by ID"""

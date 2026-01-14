@@ -8,7 +8,7 @@ from fastapi.security import OAuth2PasswordBearer
 from ..core.config import settings
 from ..db.database import get_db
 
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="api/v1/auth/token")
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="api/v1/auth/token", auto_error=False)
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
@@ -62,8 +62,14 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
     """Verify password against hash"""
     return pwd_context.verify(plain_password, hashed_password)
 
-def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)) -> Optional[dict]:
+def get_current_user(token: Optional[str] = Depends(oauth2_scheme), db: Session = Depends(get_db)) -> Optional[dict]:
     """Get current user from JWT token (OAuth2 compatible for Swagger UI)"""
+    if not token:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authorization token required"
+        )
+    
     payload = verify_token(token)
     if not payload:
         raise HTTPException(
@@ -86,4 +92,22 @@ def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="User not found"
         )
+    return user
+
+def get_current_user_optional(token: Optional[str] = Depends(oauth2_scheme), db: Session = Depends(get_db)) -> Optional[dict]:
+    """Get current user from JWT token if provided, otherwise return None (for public endpoints)"""
+    if not token:
+        return None
+    
+    payload = verify_token(token)
+    if not payload:
+        return None
+    
+    user_id = payload.get("sub")
+    if not user_id:
+        return None
+    
+    from ..repositories.user_repository import UserRepository
+    user_repo = UserRepository(db)
+    user = user_repo.get_user_by_id(int(user_id))
     return user 

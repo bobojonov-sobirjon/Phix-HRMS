@@ -9,7 +9,7 @@ from ..utils.response_helpers import success_response, not_found_error, validate
 from ..utils.permissions import is_admin_user
 from typing import List
 from ..models.user import User
-from ..utils.auth import get_current_user
+from ..utils.auth import get_current_user, get_current_user_optional
 import os
 
 router = APIRouter(prefix="/locations", tags=["Locations"])
@@ -40,7 +40,7 @@ async def get_locations(
 @handle_errors
 async def get_location(
     location_id: int,
-    current_user: User = Depends(get_current_user),
+    current_user: Optional[User] = Depends(get_current_user_optional),
     db: Session = Depends(get_db)
 ):
     """Get location by ID"""

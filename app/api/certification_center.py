@@ -37,7 +37,22 @@ async def create_certification_center(
     if existing_center:
         raise bad_request_error("Certification center with this name already exists")
     
-    return repo.create_certification_center(data.dict())
+    try:
+        # Use model_dump() for Pydantic v2, fallback to dict() for v1
+        data_dict = data.model_dump() if hasattr(data, 'model_dump') else data.dict()
+        certification_center = repo.create_certification_center(data_dict)
+        # Use model_validate for Pydantic v2, from_orm for v1
+        if hasattr(CertificationCenterResponse, 'model_validate'):
+            return CertificationCenterResponse.model_validate(certification_center)
+        else:
+            return CertificationCenterResponse.from_orm(certification_center)
+    except Exception as e:
+        error_msg = str(e).lower()
+        if 'unique' in error_msg or 'duplicate' in error_msg or 'already exists' in error_msg:
+            raise bad_request_error("Certification center with this name already exists")
+        import traceback
+        traceback.print_exc()
+        raise bad_request_error(f"Failed to create certification center: {str(e)}")
 
 @router.get("/", response_model=List[CertificationCenterListResponse])
 @handle_errors
@@ -51,9 +66,15 @@ async def get_certification_centers(
     repo = CertificationCenterRepository(db)
     
     if search:
-        return repo.search_certification_centers(search, skip, limit)
+        centers = repo.search_certification_centers(search, skip, limit)
     else:
-        return repo.get_all_certification_centers(skip, limit)
+        centers = repo.get_all_certification_centers(skip, limit)
+    
+    # Use model_validate for Pydantic v2, from_orm for v1
+    if hasattr(CertificationCenterListResponse, 'model_validate'):
+        return [CertificationCenterListResponse.model_validate(center) for center in centers]
+    else:
+        return [CertificationCenterListResponse.from_orm(center) for center in centers]
 
 @router.get("/{center_id}", response_model=CertificationCenterResponse)
 @handle_errors
@@ -65,7 +86,11 @@ async def get_certification_center(
     repo = CertificationCenterRepository(db)
     center = repo.get_certification_center_by_id(center_id)
     validate_entity_exists(center, "Certification center")
-    return center
+    # Use model_validate for Pydantic v2, from_orm for v1
+    if hasattr(CertificationCenterResponse, 'model_validate'):
+        return CertificationCenterResponse.model_validate(center)
+    else:
+        return CertificationCenterResponse.from_orm(center)
 
 @router.put("/{center_id}", response_model=CertificationCenterResponse)
 @handle_errors
@@ -88,16 +113,26 @@ async def update_certification_center(
         if name_conflict:
             raise bad_request_error("Certification center with this name already exists")
     
-    update_data = {k: v for k, v in data.dict().items() if v is not None}
+    # Use model_dump() for Pydantic v2, fallback to dict() for v1
+    data_dict = data.model_dump(exclude_unset=True) if hasattr(data, 'model_dump') else data.dict(exclude_unset=True)
+    update_data = {k: v for k, v in data_dict.items() if v is not None}
     
     if not update_data:
-        return existing_center
+        # Use model_validate for Pydantic v2, from_orm for v1
+        if hasattr(CertificationCenterResponse, 'model_validate'):
+            return CertificationCenterResponse.model_validate(existing_center)
+        else:
+            return CertificationCenterResponse.from_orm(existing_center)
     
     updated_center = repo.update_certification_center(center_id, update_data)
     if not updated_center:
         raise bad_request_error("Failed to update certification center")
     
-    return updated_center
+    # Use model_validate for Pydantic v2, from_orm for v1
+    if hasattr(CertificationCenterResponse, 'model_validate'):
+        return CertificationCenterResponse.model_validate(updated_center)
+    else:
+        return CertificationCenterResponse.from_orm(updated_center)
 
 @router.delete("/{center_id}")
 @handle_errors
