@@ -14,7 +14,8 @@ class FAQRepository(BaseRepository[FAQ]):
     def get_all(db: Session):
         """Get all FAQs (static method for backward compatibility)"""
         repo = FAQRepository(db)
-        return repo.get_all(include_deleted=False)
+        # Call base repository's get_all method directly using instance
+        return BaseRepository.get_all(repo, skip=0, limit=1000, include_deleted=False)
     
     @staticmethod
     def get_by_id(db: Session, faq_id: int):

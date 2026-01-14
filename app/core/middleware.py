@@ -12,13 +12,13 @@ MAX_UPLOAD_SIZE = 100 * 1024 * 1024
 
 
 class CORSHeaderMiddleware(BaseHTTPMiddleware):
-    """Middleware to ensure CORS headers are always present in responses"""
+    """Middleware to ensure CORS headers are always present in responses - MUST BE FIRST"""
     
     async def dispatch(self, request: StarletteRequest, call_next: Callable) -> Response:
-        """Add CORS headers to all responses"""
-        # Handle preflight OPTIONS requests
+        """Add CORS headers to all responses - this runs AFTER CORSMiddleware"""
+        # Handle preflight OPTIONS requests immediately
         if request.method == "OPTIONS":
-            response = Response(status_code=200)
+            response = Response(status_code=200, content="")
             # Add CORS headers to OPTIONS response
             response.headers["Access-Control-Allow-Origin"] = "*"
             response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, PATCH, OPTIONS, HEAD"
@@ -26,18 +26,20 @@ class CORSHeaderMiddleware(BaseHTTPMiddleware):
             response.headers["Access-Control-Expose-Headers"] = "*"
             response.headers["Access-Control-Allow-Credentials"] = "false"
             response.headers["Access-Control-Max-Age"] = "3600"
+            response.headers["Vary"] = "Origin"
             return response
         
         # For other requests, process normally and add CORS headers
         response = await call_next(request)
         
-        # Add CORS headers to all responses
+        # Force add CORS headers to ALL responses (override any existing ones)
         response.headers["Access-Control-Allow-Origin"] = "*"
         response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, PATCH, OPTIONS, HEAD"
         response.headers["Access-Control-Allow-Headers"] = "*"
         response.headers["Access-Control-Expose-Headers"] = "*"
         response.headers["Access-Control-Allow-Credentials"] = "false"
         response.headers["Access-Control-Max-Age"] = "3600"
+        response.headers["Vary"] = "Origin"
         
         return response
 
@@ -62,6 +64,14 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
             request._form = None
         
         response = await call_next(request)
+        
+        # Ensure CORS headers are present (backup in case other middleware fails)
+        if "Access-Control-Allow-Origin" not in response.headers:
+            response.headers["Access-Control-Allow-Origin"] = "*"
+        if "Access-Control-Allow-Methods" not in response.headers:
+            response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, PATCH, OPTIONS, HEAD"
+        if "Access-Control-Allow-Headers" not in response.headers:
+            response.headers["Access-Control-Allow-Headers"] = "*"
         
         process_time = time.time() - start_time
         logger.info(

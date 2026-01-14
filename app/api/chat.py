@@ -1294,6 +1294,41 @@ async def check_user_room(
     )
 
 
+@router.delete("/rooms/{room_id}")
+async def delete_room(
+    room_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Delete a chat room (soft delete)"""
+    chat_repo = ChatRepository(db)
+    
+    # Check if room exists and user is a participant
+    room = chat_repo.get_room(room_id, current_user.id)
+    if not room:
+        raise HTTPException(status_code=404, detail="Room not found or you are not a participant")
+    
+    # Get participants BEFORE deleting the room (because get_room_participants checks is_active)
+    participants = chat_repo.get_room_participants(room_id)
+    
+    # Delete the room
+    success = chat_repo.delete_room(room_id, current_user.id)
+    
+    if not success:
+        raise HTTPException(status_code=404, detail="Room not found")
+    
+    # Notify other participants via WebSocket
+    for participant_id in participants:
+        if participant_id != current_user.id:
+            await manager.broadcast_room_deleted(room_id, current_user.id, current_user.name, participant_id)
+    
+    return {
+        "status": "success",
+        "message": "Room deleted successfully",
+        "room_id": room_id
+    }
+
+
 @router.websocket("/ws/test")
 async def websocket_test_endpoint(websocket: WebSocket):
     """Test WebSocket endpoint without authentication"""
@@ -1402,8 +1437,9 @@ async def generate_video_call_token(
         if existing_token and token_is_valid:
             existing_uid = existing_token.uid if existing_token.uid is not None else 0
             if existing_uid == 0:
-                user_account_for_response = token_request.user_account or (current_user.email if current_user.email else f"user_{current_user.id}")
-                uid_for_response = 0
+                # Agar existing token'da uid 0 bo'lsa, current_user.id ni ishlatamiz
+                uid_for_response = current_user.id
+                user_account_for_response = None
             else:
                 user_account_for_response = None
                 uid_for_response = existing_uid
@@ -1420,21 +1456,28 @@ async def generate_video_call_token(
         else:
             print(f"Generating new token for room_id {token_request.room_id}...")
             
+            # Channel name'ni index.py dagi kabi format qilish
             if existing_token:
                 channel_name = existing_token.channel_name
                 print(f"Reusing existing channel_name: {channel_name}")
             else:
+                # index.py dagi kabi format
                 channel_name = f"room_{token_request.room_id}_call"
                 print(f"Creating new channel_name: {channel_name}")
             
-            user_account = token_request.user_account or (current_user.email if current_user.email else f"user_{current_user.id}_{uuid.uuid4().hex[:8]}")
-            
+            # UID va user_account'ni handle qilish
+            # Agar uid berilgan va 0 emas bo'lsa, uni ishlatamiz
+            # Aks holda, current_user.id ni uid sifatida ishlatamiz
             if token_request.uid is not None and token_request.uid != 0:
+                # UID berilgan bo'lsa, uni ishlatamiz
                 request_uid = token_request.uid
                 user_account_for_token = None
+                user_account_for_response = None
             else:
-                request_uid = None
-                user_account_for_token = user_account
+                # UID 0 yoki None bo'lsa, current_user.id ni ishlatamiz
+                request_uid = current_user.id
+                user_account_for_token = None
+                user_account_for_response = None
             
             token_data = generate_rtc_token(
                 channel_name=channel_name,
@@ -1446,11 +1489,18 @@ async def generate_video_call_token(
             
             expire_at = datetime.fromtimestamp(token_data["expireAt"], tz=timezone.utc)
             
+            # Response uchun user_account'ni to'g'ri o'rnatish
+            # Agar user_account_for_token ishlatilgan bo'lsa, uni response'ga qo'shamiz
+            if user_account_for_token and token_data.get("userAccount") is None:
+                token_data["userAccount"] = user_account_for_token
+            elif user_account_for_response and token_data.get("userAccount") is None:
+                token_data["userAccount"] = user_account_for_response
+            
             if existing_token:
                 print(f"Updating expired token for room_id {token_request.room_id} with new token")
                 existing_token.token = token_data["token"]
                 existing_token.channel_name = channel_name
-                existing_token.uid = token_data["uid"] if token_data["uid"] is not None else 0
+                existing_token.uid = token_data["uid"] if token_data["uid"] is not None else current_user.id
                 existing_token.role = token_request.role
                 existing_token.expire_seconds = token_request.expire_seconds
                 existing_token.expire_at = expire_at
@@ -1464,7 +1514,7 @@ async def generate_video_call_token(
                     room_id=token_request.room_id,
                     token=token_data["token"],
                     channel_name=channel_name,
-                    uid=token_data["uid"] if token_data["uid"] is not None else 0,
+                    uid=token_data["uid"] if token_data["uid"] is not None else current_user.id,
                     role=token_request.role,
                     expire_seconds=token_request.expire_seconds,
                     expire_at=expire_at
@@ -1505,13 +1555,19 @@ async def generate_video_call_token(
             participants=participants_response
         )
         
-        uid_value = token_data["uid"] if token_data["uid"] is not None else 0
+        # UID va user_account'ni to'g'ri qaytarish
+        # Agar uid None bo'lsa, current_user.id ni ishlatamiz
+        uid_value = token_data["uid"] if token_data["uid"] is not None else current_user.id
+        
+        # user_account'ni to'g'ri qaytarish
+        # token_data["userAccount"] dan olamiz, chunki generate_rtc_token uni to'g'ri qaytaradi
+        user_account_value = token_data.get("userAccount")
         
         return VideoCallTokenResponse(
             app_id=token_data["appId"],
             channel=token_data["channel"],
             uid=uid_value,
-            user_account=token_data["userAccount"],
+            user_account=user_account_value,
             role=token_data["role"],
             expire_at=token_data["expireAt"],
             token=token_data["token"],
@@ -1661,17 +1717,38 @@ async def end_video_call(
 async def generate_video_call_token_test(
     token_request: VideoCallTokenRequest
 ):
-    """Generate Agora RTC token for video calling (TEST - No Auth) - Production Mode"""
+    """
+    Generate Agora RTC token for video calling (TEST - No Auth) - Production Mode
+    
+    Bu endpoint test uchun - authentication talab qilmaydi.
+    index.py dagi kodga mos formatda token generate qiladi.
+    UUID generate qiladi user_account uchun (production endpoint dagi kabi).
+    """
     try:
-        channel_name = f"room_{token_request.room_id}_call"
+        # Channel name'ni index.py dagi kabi format qilish
+        # Agar room_id bo'lsa, uni ishlatamiz, aks holda custom channel name
+        if token_request.room_id:
+            channel_name = f"room_{token_request.room_id}_call"
+        else:
+            # Default channel name (index.py dagi kabi)
+            channel_name = "7d72365eb983485397e3e3f9d460bdda"
         
+        # UID va user_account'ni index.py dagi kabi handle qilish
         if token_request.uid is not None and token_request.uid != 0:
+            # UID berilgan bo'lsa, uni ishlatamiz
             request_uid = token_request.uid
             user_account_for_token = None
         else:
+            # UID 0 yoki None bo'lsa, user_account ishlatamiz
+            # UUID generate qilish (production endpoint dagi kabi)
             request_uid = None
-            user_account_for_token = token_request.user_account or f"test_user_{token_request.room_id}"
+            if token_request.user_account:
+                user_account_for_token = token_request.user_account
+            else:
+                # UUID generate qilish - production endpoint dagi kabi format
+                user_account_for_token = f"test_user_{token_request.room_id}_{uuid.uuid4().hex[:8]}"
         
+        # Token generate qilish (index.py dagi generate_rtc_token funksiyasiga mos)
         token_data = generate_rtc_token(
             channel_name=channel_name,
             uid=request_uid,
@@ -1680,6 +1757,7 @@ async def generate_video_call_token_test(
             expire_seconds=token_request.expire_seconds
         )
         
+        # Response format'ni index.py dagi kabi qilish
         uid_value = token_data["uid"] if token_data["uid"] is not None else 0
         
         return VideoCallTokenResponse(
@@ -1692,7 +1770,9 @@ async def generate_video_call_token_test(
             token=token_data["token"]
         )
     except Exception as e:
-        raise HTTPException(status_code=400, detail=f"Token generation failed: {str(e)}")
+        import traceback
+        error_detail = f"Token generation failed: {str(e)}\n{traceback.format_exc()}"
+        raise HTTPException(status_code=400, detail=error_detail)
 
 @router.websocket("/ws/test")
 async def websocket_test_endpoint(websocket: WebSocket):

@@ -264,5 +264,19 @@ class ConnectionManager:
                 logger.error(f"Error broadcasting video call end to user {uid}: {e}", exc_info=True)
                 self.disconnect(uid)
 
+    async def broadcast_room_deleted(self, room_id: int, deleted_by_user_id: int, deleted_by_user_name: str, recipient_user_id: int):
+        """Broadcast room deleted notification to a specific user"""
+        room_deleted_message = {
+            "type": "room_deleted",
+            "data": {
+                "room_id": room_id,
+                "deleted_by_user_id": deleted_by_user_id,
+                "deleted_by_user_name": deleted_by_user_name,
+                "deleted_at": datetime.utcnow().isoformat()
+            }
+        }
+        
+        await self.send_personal_message(room_deleted_message, recipient_user_id)
+
 
 manager = ConnectionManager()

@@ -43,7 +43,16 @@ else:
     allow_origins = [origin.strip() for origin in cors_origins.split(",")]
     allow_credentials = True
 
-# CORS middleware birinchi bo'lishi kerak
+# CORS middleware birinchi bo'lishi kerak (middleware'lar teskari tartibda ishlaydi)
+# Eng oxirida qo'shilgan middleware birinchi ishlaydi
+app.add_middleware(ErrorLoggingMiddleware)
+app.add_middleware(RequestLoggingMiddleware)
+
+# Qo'shimcha CORS header middleware - barcha response'larda CORS header'larini ta'minlash uchun
+# Bu CORSMiddleware'dan keyin ishlashi kerak, shuning uchun oldinroq qo'shamiz
+app.add_middleware(CORSHeaderMiddleware)
+
+# Asosiy CORS middleware - eng oxirida, shuning uchun birinchi ishlaydi
 app.add_middleware(
     CORSMiddleware,
     allow_origins=allow_origins,
@@ -53,12 +62,6 @@ app.add_middleware(
     expose_headers=["*"],
     max_age=3600,  # Preflight cache vaqti (1 soat)
 )
-
-# Qo'shimcha CORS header middleware - barcha response'larda CORS header'larini ta'minlash uchun
-app.add_middleware(CORSHeaderMiddleware)
-
-app.add_middleware(RequestLoggingMiddleware)
-app.add_middleware(ErrorLoggingMiddleware)
 
 app.add_exception_handler(RequestValidationError, request_validation_exception_handler)
 app.add_exception_handler(HTTPException, http_exception_handler)

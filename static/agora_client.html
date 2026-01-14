@@ -84,12 +84,11 @@
       </div>
          <div class="note">
            <strong>Instructions:</strong><br>
-           1. Fresh token will be automatically generated from backend (007 format)<br>
-           2. Enter Room ID in Channel field (e.g., 9 for room_id 9)<br>
-           3. Both users must use the same Room ID<br>
-           4. Click "Join" to start video call<br>
-           5. No manual token entry needed - backend handles everything<br>
-           6. <strong>Note:</strong> You need to be authenticated (login first) to generate tokens
+           1. <strong>Token qo'lda kiritsangiz:</strong> Token, Channel va App ID ni kiriting - avtomatik join qilinadi<br>
+           2. <strong>Token bo'lmasa:</strong> Channel va App ID ni kiriting, "Join" tugmasini bosing - backend token generate qiladi<br>
+           3. Ikkala foydalanuvchi ham bir xil Channel nomidan foydalanishi kerak<br>
+           4. Token qo'yilganda 1 soniyadan keyin avtomatik video call ochiladi<br>
+           5. <strong>Eslatma:</strong> Token qo'lda kiritilganda, Channel nomi ham to'g'ri bo'lishi kerak
          </div>
     </div>
 
@@ -110,13 +109,15 @@
     let localAudioTrack = null;
     let localVideoTrack = null;
     let joined = false;
+    let isJoining = false; // Flag to prevent multiple join attempts
+    let autoJoinTimeout = null; // Global timeout for auto-join
 
     const q = (id) => document.getElementById(id);
 
     // Hard-coded defaults (edit here)
     const DEFAULTS = {
       appId: 'e406a7515b244f6b968ab0520532609a',
-      channel: '2',
+      channel: '7d72365eb983485397e3e3f9d460bdda', // index.py da generate qilingan token bilan mos channel name
       // NOTE: Token must be entered by user - no hardcoded token
       token: '',
       uid: 0,
@@ -171,12 +172,30 @@
       q('leave').disabled = !joined;
     }
 
-    async function join() {
-      if (joined) return;
-      if (client.connectionState === 'CONNECTING' || client.connectionState === 'CONNECTED' || client.connectionState === 'RECONNECTING') {
-        alert('Already connecting/connected');
+    async function join(isAutoJoin = false) {
+      // Prevent multiple join attempts
+      if (isJoining) {
+        if (!isAutoJoin) {
+          console.log('Join already in progress, please wait...');
+        }
         return;
       }
+      
+      if (joined) {
+        if (!isAutoJoin) {
+          alert('Already connected to channel. Please leave first.');
+        }
+        return;
+      }
+      
+      if (client.connectionState === 'CONNECTING' || client.connectionState === 'CONNECTED' || client.connectionState === 'RECONNECTING') {
+        if (!isAutoJoin) {
+          alert('Already connecting/connected');
+        }
+        return;
+      }
+      
+      isJoining = true; // Set flag to prevent multiple attempts
       
       const inputs = getInputs();
       if (!inputs.appId || !inputs.channel) {
@@ -192,97 +211,240 @@
           client = AgoraRTC.createClient({ mode: 'rtc', codec: 'vp8' });
         }
         
-        // Get fresh token from backend (using test endpoint - no auth required)
-        console.log('Getting fresh token from backend...');
-        // Note: channel input is used as room_id for testing
-        const roomId = parseInt(inputs.channel) || 1; // Use channel input as room_id
-        const tokenResponse = await fetch('/api/v1/chat/video-call/token/test', {
-          method: 'POST',
-          headers: { 
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            room_id: roomId,
-            uid: inputs.uid || 0, // 0 for auto-assign
-            user_account: null,
-            role: 'publisher',
-            expire_seconds: 3600
-          })
-        });
+        let token = inputs.token;
+        let channelName = inputs.channel;
+        let uidToUse = inputs.uid || 0;
         
-        if (!tokenResponse.ok) {
-          throw new Error(`Backend error: ${tokenResponse.status} ${tokenResponse.statusText}`);
+        // Agar token qo'lda kiritilgan bo'lsa, uni ishlatish
+        // Lekin agar channel raqam bo'lsa (room_id), backend'dan yangi token olish yaxshiroq
+        const channelIsRoomId = /^\d+$/.test(channelName.trim());
+        
+        if (token && token.trim() && !channelIsRoomId) {
+          // Token bor va channel raqam emas - qo'lda kiritilgan token ishlatiladi
+          console.log('Using manually entered token');
+          console.log(`Token format: ${token.startsWith('006') ? '006 (Legacy)' : token.startsWith('007') ? '007 (Current)' : 'Unknown'}`);
+          console.warn('⚠️ IMPORTANT: When using a manually entered token:');
+          console.warn('  1. Channel name MUST match the channel used to generate the token');
+          console.warn('  2. UID MUST match the UID used to generate the token (or be 0 if token was generated with 0)');
+          console.warn('  3. App ID MUST match the App ID used to generate the token');
+          console.warn(`  Current Channel: ${channelName}`);
+          console.warn(`  Current UID: ${uidToUse}`);
+          console.warn(`  Current App ID: ${inputs.appId}`);
+        } else {
+          // Token bo'lmasa yoki channel raqam bo'lsa (room_id), backend'dan yangi token olish
+          if (channelIsRoomId) {
+            console.log('Channel is a room ID, getting fresh token from backend...');
+          } else {
+            console.log('No token provided, getting fresh token from backend...');
+          }
+          const roomId = channelIsRoomId ? parseInt(inputs.channel) : (parseInt(inputs.channel) || 1);
+          const tokenResponse = await fetch('/api/v1/chat/video-call/token/test', {
+            method: 'POST',
+            headers: { 
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              room_id: roomId,
+              uid: inputs.uid || 0,
+              user_account: null,
+              role: 'publisher',
+              expire_seconds: 3600
+            })
+          });
+          
+          if (!tokenResponse.ok) {
+            throw new Error(`Backend error: ${tokenResponse.status} ${tokenResponse.statusText}`);
+          }
+          
+          const tokenData = await tokenResponse.json();
+          token = tokenData.token;
+          channelName = tokenData.channel;
+          uidToUse = tokenData.uid || inputs.uid || 0;
+          
+          console.log(`Got token from backend: ${token.substring(0, 50)}...`);
+          console.log(`Token format: ${token.startsWith('006') ? '006 (Legacy)' : token.startsWith('007') ? '007 (Current)' : 'Unknown'}`);
+          console.log(`Channel name from backend: ${channelName}`);
+          console.log(`UID from backend: ${uidToUse}`);
+          
+          // Update fields with values from backend
+          document.getElementById('token').value = token;
+          document.getElementById('channel').value = channelName;
+          document.getElementById('uid').value = uidToUse;
         }
         
-        const tokenData = await tokenResponse.json();
-        const token = tokenData.token;
-        const channelName = tokenData.channel; // Get channel name from response
-        const uidFromResponse = tokenData.uid; // Get UID from response (may be 0 or auto-assigned)
-        
-        console.log(`Got token from backend: ${token.substring(0, 50)}...`);
-        console.log(`Token format: ${token.startsWith('006') ? '006 (Legacy)' : token.startsWith('007') ? '007 (Current)' : 'Unknown'}`);
-        console.log(`Channel name from backend: ${channelName}`);
-        console.log(`UID from backend: ${uidFromResponse}`);
-        
-        // Update token field and channel field with values from backend
-        document.getElementById('token').value = token;
-        document.getElementById('channel').value = channelName;
-        document.getElementById('uid').value = uidFromResponse || 0;
+        if (!token || !token.trim()) {
+          throw new Error('Token is required - Please enter your Agora token or let backend generate it');
+        }
         
         // Note: setClientRole is not available in RTC mode
         // In RTC mode, all users are publishers by default
         console.log(`Role: ${inputs.role} (RTC mode - all users are publishers)`);
         
-        // Join channel using channel name from backend response
-        console.log(`Joining channel: ${channelName}`);
-        const uid = await client.join(inputs.appId, channelName, token, uidFromResponse || inputs.uid);
-        joined = true;
-        console.log(`Successfully joined with UID: ${uid}`);
+        // Join channel
+        console.log(`Joining channel: ${channelName} with token`);
+        console.log(`Using App ID: ${inputs.appId}, Channel: ${channelName}, UID: ${uidToUse}`);
+        console.log(`Token length: ${token.length}, starts with: ${token.substring(0, 3)}`);
         
-        // Create and publish tracks
-        if (inputs.audio) {
-          localAudioTrack = await AgoraRTC.createMicrophoneAudioTrack();
-          await client.publish([localAudioTrack]);
-          console.log('Audio track published');
-        }
-        
-        if (inputs.video) {
-          localVideoTrack = await AgoraRTC.createCameraVideoTrack();
-          await client.publish([localVideoTrack]);
-          localVideoTrack.play('local-player');
-          console.log('Video track published and playing');
-        }
-        
-        // Set up event listeners
-        client.on('user-published', async (user, mediaType) => {
-          console.log(`Remote user ${user.uid} published ${mediaType}`);
-          await client.subscribe(user, mediaType);
+        try {
+          const uid = await client.join(inputs.appId, channelName, token, uidToUse);
+          joined = true;
+          console.log(`Successfully joined with UID: ${uid}`);
           
-          if (mediaType === 'video') {
-            user.videoTrack.play('remote-player');
-            console.log('Remote video playing');
+          // Create and publish tracks
+          if (inputs.audio) {
+            localAudioTrack = await AgoraRTC.createMicrophoneAudioTrack();
+            await client.publish([localAudioTrack]);
+            console.log('Audio track published');
           }
-          if (mediaType === 'audio') {
-            user.audioTrack.play();
-            console.log('Remote audio playing');
+          
+          if (inputs.video) {
+            localVideoTrack = await AgoraRTC.createCameraVideoTrack();
+            await client.publish([localVideoTrack]);
+            localVideoTrack.play('local-player');
+            console.log('Video track published and playing');
           }
-        });
-        
-        client.on('user-unpublished', (user, mediaType) => {
-          console.log(`Remote user ${user.uid} unpublished ${mediaType}`);
-        });
-        
-        setUiState();
-        console.log('Video call started successfully!');
+          
+          // Set up event listeners
+          client.on('user-published', async (user, mediaType) => {
+            console.log(`Remote user ${user.uid} published ${mediaType}`);
+            await client.subscribe(user, mediaType);
+            
+            if (mediaType === 'video') {
+              user.videoTrack.play('remote-player');
+              console.log('Remote video playing');
+            }
+            if (mediaType === 'audio') {
+              user.audioTrack.play();
+              console.log('Remote audio playing');
+            }
+          });
+          
+          client.on('user-unpublished', (user, mediaType) => {
+            console.log(`Remote user ${user.uid} unpublished ${mediaType}`);
+          });
+          
+          setUiState();
+          console.log('Video call started successfully!');
+        } catch (joinError) {
+          // Specific error handling for join failures
+          console.error('Failed to join channel:', joinError);
+          let errorMessage = joinError.message || 'Unknown error';
+          
+          if (errorMessage.includes('invalid token') || errorMessage.includes('authorized failed')) {
+            // Agar channel raqam bo'lsa (room_id), backend'dan yangi token olishga harakat qilish
+            const channelIsRoomId = /^\d+$/.test(channelName.trim());
+            
+            if (channelIsRoomId && token && token.trim()) {
+              console.log('Token invalid, but channel is a room ID. Trying to get fresh token from backend...');
+              try {
+                const roomId = parseInt(channelName);
+                const tokenResponse = await fetch('/api/v1/chat/video-call/token/test', {
+                  method: 'POST',
+                  headers: { 
+                    'Content-Type': 'application/json'
+                  },
+                  body: JSON.stringify({
+                    room_id: roomId,
+                    uid: uidToUse || 0,
+                    user_account: null,
+                    role: 'publisher',
+                    expire_seconds: 3600
+                  })
+                });
+                
+                if (tokenResponse.ok) {
+                  const tokenData = await tokenResponse.json();
+                  console.log('Got fresh token from backend, retrying join...');
+                  
+                  // Update fields
+                  document.getElementById('token').value = tokenData.token;
+                  document.getElementById('channel').value = tokenData.channel;
+                  document.getElementById('uid').value = tokenData.uid || uidToUse || 0;
+                  
+                  // Retry join with new token
+                  token = tokenData.token;
+                  channelName = tokenData.channel;
+                  uidToUse = tokenData.uid || uidToUse || 0;
+                  
+                  const uid = await client.join(inputs.appId, channelName, token, uidToUse);
+                  joined = true;
+                  console.log(`Successfully joined with UID: ${uid} after token refresh`);
+                  
+                  // Continue with track creation (code below will execute)
+                  if (inputs.audio) {
+                    localAudioTrack = await AgoraRTC.createMicrophoneAudioTrack();
+                    await client.publish([localAudioTrack]);
+                    console.log('Audio track published');
+                  }
+                  
+                  if (inputs.video) {
+                    localVideoTrack = await AgoraRTC.createCameraVideoTrack();
+                    await client.publish([localVideoTrack]);
+                    localVideoTrack.play('local-player');
+                    console.log('Video track published and playing');
+                  }
+                  
+                  client.on('user-published', async (user, mediaType) => {
+                    console.log(`Remote user ${user.uid} published ${mediaType}`);
+                    await client.subscribe(user, mediaType);
+                    
+                    if (mediaType === 'video') {
+                      user.videoTrack.play('remote-player');
+                      console.log('Remote video playing');
+                    }
+                    if (mediaType === 'audio') {
+                      user.audioTrack.play();
+                      console.log('Remote audio playing');
+                    }
+                  });
+                  
+                  client.on('user-unpublished', (user, mediaType) => {
+                    console.log(`Remote user ${user.uid} unpublished ${mediaType}`);
+                  });
+                  
+                  setUiState();
+                  console.log('Video call started successfully after token refresh!');
+                  return; // Success, exit error handler
+                }
+              } catch (retryError) {
+                console.error('Failed to get fresh token:', retryError);
+              }
+            }
+            
+            errorMessage = `Invalid token error:\n\n` +
+              `This usually means:\n` +
+              `1. Token doesn't match the Channel name (current: "${channelName}")\n` +
+              `2. Token doesn't match the UID (current: ${uidToUse})\n` +
+              `3. Token has expired\n` +
+              `4. Token was generated with wrong App ID or Certificate\n\n` +
+              `Solution: Clear the token field and let backend generate a new one, or ensure Channel and UID match the token.`;
+          }
+          
+          throw new Error(errorMessage);
+        }
         
       } catch (error) {
         console.error(`Error: ${error.message}`);
-        alert(`Error: ${error.message}`);
+        if (!isAutoJoin) {
+          alert(`Error: ${error.message}`);
+        }
+      } finally {
+        isJoining = false; // Reset flag after join attempt completes
       }
     }
 
     async function leave() {
       if (!joined) return;
+      
+      // Clear auto-join timeout if exists
+      if (autoJoinTimeout) {
+        clearTimeout(autoJoinTimeout);
+        autoJoinTimeout = null;
+      }
+      
+      // Reset joining flag
+      isJoining = false;
+      
       if (localAudioTrack) { localAudioTrack.stop(); localAudioTrack.close(); localAudioTrack = null; }
       if (localVideoTrack) { localVideoTrack.stop(); localVideoTrack.close(); localVideoTrack = null; }
       await client.leave();
@@ -336,9 +498,60 @@
       q('audio').disabled = false;
       q('video').disabled = false;
 
-      // Focus on channel input since token is auto-generated
-      q('channel').focus();
-      q('channel').select();
+      // Auto-join when token and channel are filled
+      const checkAndAutoJoin = () => {
+        // Don't auto-join if already joined or joining
+        if (joined || isJoining) {
+          return;
+        }
+        
+        const tokenValue = q('token').value.trim();
+        const channelValue = q('channel').value.trim();
+        const appIdValue = q('appId').value.trim();
+        
+        // Agar channel raqam bo'lsa (room_id), token bo'lmasa ham join qilish mumkin (backend token generatsiya qiladi)
+        const channelIsRoomId = /^\d+$/.test(channelValue);
+        const canAutoJoin = (tokenValue && channelValue && appIdValue) || (channelIsRoomId && appIdValue);
+        
+        if (canAutoJoin) {
+          // Clear previous timeout
+          if (autoJoinTimeout) {
+            clearTimeout(autoJoinTimeout);
+            autoJoinTimeout = null;
+          }
+          
+          // Auto-join after 1.5 second delay (to allow user to finish typing)
+          autoJoinTimeout = setTimeout(() => {
+            // Double-check conditions before joining
+            const currentToken = q('token').value.trim();
+            const currentChannel = q('channel').value.trim();
+            const currentAppId = q('appId').value.trim();
+            
+            if (!joined && !isJoining && currentToken && currentChannel && currentAppId) {
+              console.log('Auto-joining with provided token...');
+              join(true).catch(err => {
+                console.error('Auto-join failed:', err);
+                isJoining = false; // Reset flag on error
+                // Don't show alert for auto-join failures
+              });
+            }
+          }, 1500);
+        } else {
+          // Clear timeout if conditions are not met
+          if (autoJoinTimeout) {
+            clearTimeout(autoJoinTimeout);
+            autoJoinTimeout = null;
+          }
+        }
+      };
+      
+      // Listen for token and channel changes
+      q('token').addEventListener('input', checkAndAutoJoin);
+      q('channel').addEventListener('input', checkAndAutoJoin);
+      q('appId').addEventListener('input', checkAndAutoJoin);
+      
+      // Focus on token input for manual entry
+      q('token').focus();
 
       setUiState();
     });

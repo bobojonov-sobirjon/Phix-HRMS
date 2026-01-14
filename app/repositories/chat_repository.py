@@ -500,3 +500,21 @@ class ChatRepository:
         return self.db.query(MessageLike).filter(
             MessageLike.message_id == message_id
         ).count()
+    
+    def delete_room(self, room_id: int, user_id: int) -> bool:
+        """Delete a chat room (soft delete - sets is_active=False for room and participants)"""
+        room = self.get_room(room_id, user_id)
+        if not room:
+            return False
+        
+        # Soft delete room
+        room.is_active = False
+        room.updated_at = datetime.utcnow()
+        
+        # Soft delete all participants
+        self.db.query(ChatParticipant).filter(
+            ChatParticipant.room_id == room_id
+        ).update({"is_active": False})
+        
+        self.db.commit()
+        return True
