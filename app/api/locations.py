@@ -7,7 +7,7 @@ from ..schemas.common import SuccessResponse
 from ..utils.decorators import handle_errors
 from ..utils.response_helpers import success_response, not_found_error, validate_entity_exists, bad_request_error, forbidden_error
 from ..utils.permissions import is_admin_user
-from typing import List
+from typing import List, Optional
 from ..models.user import User
 from ..utils.auth import get_current_user, get_current_user_optional
 import os
