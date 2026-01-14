@@ -11,9 +11,9 @@ class LocationRepository(BaseRepository[Location]):
     def __init__(self, db: Session):
         super().__init__(db, Location)
     
-    def get_all_locations(self) -> List[Location]:
-        """Get all locations (excluding deleted)"""
-        return self.get_all(include_deleted=False)
+    def get_all_locations(self, skip: int = 0, limit: int = 10000) -> List[Location]:
+        """Get all locations (excluding deleted) with consistent ordering"""
+        return self.get_all(skip=skip, limit=limit, include_deleted=False)
     
     def get_location_by_id(self, location_id: int) -> Optional[Location]:
         """Get location by ID (excluding deleted)"""

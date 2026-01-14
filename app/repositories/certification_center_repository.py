@@ -28,7 +28,7 @@ class CertificationCenterRepository:
     def get_all_certification_centers(self, skip: int = 0, limit: int = 100) -> List[CertificationCenter]:
         return self.db.query(CertificationCenter).filter(
             CertificationCenter.is_deleted == False
-        ).offset(skip).limit(limit).all()
+        ).order_by(CertificationCenter.id.asc()).offset(skip).limit(limit).all()
 
     def update_certification_center(self, id: int, update_data: Dict) -> Optional[CertificationCenter]:
         certification_center = self.get_certification_center_by_id(id)
@@ -52,4 +52,4 @@ class CertificationCenterRepository:
         return self.db.query(CertificationCenter).filter(
             CertificationCenter.is_deleted == False,
             CertificationCenter.name.ilike(f"%{search_term}%")
-        ).offset(skip).limit(limit).all()
+        ).order_by(CertificationCenter.id.asc()).offset(skip).limit(limit).all()

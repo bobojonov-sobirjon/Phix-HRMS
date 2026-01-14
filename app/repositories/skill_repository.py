@@ -30,9 +30,9 @@ class SkillRepository(BaseRepository[Skill]):
         """Get skills by name (partial match, case-insensitive)"""
         return self.search("name", name, case_sensitive=False)
     
-    def get_all_skills(self) -> List[Skill]:
-        """Get all skills (excluding deleted)"""
-        return self.get_all(include_deleted=False)
+    def get_all_skills(self, skip: int = 0, limit: int = 10000) -> List[Skill]:
+        """Get all skills (excluding deleted) with consistent ordering"""
+        return self.get_all(skip=skip, limit=limit, include_deleted=False)
     
     def update_skill(self, skill_id: int, name: str) -> Optional[Skill]:
         """Update skill name"""

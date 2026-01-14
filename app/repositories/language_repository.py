@@ -14,9 +14,9 @@ class LanguageRepository(BaseRepository[Language]):
         """Get language by ID"""
         return self.get_by_id(language_id, include_deleted=False)
     
-    def get_all(self) -> List[Language]:
-        """Get all languages"""
-        return super().get_all(include_deleted=False)
+    def get_all(self, skip: int = 0, limit: int = 10000) -> List[Language]:
+        """Get all languages with consistent ordering"""
+        return super().get_all(skip=skip, limit=limit, include_deleted=False)
     
     def create(self, name: str) -> Language:
         """Create a new language"""

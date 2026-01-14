@@ -3,7 +3,7 @@ Base Repository Class
 Provides common CRUD operations for all repositories
 """
 from sqlalchemy.orm import Session
-from sqlalchemy import and_
+from sqlalchemy import and_, desc
 from typing import Type, TypeVar, Generic, Optional, List, Dict, Any
 from sqlalchemy.ext.declarative import declarative_base
 
@@ -71,6 +71,14 @@ class BaseRepository(Generic[ModelType]):
             for key, value in filters.items():
                 if hasattr(self.model, key):
                     query = query.filter(getattr(self.model, key) == value)
+        
+        # Add ordering to ensure consistent results
+        # Try to order by id (ascending) for consistent ordering
+        if hasattr(self.model, 'id'):
+            query = query.order_by(self.model.id.asc())
+        # If no id, try created_at
+        elif hasattr(self.model, 'created_at'):
+            query = query.order_by(self.model.created_at.asc())
         
         return query.offset(skip).limit(limit).all()
     
@@ -218,5 +226,11 @@ class BaseRepository(Generic[ModelType]):
             query = query.filter(field.contains(search_term))
         else:
             query = query.filter(field.ilike(f"%{search_term}%"))
+        
+        # Add ordering to ensure consistent results
+        if hasattr(self.model, 'id'):
+            query = query.order_by(self.model.id.asc())
+        elif hasattr(self.model, 'created_at'):
+            query = query.order_by(self.model.created_at.asc())
         
         return query.offset(skip).limit(limit).all()
