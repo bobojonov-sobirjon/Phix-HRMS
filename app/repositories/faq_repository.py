@@ -10,6 +10,11 @@ class FAQRepository(BaseRepository[FAQ]):
     def __init__(self, db: Session):
         super().__init__(db, FAQ)
     
+    # Instance method to override BaseRepository.create() and avoid static method conflict
+    def create_instance(self, data):
+        """Instance method wrapper for create"""
+        return super().create(data)
+    
     @staticmethod
     def get_all(db: Session):
         """Get all FAQs (static method for backward compatibility)"""
@@ -29,7 +34,8 @@ class FAQRepository(BaseRepository[FAQ]):
         repo = FAQRepository(db)
         # Use model_dump() for Pydantic v2, fallback to dict() for v1
         faq_dict = faq.model_dump() if hasattr(faq, 'model_dump') else faq.dict()
-        return repo.create(faq_dict)
+        # Call instance method to avoid static method conflict
+        return repo.create_instance(faq_dict)
     
     @staticmethod
     def update(db: Session, faq_id: int, faq: FAQUpdate):
