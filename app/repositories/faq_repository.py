@@ -27,7 +27,9 @@ class FAQRepository(BaseRepository[FAQ]):
     def create(db: Session, faq: FAQCreate):
         """Create FAQ (static method for backward compatibility)"""
         repo = FAQRepository(db)
-        return repo.create(faq.dict())
+        # Use model_dump() for Pydantic v2, fallback to dict() for v1
+        faq_dict = faq.model_dump() if hasattr(faq, 'model_dump') else faq.dict()
+        return repo.create(faq_dict)
     
     @staticmethod
     def update(db: Session, faq_id: int, faq: FAQUpdate):
