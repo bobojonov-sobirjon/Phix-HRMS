@@ -26,7 +26,7 @@ class FAQRepository(BaseRepository[FAQ]):
     def get_by_id(db: Session, faq_id: int):
         """Get FAQ by ID (static method for backward compatibility)"""
         repo = FAQRepository(db)
-        return repo.get_by_id(faq_id, include_deleted=False)
+        return BaseRepository.get_by_id(repo, faq_id, include_deleted=False)
     
     @staticmethod
     def create(db: Session, faq: FAQCreate):
@@ -47,7 +47,13 @@ class FAQRepository(BaseRepository[FAQ]):
     def delete(db: Session, faq_id: int):
         """Delete FAQ (static method for backward compatibility)"""
         repo = FAQRepository(db)
+        # Get FAQ before deleting (since hard_delete=True will remove it from DB)
+        faq = BaseRepository.get_by_id(repo, faq_id)
+        if not faq:
+            return None
+        
+        # Delete FAQ
         success = repo.delete(faq_id, hard_delete=True)
         if success:
-            return repo.get_by_id(faq_id, include_deleted=True)
+            return faq  # Return the FAQ that was deleted
         return None
