@@ -32,35 +32,33 @@
 </head>
 <body>
   <div class="container">
-    <h1>Agora Video Call - Simple Client</h1>
+    <h1>Agora Video Call - Test Client</h1>
     <div class="card">
-      <div class="row">
-        <div>
-          <label>App ID</label>
-          <input id="appId" placeholder="e406a7515b244f6b968ab0520532609a" />
-        </div>
-        <div>
-          <label>Channel</label>
-          <input id="channel" placeholder="2" />
-        </div>
+      <div>
+        <label>App ID (turadi)</label>
+        <input id="appId" value="e406a7515b244f6b968ab0520532609a" readonly style="background: #1a1f2e; color: #9ca3af;" />
       </div>
-      <div class="row">
-        <div>
-          <label>Token (Required)</label>
-          <input id="token" placeholder="Paste your Agora token here" />
-        </div>
+      <div style="margin-top: 12px;">
+        <label>Channel Name</label>
+        <input id="channel" placeholder="7d72365eb983485397e3e3f9d460bdda" />
+      </div>
+      <div style="margin-top: 12px;">
+        <label>Token (Required)</label>
+        <input id="token" placeholder="007e.IxTYPj8cUqt5jTZ7cdITySkfX0k/bxpas28E7XfnqAlSOZM7dPgSHVxMAs0dzU0DTJ..." />
+      </div>
+      <div class="row" style="margin-top: 12px;">
         <div>
           <label>UID (0 = auto)</label>
-          <input id="uid" type="number" placeholder="0" />
+          <input id="uid" type="number" value="17" />
         </div>
-      </div>
-      <div class="row-3">
         <div>
           <label>Role (RTC Mode)</label>
           <select id="role">
             <option value="host" selected>Publisher (All users in RTC mode)</option>
           </select>
         </div>
+      </div>
+      <div class="row" style="margin-top: 12px;">
         <div>
           <label>Audio</label>
           <select id="audio">
@@ -82,14 +80,13 @@
         <button id="toggle-audio">Mute Audio</button>
         <button id="toggle-video">Mute Video</button>
       </div>
-         <div class="note">
-           <strong>Instructions:</strong><br>
-           1. <strong>Token qo'lda kiritsangiz:</strong> Token, Channel va App ID ni kiriting - avtomatik join qilinadi<br>
-           2. <strong>Token bo'lmasa:</strong> Channel va App ID ni kiriting, "Join" tugmasini bosing - backend token generate qiladi<br>
-           3. Ikkala foydalanuvchi ham bir xil Channel nomidan foydalanishi kerak<br>
-           4. Token qo'yilganda 1 soniyadan keyin avtomatik video call ochiladi<br>
-           5. <strong>Eslatma:</strong> Token qo'lda kiritilganda, Channel nomi ham to'g'ri bo'lishi kerak
-         </div>
+      <div class="note">
+        <strong>Instructions:</strong><br>
+        1. <strong>Token qo'lda kiritsangiz:</strong> Channel va Token'ni kiriting, "Join" tugmasini bosing<br>
+        2. <strong>Token bo'lmasa:</strong> Faqat Channel'ni kiriting (raqam - room_id), "Join" tugmasini bosing - backend token generate qiladi<br>
+        3. Ikkala foydalanuvchi ham bir xil Channel nomidan foydalanishi kerak<br>
+        4. <strong>Eslatma:</strong> Token qo'lda kiritilganda, Channel nomi ham to'g'ri bo'lishi kerak
+      </div>
     </div>
 
     <div class="videos">
@@ -114,14 +111,13 @@
 
     const q = (id) => document.getElementById(id);
 
-    // Hard-coded defaults (edit here)
+    // Hard-coded defaults
     const DEFAULTS = {
       appId: 'e406a7515b244f6b968ab0520532609a',
-      channel: '7d72365eb983485397e3e3f9d460bdda', // index.py da generate qilingan token bilan mos channel name
-      // NOTE: Token must be entered by user - no hardcoded token
+      channel: '',
       token: '',
-      uid: 0,
-      role: 'host', // 'host' or 'audience'
+      uid: 17,
+      role: 'host',
       audio: true,
       video: true,
     };
@@ -479,79 +475,16 @@
     q('toggle-audio').addEventListener('click', function() { toggleAudio.call(this); });
     q('toggle-video').addEventListener('click', function() { toggleVideo.call(this); });
 
-    // Initialize UI with hard-coded defaults
+    // Initialize UI
     window.addEventListener('DOMContentLoaded', () => {
-      q('appId').value = DEFAULTS.appId;
-      q('channel').value = DEFAULTS.channel;
-      q('token').value = ''; // Clear token field - will be generated automatically
+      // App ID is readonly, already set in HTML
       q('uid').value = DEFAULTS.uid;
       q('role').value = DEFAULTS.role === 'host' ? 'host' : 'audience';
       q('audio').value = DEFAULTS.audio ? 'on' : 'off';
       q('video').value = DEFAULTS.video ? 'on' : 'off';
 
-      // Keep all inputs editable for flexibility
-      q('appId').disabled = false;
-      q('channel').disabled = false;
-      q('token').disabled = false; // Allow manual token entry if needed
-      q('uid').disabled = false;
-      q('role').disabled = false;
-      q('audio').disabled = false;
-      q('video').disabled = false;
-
-      // Auto-join when token and channel are filled
-      const checkAndAutoJoin = () => {
-        // Don't auto-join if already joined or joining
-        if (joined || isJoining) {
-          return;
-        }
-        
-        const tokenValue = q('token').value.trim();
-        const channelValue = q('channel').value.trim();
-        const appIdValue = q('appId').value.trim();
-        
-        // Agar channel raqam bo'lsa (room_id), token bo'lmasa ham join qilish mumkin (backend token generatsiya qiladi)
-        const channelIsRoomId = /^\d+$/.test(channelValue);
-        const canAutoJoin = (tokenValue && channelValue && appIdValue) || (channelIsRoomId && appIdValue);
-        
-        if (canAutoJoin) {
-          // Clear previous timeout
-          if (autoJoinTimeout) {
-            clearTimeout(autoJoinTimeout);
-            autoJoinTimeout = null;
-          }
-          
-          // Auto-join after 1.5 second delay (to allow user to finish typing)
-          autoJoinTimeout = setTimeout(() => {
-            // Double-check conditions before joining
-            const currentToken = q('token').value.trim();
-            const currentChannel = q('channel').value.trim();
-            const currentAppId = q('appId').value.trim();
-            
-            if (!joined && !isJoining && currentToken && currentChannel && currentAppId) {
-              console.log('Auto-joining with provided token...');
-              join(true).catch(err => {
-                console.error('Auto-join failed:', err);
-                isJoining = false; // Reset flag on error
-                // Don't show alert for auto-join failures
-              });
-            }
-          }, 1500);
-        } else {
-          // Clear timeout if conditions are not met
-          if (autoJoinTimeout) {
-            clearTimeout(autoJoinTimeout);
-            autoJoinTimeout = null;
-          }
-        }
-      };
-      
-      // Listen for token and channel changes
-      q('token').addEventListener('input', checkAndAutoJoin);
-      q('channel').addEventListener('input', checkAndAutoJoin);
-      q('appId').addEventListener('input', checkAndAutoJoin);
-      
-      // Focus on token input for manual entry
-      q('token').focus();
+      // Focus on channel input
+      q('channel').focus();
 
       setUiState();
     });

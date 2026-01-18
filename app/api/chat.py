@@ -1393,17 +1393,25 @@ async def generate_video_call_token(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Generate Agora RTC token for video calling - Production Mode"""
+    """
+    Generate Agora RTC token for video calling.
+    
+    Channel name is stored in DB, but token is generated fresh on each request
+    for better security and to avoid expiry issues.
+    """
     from ..models.chat import ChatRoom, ChatParticipant
+    from ..models.agora_channel import AgoraChannel
     from sqlalchemy.orm import joinedload
     
     try:
         chat_repo = ChatRepository(db)
         
+        # Verify user is participant of the room
         room = chat_repo.get_room(token_request.room_id, current_user.id)
         if not room:
             raise HTTPException(status_code=404, detail="Room not found or you are not a participant")
         
+        # Get room with participants
         room_with_participants = db.query(ChatRoom).options(
             joinedload(ChatRoom.participants).joinedload(ChatParticipant.user)
         ).filter(ChatRoom.id == token_request.room_id).first()
@@ -1411,119 +1419,46 @@ async def generate_video_call_token(
         if not room_with_participants:
             raise HTTPException(status_code=404, detail="Room not found")
         
-        from ..models.agora_token import AgoraToken
-        from datetime import datetime, timezone
-        from ..utils.agora_tokens_standalone import get_agora_credentials
-        
-        existing_token = db.query(AgoraToken).filter(
-            AgoraToken.room_id == token_request.room_id
+        # Get or create channel name
+        existing_channel = db.query(AgoraChannel).filter(
+            AgoraChannel.room_id == token_request.room_id
         ).first()
         
-        agora_creds = get_agora_credentials()
-        app_id = agora_creds.get("appId", "")
-        
-        current_time = datetime.now(timezone.utc)
-        
-        token_is_valid = False
-        if existing_token:
-            time_until_expiry = (existing_token.expire_at - current_time).total_seconds()
-            token_is_valid = time_until_expiry > 0
-            
-            if token_is_valid:
-                print(f"Token for room_id {token_request.room_id} is still valid. Expires in {time_until_expiry:.0f} seconds")
-            else:
-                print(f"Token for room_id {token_request.room_id} is EXPIRED. Time until expiry: {time_until_expiry:.0f} seconds. Generating new token...")
-        
-        if existing_token and token_is_valid:
-            existing_uid = existing_token.uid if existing_token.uid is not None else 0
-            if existing_uid == 0:
-                # Agar existing token'da uid 0 bo'lsa, current_user.id ni ishlatamiz
-                uid_for_response = current_user.id
-                user_account_for_response = None
-            else:
-                user_account_for_response = None
-                uid_for_response = existing_uid
-            
-            token_data = {
-                "appId": app_id,
-                "channel": existing_token.channel_name,
-                "uid": uid_for_response,
-                "userAccount": user_account_for_response,
-                "role": existing_token.role,
-                "expireAt": int(existing_token.expire_at.timestamp()),
-                "token": existing_token.token
-            }
+        if existing_channel:
+            channel_name = existing_channel.channel_name
+            print(f"Using existing channel_name: {channel_name} for room_id: {token_request.room_id}")
         else:
-            print(f"Generating new token for room_id {token_request.room_id}...")
-            
-            # Channel name'ni index.py dagi kabi format qilish
-            if existing_token:
-                channel_name = existing_token.channel_name
-                print(f"Reusing existing channel_name: {channel_name}")
-            else:
-                # index.py dagi kabi format
-                channel_name = f"room_{token_request.room_id}_call"
-                print(f"Creating new channel_name: {channel_name}")
-            
-            # UID va user_account'ni handle qilish
-            # Agar uid berilgan va 0 emas bo'lsa, uni ishlatamiz
-            # Aks holda, current_user.id ni uid sifatida ishlatamiz
-            if token_request.uid is not None and token_request.uid != 0:
-                # UID berilgan bo'lsa, uni ishlatamiz
-                request_uid = token_request.uid
-                user_account_for_token = None
-                user_account_for_response = None
-            else:
-                # UID 0 yoki None bo'lsa, current_user.id ni ishlatamiz
-                request_uid = current_user.id
-                user_account_for_token = None
-                user_account_for_response = None
-            
-            token_data = generate_rtc_token(
-                channel_name=channel_name,
-                uid=request_uid,
-                user_account=user_account_for_token,
-                role=token_request.role,
-                expire_seconds=token_request.expire_seconds
+            # Create new channel name
+            channel_name = f"room_{token_request.room_id}_call"
+            new_channel = AgoraChannel(
+                room_id=token_request.room_id,
+                channel_name=channel_name
             )
-            
-            expire_at = datetime.fromtimestamp(token_data["expireAt"], tz=timezone.utc)
-            
-            # Response uchun user_account'ni to'g'ri o'rnatish
-            # Agar user_account_for_token ishlatilgan bo'lsa, uni response'ga qo'shamiz
-            if user_account_for_token and token_data.get("userAccount") is None:
-                token_data["userAccount"] = user_account_for_token
-            elif user_account_for_response and token_data.get("userAccount") is None:
-                token_data["userAccount"] = user_account_for_response
-            
-            if existing_token:
-                print(f"Updating expired token for room_id {token_request.room_id} with new token")
-                existing_token.token = token_data["token"]
-                existing_token.channel_name = channel_name
-                existing_token.uid = token_data["uid"] if token_data["uid"] is not None else current_user.id
-                existing_token.role = token_request.role
-                existing_token.expire_seconds = token_request.expire_seconds
-                existing_token.expire_at = expire_at
-                existing_token.updated_at = datetime.now(timezone.utc)
-                db.commit()
-                db.refresh(existing_token)
-                print(f"Token updated successfully. New expire_at: {expire_at}")
-            else:
-                print(f"Creating new token for room_id {token_request.room_id}")
-                new_token = AgoraToken(
-                    room_id=token_request.room_id,
-                    token=token_data["token"],
-                    channel_name=channel_name,
-                    uid=token_data["uid"] if token_data["uid"] is not None else current_user.id,
-                    role=token_request.role,
-                    expire_seconds=token_request.expire_seconds,
-                    expire_at=expire_at
-                )
-                db.add(new_token)
-                db.commit()
-                db.refresh(new_token)
-                print(f"New token created successfully. Expire_at: {expire_at}")
+            db.add(new_channel)
+            db.commit()
+            db.refresh(new_channel)
+            print(f"Created new channel_name: {channel_name} for room_id: {token_request.room_id}")
         
+        # Determine UID for token generation
+        if token_request.uid is not None and token_request.uid != 0:
+            request_uid = token_request.uid
+            user_account_for_token = None
+        else:
+            request_uid = current_user.id
+            user_account_for_token = None
+        
+        # Generate fresh token
+        token_data = generate_rtc_token(
+            channel_name=channel_name,
+            uid=request_uid,
+            user_account=user_account_for_token,
+            role=token_request.role,
+            expire_seconds=token_request.expire_seconds
+        )
+        
+        print(f"Generated fresh token for room_id: {token_request.room_id}, uid: {request_uid}")
+        
+        # Build participants response
         participants_response = []
         for participant in room_with_participants.participants:
             if participant.is_active and participant.user:
@@ -1555,12 +1490,7 @@ async def generate_video_call_token(
             participants=participants_response
         )
         
-        # UID va user_account'ni to'g'ri qaytarish
-        # Agar uid None bo'lsa, current_user.id ni ishlatamiz
         uid_value = token_data["uid"] if token_data["uid"] is not None else current_user.id
-        
-        # user_account'ni to'g'ri qaytarish
-        # token_data["userAccount"] dan olamiz, chunki generate_rtc_token uni to'g'ri qaytaradi
         user_account_value = token_data.get("userAccount")
         
         return VideoCallTokenResponse(
