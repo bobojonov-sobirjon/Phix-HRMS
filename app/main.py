@@ -94,3 +94,9 @@ logger.info("Phix HRMS API application initialized")
 async def root():
     """Root endpoint"""
     return {"message": "Phix HRMS API is running"}
+
+@app.get("/docs/")
+async def docs_redirect():
+    """Redirect /docs/ to /docs (without trailing slash)"""
+    from fastapi.responses import RedirectResponse
+    return RedirectResponse(url="/docs", status_code=301)

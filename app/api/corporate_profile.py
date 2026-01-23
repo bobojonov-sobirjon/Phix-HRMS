@@ -149,27 +149,28 @@ def convert_profile_to_response(profile_with_urls, current_user_id: Optional[int
         is_followed = False
         follow_relation_id = None
         followers_count = 0
-        if db:
-            try:
-                from ..repositories.corporate_profile_follow_repository import CorporateProfileFollowRepository
-                follow_repo = CorporateProfileFollowRepository(db)
-                
-                followers_count = follow_repo.count_followers(profile_with_urls.id)
-                
-                if current_user_id is not None and profile_with_urls.id:
-                    from ..models.corporate_profile_follow import CorporateProfileFollow
-                    from sqlalchemy import and_
-                    follow_relation = db.query(CorporateProfileFollow).filter(
-                        and_(
-                            CorporateProfileFollow.user_id == int(current_user_id),
-                            CorporateProfileFollow.corporate_profile_id == int(profile_with_urls.id)
-                        )
-                    ).first()
-                    if follow_relation:
-                        is_followed = True
-                        follow_relation_id = int(follow_relation.id)
-            except Exception as e:
-                print(f"Error checking follow status: {str(e)}")
+        # Corporate profile follow functionality disabled - table dropped in migration
+        # if db:
+        #     try:
+        #         from ..repositories.corporate_profile_follow_repository import CorporateProfileFollowRepository
+        #         follow_repo = CorporateProfileFollowRepository(db)
+        #         
+        #         followers_count = follow_repo.count_followers(profile_with_urls.id)
+        #         
+        #         if current_user_id is not None and profile_with_urls.id:
+        #             from ..models.corporate_profile_follow import CorporateProfileFollow
+        #             from sqlalchemy import and_
+        #             follow_relation = db.query(CorporateProfileFollow).filter(
+        #                 and_(
+        #                     CorporateProfileFollow.user_id == int(current_user_id),
+        #                     CorporateProfileFollow.corporate_profile_id == int(profile_with_urls.id)
+        #                 )
+        #             ).first()
+        #             if follow_relation:
+        #                 is_followed = True
+        #                 follow_relation_id = int(follow_relation.id)
+        #     except Exception as e:
+        #         print(f"Error checking follow status: {str(e)}")
         
         company_size_value = profile_with_urls.company_size.value if hasattr(profile_with_urls.company_size, 'value') else str(profile_with_urls.company_size)
         

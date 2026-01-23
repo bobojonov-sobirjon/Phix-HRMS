@@ -6,7 +6,7 @@ from ..api import (
     auth, profile, contact_us, faq, skills, roles, languages, locations,
     user_skills, data_management, company, education_facility, certification_center,
     gig_jobs, proposals, saved_jobs, corporate_profile, full_time_job, team_member,
-    category, chat, corporate_profile_follow, notifications, admin
+    category, chat, notifications, admin
 )
 
 
@@ -30,7 +30,7 @@ def register_routers(app: FastAPI):
         (proposals, "/api/v1"),
         (saved_jobs.router, "/api/v1"),
         (corporate_profile.router, "/api/v1"),
-        (corporate_profile_follow.router, "/api/v1"),
+        # (corporate_profile_follow.router, "/api/v1"),  # Removed - table dropped
         (full_time_job.router, "/api/v1"),
         (team_member.router, "/api/v1"),
         (category.router, "/api/v1"),

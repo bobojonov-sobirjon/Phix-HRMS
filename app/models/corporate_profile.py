@@ -42,7 +42,7 @@ class CorporateProfile(Base):
     location = relationship("Location", back_populates="corporate_profiles")
     full_time_jobs = relationship("FullTimeJob", back_populates="company", cascade="all, delete-orphan")
     team_members = relationship("TeamMember", back_populates="corporate_profile", cascade="all, delete-orphan")
-    followers = relationship("CorporateProfileFollow", back_populates="corporate_profile", cascade="all, delete-orphan")
+    # followers relationship removed - CorporateProfileFollow table dropped in migration
     category = relationship("Category", lazy="joined", foreign_keys=[category_id])
 
     def __repr__(self):

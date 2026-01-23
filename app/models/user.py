@@ -56,7 +56,7 @@ class User(Base):
     proposals = relationship('Proposal', back_populates='user', cascade='all, delete-orphan')
     saved_jobs = relationship('SavedJob', back_populates='user', cascade='all, delete-orphan')
     device_tokens = relationship('UserDeviceToken', back_populates='user', cascade='all, delete-orphan')
-    corporate_profile_follows = relationship('CorporateProfileFollow', back_populates='user', cascade='all, delete-orphan')
+    # corporate_profile_follows relationship removed - table dropped in migration
     notifications = relationship('Notification', foreign_keys='Notification.recipient_user_id', back_populates='recipient', cascade='all, delete-orphan')
     
     def set_password(self, password: str):

@@ -44,15 +44,16 @@ class FullTimeJobRepository:
         
         company_followers_count = 0
         company_follow_relation_id = None
-        if job.company_id:
-            from ..repositories.corporate_profile_follow_repository import CorporateProfileFollowRepository
-            follow_repo = CorporateProfileFollowRepository(self.db)
-            company_followers_count = follow_repo.count_followers(job.company_id)
-            
-            if current_user_id:
-                follow_relation = follow_repo.get_by_user_and_profile(current_user_id, job.company_id)
-                if follow_relation:
-                    company_follow_relation_id = follow_relation.id
+        # Corporate profile follow functionality disabled - table dropped in migration
+        # if job.company_id:
+        #     from ..repositories.corporate_profile_follow_repository import CorporateProfileFollowRepository
+        #     follow_repo = CorporateProfileFollowRepository(self.db)
+        #     company_followers_count = follow_repo.count_followers(job.company_id)
+        #     
+        #     if current_user_id:
+        #         follow_relation = follow_repo.get_by_user_and_profile(current_user_id, job.company_id)
+        #         if follow_relation:
+        #             company_follow_relation_id = follow_relation.id
         
         relevance_score = None
         is_saved = False
@@ -306,10 +307,11 @@ class FullTimeJobRepository:
         
         company_followers_count = 0
         company_follow_relation_id = None
-        if corporate_profile_id:
-            from ..repositories.corporate_profile_follow_repository import CorporateProfileFollowRepository
-            follow_repo = CorporateProfileFollowRepository(self.db)
-            company_followers_count = follow_repo.count_followers(corporate_profile_id)
+        # Corporate profile follow functionality disabled - table dropped in migration
+        # if corporate_profile_id:
+        #     from ..repositories.corporate_profile_follow_repository import CorporateProfileFollowRepository
+        #     follow_repo = CorporateProfileFollowRepository(self.db)
+        #     company_followers_count = follow_repo.count_followers(corporate_profile_id)
         
         company_logo_url = None
         if company and company.logo_url:
