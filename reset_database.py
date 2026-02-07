@@ -64,17 +64,19 @@ def main():
         print("\n\nCancelled by user.")
         return 1
     
-    # Step 1: Drop and recreate database
-    drop_create_sql = """
-DROP DATABASE IF EXISTS phix_hrms;
-CREATE DATABASE phix_hrms;
-"""
-    
+    # Step 1: Drop database
     if not run_command(
-        f"sudo -u postgres psql -c \"{drop_create_sql.strip().replace(chr(10), ' ')}\"",
-        "Step 1: Drop and Create Database"
+        "sudo -u postgres psql -c 'DROP DATABASE IF EXISTS phix_hrms;'",
+        "Step 1a: Drop Database"
     ):
-        print("\n✗ Failed to reset database")
+        print("\n⚠️  Drop database failed, but continuing...")
+    
+    # Step 1b: Create database
+    if not run_command(
+        "sudo -u postgres psql -c 'CREATE DATABASE phix_hrms;'",
+        "Step 1b: Create Database"
+    ):
+        print("\n✗ Failed to create database")
         return 1
     
     # Step 2: Create ENUM types
