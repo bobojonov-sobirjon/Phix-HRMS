@@ -430,10 +430,21 @@ async def login(user_data: UserLogin, db: Session = Depends(get_db)):
 
 @router.post("/social-login", response_model=SuccessResponse, tags=["Authentication"])
 async def social_login(social_data: SocialLogin, db: Session = Depends(get_db)):
-    """Login or register user via social login (Google, Facebook, Apple)"""
+    """
+    Login or register user via social login (Google, Facebook, Apple)
+    
+    Flow:
+    1. Verify Firebase token
+    2. Check if user exists by social_id (google_id, facebook_id, apple_id)
+    3. If not found, check by email
+    4. If found by email, link social_id to existing user
+    5. If not found at all, create new user
+    6. Generate JWT tokens and return
+    """
     try:
         user_repo = UserRepository(db)
         
+        # Step 1: Verify Firebase token
         social_user_info = verify_social_token(social_data.provider, social_data.access_token)
         if not social_user_info:
             raise HTTPException(
@@ -441,17 +452,25 @@ async def social_login(social_data: SocialLogin, db: Session = Depends(get_db)):
                 detail="Invalid social token"
             )
         
+        # Step 2: Try to find user by social ID (google_id, facebook_id, apple_id)
         user = user_repo.get_user_by_social_id(social_data.provider, social_user_info["id"])
         
-        if not user:
+        if user:
+            # User found by social ID - existing social login user
+            user_action = "login"
+        else:
+            # Step 3: User not found by social ID, try to find by email
             user = user_repo.db.query(User).filter(User.email == social_user_info["email"]).first()
             
             if user:
+                # User found by email - link social ID to existing account
                 if user.is_deleted:
                     raise HTTPException(
                         status_code=status.HTTP_401_UNAUTHORIZED,
                         detail="User with this email was deleted and cannot login"
                     )
+                
+                # Link social ID to existing user
                 if social_data.provider == "google":
                     user.google_id = social_user_info["id"]
                 elif social_data.provider == "facebook":
@@ -461,7 +480,9 @@ async def social_login(social_data: SocialLogin, db: Session = Depends(get_db)):
                 
                 user.is_verified = True
                 db.commit()
+                user_action = "linked"
             else:
+                # User not found at all - create new user
                 user = user_repo.create_social_user(
                     name=social_user_info["name"],
                     email=social_user_info["email"],
@@ -470,13 +491,16 @@ async def social_login(social_data: SocialLogin, db: Session = Depends(get_db)):
                     avatar_url=social_user_info.get("picture")
                 )
                 user_repo.assign_roles_to_user(user.id, ['user', 'admin'])
+                user_action = "registered"
         
+        # Check if user is active
         if not user.is_active:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Account is deactivated"
             )
         
+        # Step 4: Generate JWT tokens
         access_token = create_access_token(
             data={"sub": str(user.id)}
         )
@@ -484,18 +508,39 @@ async def social_login(social_data: SocialLogin, db: Session = Depends(get_db)):
             data={"sub": str(user.id)}
         )
         
+        # Update last login time
         user_repo.update_last_login(user.id)
+        
+        # Step 5: Prepare user data for response
+        user_data = {
+            "id": user.id,
+            "name": user.name,
+            "email": user.email,
+            "avatar_url": user.avatar_url if user.avatar_url and user.avatar_url.startswith(('http://', 'https://')) else f"{settings.BASE_URL}{user.avatar_url}" if user.avatar_url else None,
+            "phone": user.phone,
+            "is_verified": user.is_verified,
+            "is_social_user": user.is_social_user,
+            "created_at": user.created_at.isoformat() if user.created_at else None
+        }
         
         login_response = LoginResponse(
             token=Token(
                 access_token=access_token,
                 expires_in=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60
             ),
-            refresh_token=refresh_token
+            refresh_token=refresh_token,
+            user=user_data
         )
         
+        # Success message based on action
+        success_messages = {
+            "login": "Social login successful",
+            "linked": "Social account linked and logged in successfully",
+            "registered": "Account created and logged in successfully"
+        }
+        
         return SuccessResponse(
-            msg="Social login successful",
+            msg=success_messages.get(user_action, "Social login successful"),
             data=login_response
         )
     except HTTPException:

@@ -53,4 +53,4 @@ watchfiles==1.1.0
 websockets==15.0.1
 agora-token-builder==1.0.0
 openpyxl==3.1.2
-firebase-admin==6.5.0
+PyJWT==2.8.0

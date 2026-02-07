@@ -155,6 +155,7 @@ class UserResponse(BaseModel):
 class LoginResponse(BaseModel):
     token: Token
     refresh_token: Optional[str] = None
+    user: Optional[dict] = None
 
 class OTPResponse(BaseModel):
     message: str
