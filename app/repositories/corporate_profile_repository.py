@@ -13,31 +13,58 @@ class CorporateProfileRepository:
     
     def create(self, corporate_profile: CorporateProfileCreate, user_id: int) -> CorporateProfile:
         """Create a new corporate profile"""
-        db_corporate_profile = CorporateProfile(
-            **corporate_profile.dict(),
-            user_id=user_id
-        )
-        self.db.add(db_corporate_profile)
-        self.db.commit()
-        self.db.refresh(db_corporate_profile)
-        return db_corporate_profile
+        try:
+            print(f"[REPO DEBUG] Creating corporate profile for user_id={user_id}")
+            print(f"[REPO DEBUG] Profile data: {corporate_profile.dict()}")
+            
+            db_corporate_profile = CorporateProfile(
+                **corporate_profile.dict(),
+                user_id=user_id
+            )
+            print(f"[REPO DEBUG] CorporateProfile object created")
+            
+            self.db.add(db_corporate_profile)
+            print(f"[REPO DEBUG] Added to session")
+            
+            self.db.commit()
+            print(f"[REPO DEBUG] Committed to database")
+            
+            self.db.refresh(db_corporate_profile)
+            print(f"[REPO DEBUG] Refreshed from database, ID={db_corporate_profile.id}")
+            
+            return db_corporate_profile
+        except Exception as e:
+            print(f"[REPO DEBUG] ERROR in create: {str(e)}")
+            import traceback
+            print(traceback.format_exc())
+            raise
     
     def get_by_id(self, profile_id: int, include_deleted: bool = False) -> Optional[CorporateProfile]:
         """Get corporate profile by ID (excludes deleted by default)"""
-        query = self.db.query(CorporateProfile).options(
-            joinedload(CorporateProfile.location),
-            joinedload(CorporateProfile.user),
-            joinedload(CorporateProfile.category),
-            joinedload(CorporateProfile.team_members).joinedload(TeamMember.user),
-            joinedload(CorporateProfile.team_members).joinedload(TeamMember.invited_by)
-        ).filter(
-            CorporateProfile.id == profile_id
-        )
-        
-        if not include_deleted:
-            query = query.filter(CorporateProfile.is_deleted == False)
-        
-        return query.first()
+        try:
+            print(f"[REPO DEBUG] Getting profile by id={profile_id}, include_deleted={include_deleted}")
+            
+            query = self.db.query(CorporateProfile).options(
+                joinedload(CorporateProfile.location),
+                joinedload(CorporateProfile.user),
+                joinedload(CorporateProfile.category),
+                joinedload(CorporateProfile.team_members).joinedload(TeamMember.user),
+                joinedload(CorporateProfile.team_members).joinedload(TeamMember.invited_by)
+            ).filter(
+                CorporateProfile.id == profile_id
+            )
+            
+            if not include_deleted:
+                query = query.filter(CorporateProfile.is_deleted == False)
+            
+            result = query.first()
+            print(f"[REPO DEBUG] Profile found: {result is not None}")
+            return result
+        except Exception as e:
+            print(f"[REPO DEBUG] ERROR in get_by_id: {str(e)}")
+            import traceback
+            print(traceback.format_exc())
+            raise
     
     def get_by_user_id(self, user_id: int) -> Optional[CorporateProfile]:
         """Get corporate profile by user ID (excluding deleted)"""
@@ -135,8 +162,17 @@ class CorporateProfileRepository:
     
     def check_user_has_profile(self, user_id: int) -> bool:
         """Check if user already has a corporate profile"""
-        profile = self.get_by_user_id(user_id)
-        return profile is not None
+        try:
+            print(f"[REPO DEBUG] Checking if user_id={user_id} has profile...")
+            profile = self.get_by_user_id(user_id)
+            has_profile = profile is not None
+            print(f"[REPO DEBUG] User has profile: {has_profile}")
+            return has_profile
+        except Exception as e:
+            print(f"[REPO DEBUG] ERROR in check_user_has_profile: {str(e)}")
+            import traceback
+            print(traceback.format_exc())
+            raise
     
     def get_verified_profiles(self, skip: int = 0, limit: int = 100) -> List[CorporateProfile]:
         """Get only verified corporate profiles"""

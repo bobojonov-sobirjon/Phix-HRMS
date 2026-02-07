@@ -95,7 +95,9 @@ async def save_logo_file(logo_file: UploadFile, profile_id: int) -> str:
 def add_base_url_to_profile(profile):
     """Add base URL to logo_url, location.flag_image, user.avatar_url, and team member avatars"""
     try:
+        print(f"[DEBUG] add_base_url_to_profile: profile_id={getattr(profile, 'id', 'unknown')}")
         if hasattr(profile, 'logo_url') and profile.logo_url:
+            print(f"[DEBUG] Adding base URL to logo: {profile.logo_url}")
             profile.logo_url = f"{settings.BASE_URL}{profile.logo_url}"
         
         if hasattr(profile, 'location') and profile.location and hasattr(profile.location, 'flag_image') and profile.location.flag_image:
@@ -121,10 +123,13 @@ def add_base_url_to_profile(profile):
 def convert_profile_to_response(profile_with_urls, current_user_id: Optional[int] = None, db: Optional[Session] = None):
     """Convert CorporateProfile model to CorporateProfileResponse format"""
     try:
+        print(f"[DEBUG] Converting profile to response: profile_id={getattr(profile_with_urls, 'id', 'unknown')}")
         from ..schemas.corporate_profile import CorporateProfileResponse, TeamMemberResponse
         
+        print(f"[DEBUG] Processing team members...")
         team_members_data = []
         if hasattr(profile_with_urls, 'team_members') and profile_with_urls.team_members:
+            print(f"[DEBUG] Found {len(profile_with_urls.team_members)} team members")
             for team_member in profile_with_urls.team_members:
                 try:
                     team_member_data = {
@@ -172,8 +177,11 @@ def convert_profile_to_response(profile_with_urls, current_user_id: Optional[int
         #     except Exception as e:
         #         print(f"Error checking follow status: {str(e)}")
         
+        print(f"[DEBUG] Processing company_size...")
         company_size_value = profile_with_urls.company_size.value if hasattr(profile_with_urls.company_size, 'value') else str(profile_with_urls.company_size)
+        print(f"[DEBUG] company_size={company_size_value}")
         
+        print(f"[DEBUG] Creating profile dict...")
         profile_dict = {
             "id": profile_with_urls.id,
             "company_name": getattr(profile_with_urls, "company_name", ""),
@@ -223,7 +231,10 @@ def convert_profile_to_response(profile_with_urls, current_user_id: Optional[int
             "follow_relation_id": follow_relation_id
         }
         
-        return CorporateProfileResponse(**profile_dict)
+        print(f"[DEBUG] Creating CorporateProfileResponse from dict...")
+        response = CorporateProfileResponse(**profile_dict)
+        print(f"[DEBUG] CorporateProfileResponse created successfully")
+        return response
     except Exception as e:
         import traceback
         error_msg = f"Error converting profile to response: {str(e)}"
@@ -247,116 +258,167 @@ async def create_corporate_profile(
     db: Session = Depends(get_db)
 ):
     """Create a new corporate profile with logo upload"""
-    from ..models.location import Location
-    from ..models.category import Category
-    
-    # Handle logo - check if it's a valid file (not empty string or None)
-    if logo:
-        # Check if logo is actually a valid file with filename
-        if not hasattr(logo, 'filename') or not logo.filename or not logo.filename.strip():
-            # If logo is sent but has no filename (empty string case), treat it as None
-            logo = None
-    
-    user_repo = UserRepository(db)
-    corporate_repo = CorporateProfileRepository(db)
-    
-    if corporate_repo.check_user_has_profile(current_user.id):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="User already has a corporate profile"
-        )
-    
-    location = db.query(Location).filter(Location.id == location_id, Location.is_deleted == False).first()
-    if not location:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid location ID"
-        )
-    
-    if category_id is not None:
-        category_obj = db.query(Category).filter(
-            Category.id == category_id,
-            Category.is_active == True
-        ).first()
-        if not category_obj:
+    try:
+        print(f"[DEBUG] Creating corporate profile for user: {current_user.id} ({current_user.email})")
+        print(f"[DEBUG] company_name={company_name}, location_id={location_id}, category_id={category_id}")
+        
+        from ..models.location import Location
+        from ..models.category import Category
+        
+        # Handle logo - check if it's a valid file (not empty string or None)
+        if logo:
+            # Check if logo is actually a valid file with filename
+            if not hasattr(logo, 'filename') or not logo.filename or not logo.filename.strip():
+                # If logo is sent but has no filename (empty string case), treat it as None
+                logo = None
+        
+        print(f"[DEBUG] Logo file: {logo.filename if logo else 'None'}")
+        
+        user_repo = UserRepository(db)
+        corporate_repo = CorporateProfileRepository(db)
+        
+        print(f"[DEBUG] Checking if user has existing profile...")
+        if corporate_repo.check_user_has_profile(current_user.id):
+            print(f"[DEBUG] User already has profile - raising error")
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Invalid category ID"
+                detail="User already has a corporate profile"
             )
+        
+        print(f"[DEBUG] User has no profile, proceeding...")
     
-    logo_url = None
-    if logo:
-        # Validate logo is an image file
-        if not logo.content_type or not logo.content_type.startswith('image/'):
+        print(f"[DEBUG] Validating location_id={location_id}")
+        location = db.query(Location).filter(Location.id == location_id, Location.is_deleted == False).first()
+        if not location:
+            print(f"[DEBUG] Location not found: {location_id}")
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Only image files are allowed for logo"
+                detail="Invalid location ID"
             )
+        print(f"[DEBUG] Location found: {location.name}")
+        
+        if category_id is not None:
+            print(f"[DEBUG] Validating category_id={category_id}")
+            category_obj = db.query(Category).filter(
+                Category.id == category_id,
+                Category.is_active == True
+            ).first()
+            if not category_obj:
+                print(f"[DEBUG] Category not found: {category_id}")
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Invalid category ID"
+                )
+            print(f"[DEBUG] Category found: {category_obj.name}")
+        
+        logo_url = None
+        if logo:
+            # Validate logo is an image file
+            if not logo.content_type or not logo.content_type.startswith('image/'):
+                print(f"[DEBUG] Invalid logo content type: {logo.content_type}")
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Only image files are allowed for logo"
+                )
+            print(f"[DEBUG] Logo validated: {logo.content_type}")
+        
+        print(f"[DEBUG] Creating profile data object...")
+        profile_data = CorporateProfileCreate(
+            company_name=company_name,
+            phone_number=phone_number,
+            country_code=country_code,
+            location_id=location_id,
+            overview=overview,
+            website_url=website_url,
+            company_size=company_size,
+            logo_url=None,
+            category_id=category_id,
+        )
+        
+        print(f"[DEBUG] Saving profile to database...")
+        db_profile = corporate_repo.create(profile_data, current_user.id)
+        print(f"[DEBUG] Profile created with ID: {db_profile.id}")
     
-    profile_data = CorporateProfileCreate(
-        company_name=company_name,
-        phone_number=phone_number,
-        country_code=country_code,
-        location_id=location_id,
-        overview=overview,
-        website_url=website_url,
-        company_size=company_size,
-        logo_url=None,
-        category_id=category_id,
-    )
-    
-    db_profile = corporate_repo.create(profile_data, current_user.id)
-    
-    if logo:
-        try:
-            logo_url = await save_logo_file(logo, db_profile.id)
-            db_profile.logo_url = logo_url
-            db.commit()
-        except Exception as e:
-            db.delete(db_profile)
-            db.commit()
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        if logo:
+            try:
+                print(f"[DEBUG] Uploading logo file...")
+                logo_url = await save_logo_file(logo, db_profile.id)
+                print(f"[DEBUG] Logo uploaded successfully: {logo_url}")
+                db_profile.logo_url = logo_url
+                db.commit()
+                print(f"[DEBUG] Logo URL saved to database")
+            except Exception as e:
+                print(f"[DEBUG] Error uploading logo: {str(e)}")
+                import traceback
+                print(traceback.format_exc())
+                db.delete(db_profile)
+                db.commit()
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"Failed to upload logo: {str(e)}"
             )
     
-    otp_code = generate_otp(email=current_user.email)
-    otp = OTP.create_otp(
-        email=current_user.email,
-        otp_code=otp_code,
-        otp_type="corporate_verification",
-        data={"profile_id": db_profile.id}
-    )
-    
-    db.add(otp)
-    db.commit()
-    
-    try:
-        from ..repositories.team_member_repository import TeamMemberRepository
-        team_repo = TeamMemberRepository(db)
-        team_repo.create_owner_member(
-            corporate_profile_id=db_profile.id,
-            user_id=current_user.id
-        )
-    except Exception as e:
-        print(f"Failed to create owner team member: {e}")
-    
-    try:
-        await send_corporate_verification_email(
+        print(f"[DEBUG] Generating OTP for corporate verification...")
+        otp_code = generate_otp(email=current_user.email)
+        print(f"[DEBUG] OTP generated: {otp_code}")
+        otp = OTP.create_otp(
             email=current_user.email,
-            otp_code=otp_code
+            otp_code=otp_code,
+            otp_type="corporate_verification",
+            data={"profile_id": db_profile.id}
         )
+        
+        db.add(otp)
+        db.commit()
+        print(f"[DEBUG] OTP saved to database")
+        
+        try:
+            print(f"[DEBUG] Creating owner team member...")
+            from ..repositories.team_member_repository import TeamMemberRepository
+            team_repo = TeamMemberRepository(db)
+            team_repo.create_owner_member(
+                corporate_profile_id=db_profile.id,
+                user_id=current_user.id
+            )
+            print(f"[DEBUG] Owner team member created successfully")
+        except Exception as e:
+            print(f"[DEBUG] Failed to create owner team member: {e}")
+            import traceback
+            print(traceback.format_exc())
+        
+        try:
+            print(f"[DEBUG] Sending verification email...")
+            await send_corporate_verification_email(
+                email=current_user.email,
+                otp_code=otp_code
+            )
+            print(f"[DEBUG] Verification email sent successfully")
+        except Exception as e:
+            print(f"[DEBUG] Failed to send corporate verification email: {e}")
+            import traceback
+            print(traceback.format_exc())
+        
+        print(f"[DEBUG] Fetching updated profile...")
+        updated_profile = corporate_repo.get_by_id(db_profile.id)
+        print(f"[DEBUG] Converting profile to response...")
+        profile_with_urls = add_base_url_to_profile(updated_profile)
+        profile_response = convert_profile_to_response(profile_with_urls, current_user.id, db)
+        
+        print(f"[DEBUG] Corporate profile created successfully!")
+        return SuccessResponse(
+            msg="Corporate profile created successfully. Please check your email for verification code.",
+            data=profile_response
+        )
+    except HTTPException:
+        raise
     except Exception as e:
-        print(f"Failed to send corporate verification email: {e}")
-    
-    updated_profile = corporate_repo.get_by_id(db_profile.id)
-    profile_with_urls = add_base_url_to_profile(updated_profile)
-    profile_response = convert_profile_to_response(profile_with_urls, current_user.id, db)
-
-    return SuccessResponse(
-        msg="Corporate profile created successfully. Please check your email for verification code.",
-        data=profile_response
-    )
+        print(f"[DEBUG] UNEXPECTED ERROR in create_corporate_profile: {str(e)}")
+        import traceback
+        print(traceback.format_exc())
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"An error occurred while creating corporate profile: {str(e)}"
+        )
 
 
 
