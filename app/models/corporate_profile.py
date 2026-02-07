@@ -24,7 +24,7 @@ class CorporateProfile(Base):
     location_id = Column(Integer, ForeignKey("locations.id"), nullable=False)
     overview = Column(Text, nullable=False)
     website_url = Column(String(255), nullable=True)
-    company_size = Column(Enum(CompanySize), nullable=False)
+    company_size = Column(Enum(CompanySize, values_callable=lambda x: [e.value for e in x]), nullable=False)
     logo_url = Column(Text, nullable=True)
 
     category_id = Column(Integer, ForeignKey("categories.id"), nullable=True)
