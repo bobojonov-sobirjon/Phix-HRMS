@@ -548,10 +548,12 @@ class FullTimeJobRepository:
             return None
         
         update_data = full_time_job.model_dump(exclude_unset=True)
+        print(f"[DEBUG] Updating job {job_id} with data: {update_data}")
         
         skill_ids = update_data.pop('skill_ids', None)
         
         for field, value in update_data.items():
+            print(f"[DEBUG] Setting {field} = {value} (type: {type(value)})")
             setattr(db_job, field, value)
         
         if skill_ids is not None:
