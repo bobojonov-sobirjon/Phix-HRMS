@@ -223,7 +223,7 @@ async def search_full_time_jobs(
     page: int = Query(1, ge=1),
     size: int = Query(10, ge=1, le=100),
     db: Session = Depends(get_db),
-    current_user: Optional[User] = Depends(get_current_user_optional)
+    current_user: Optional[dict] = Depends(get_current_user_optional)
 ):
     """Search full-time jobs with filters including skill IDs"""
     job_repo = FullTimeJobRepository(db)
