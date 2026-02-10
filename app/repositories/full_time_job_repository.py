@@ -562,6 +562,14 @@ class FullTimeJobRepository:
         
         skill_ids = update_data.pop('skill_ids', None)
         
+        # Remove invalid category/subcategory IDs (0 or None means no change)
+        if 'category_id' in update_data and (update_data['category_id'] == 0 or update_data['category_id'] is None):
+            print(f"[DEBUG] Removing invalid category_id: {update_data['category_id']}")
+            update_data.pop('category_id')
+        if 'subcategory_id' in update_data and (update_data['subcategory_id'] == 0 or update_data['subcategory_id'] is None):
+            print(f"[DEBUG] Removing invalid subcategory_id: {update_data['subcategory_id']}")
+            update_data.pop('subcategory_id')
+        
         # Convert enum objects to their string values
         from enum import Enum
         for field, value in update_data.items():
@@ -574,8 +582,14 @@ class FullTimeJobRepository:
             setattr(db_job, field, value)
         
         if skill_ids is not None:
-            skills = self._get_skills_by_ids(skill_ids)
-            db_job.skills = skills
+            # Filter out invalid skill IDs (0 or negative)
+            valid_skill_ids = [sid for sid in skill_ids if sid > 0]
+            if valid_skill_ids:
+                skills = self._get_skills_by_ids(valid_skill_ids)
+                db_job.skills = skills
+                print(f"[DEBUG] Updated skills: {len(skills)} skills added")
+            else:
+                print(f"[DEBUG] No valid skill IDs provided, skipping skills update")
         
         print(f"[REPO DEBUG UPDATE] Before commit: status={db_job.status}, pay_period={db_job.pay_period}")
         self.db.commit()
