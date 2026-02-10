@@ -485,7 +485,7 @@ class FullTimeJobRepository:
             joinedload(FullTimeJob.company)
         ).join(CorporateProfile, FullTimeJob.company_id == CorporateProfile.id).filter(
             and_(
-                FullTimeJob.status == "ACTIVE",
+                FullTimeJob.status == "active",
                 CorporateProfile.is_verified == True,
                 CorporateProfile.is_deleted == False
             )
@@ -612,7 +612,7 @@ class FullTimeJobRepository:
             joinedload(FullTimeJob.company)
         ).join(CorporateProfile, FullTimeJob.company_id == CorporateProfile.id).filter(
             and_(
-                FullTimeJob.status == "ACTIVE",
+                FullTimeJob.status == "active",
                 CorporateProfile.is_verified == True,
                 CorporateProfile.is_deleted == False
             )
@@ -672,7 +672,7 @@ class FullTimeJobRepository:
         """Get count of active full-time jobs from verified corporate profiles with filters"""
         query = self.db.query(FullTimeJob).join(CorporateProfile, FullTimeJob.company_id == CorporateProfile.id).filter(
             and_(
-                FullTimeJob.status == "ACTIVE",
+                FullTimeJob.status == "active",
                 CorporateProfile.is_verified == True,
                 CorporateProfile.is_deleted == False
             )

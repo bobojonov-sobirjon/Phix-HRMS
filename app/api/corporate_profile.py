@@ -557,13 +557,13 @@ async def get_recently_posted_jobs(
         skip=skip,
         limit=size,
         current_user_id=current_user_id,
-        status="ACTIVE"
+        status="active"
     )
     
     from ..models.full_time_job import FullTimeJob, JobStatus
     total = db.query(FullTimeJob).filter(
         FullTimeJob.company_id == profile_id,
-        FullTimeJob.status == JobStatus.ACTIVE
+        FullTimeJob.status == "active"
     ).count()
     
     response_jobs = []
