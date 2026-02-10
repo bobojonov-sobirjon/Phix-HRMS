@@ -16,7 +16,7 @@ class Notification(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     
-    type = Column(Enum(NotificationType), nullable=False, index=True)
+    type = Column(Enum(NotificationType, values_callable=lambda x: [e.value for e in x]), nullable=False, index=True)
     title = Column(String(255), nullable=False)
     body = Column(Text, nullable=False)
     

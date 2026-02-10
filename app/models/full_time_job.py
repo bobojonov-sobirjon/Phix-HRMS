@@ -7,39 +7,40 @@ from .team_member import TeamMemberRole
 
 
 class JobType(str, enum.Enum):
-    FULL_TIME = "FULL_TIME"
-    PART_TIME = "PART_TIME"
-    CONTRACT = "CONTRACT"
-    INTERNSHIP = "INTERNSHIP"
+    FULL_TIME = "full_time"
+    PART_TIME = "part_time"
+    CONTRACT = "contract"
+    INTERNSHIP = "internship"
 
 
 class WorkMode(str, enum.Enum):
-    ON_SITE = "ON_SITE"
-    REMOTE = "REMOTE"
-    HYBRID = "HYBRID"
+    ON_SITE = "on_site"
+    REMOTE = "remote"
+    HYBRID = "hybrid"
 
 
 class ExperienceLevel(str, enum.Enum):
-    ENTRY_LEVEL = "ENTRY_LEVEL"
-    JUNIOR = "JUNIOR"
-    MID_LEVEL = "MID_LEVEL"
-    SENIOR = "SENIOR"
-    LEAD = "LEAD"
-    DIRECTOR = "DIRECTOR"
+    ENTRY = "entry"
+    JUNIOR = "junior"
+    MID = "mid"
+    SENIOR = "senior"
+    LEAD = "lead"
+    DIRECTOR = "director"
 
 
 class JobStatus(str, enum.Enum):
-    ACTIVE = "ACTIVE"
-    CLOSED = "CLOSED"
-    DRAFT = "DRAFT"
+    DRAFT = "draft"
+    ACTIVE = "active"
+    CLOSED = "closed"
+    EXPIRED = "expired"
 
 
 class PayPeriod(str, enum.Enum):
-    PER_HOUR = "PER_HOUR"
-    PER_DAY = "PER_DAY"
-    PER_WEEK = "PER_WEEK"
-    PER_MONTH = "PER_MONTH"
-    PER_YEAR = "PER_YEAR"
+    PER_HOUR = "per_hour"
+    PER_DAY = "per_day"
+    PER_WEEK = "per_week"
+    PER_MONTH = "per_month"
+    PER_YEAR = "per_year"
 
 
 class FullTimeJob(Base):
@@ -51,20 +52,20 @@ class FullTimeJob(Base):
     description = Column(Text, nullable=False)
     responsibilities = Column(Text, nullable=True)
     location = Column(String(100), nullable=False, default="Worldwide")
-    job_type = Column(Enum(JobType), nullable=False, default=JobType.FULL_TIME)
-    work_mode = Column(Enum(WorkMode), nullable=False, default=WorkMode.ON_SITE)
-    experience_level = Column(Enum(ExperienceLevel), nullable=False)
+    job_type = Column(Enum(JobType, values_callable=lambda x: [e.value for e in x]), nullable=False, default=JobType.FULL_TIME)
+    work_mode = Column(Enum(WorkMode, values_callable=lambda x: [e.value for e in x]), nullable=False, default=WorkMode.ON_SITE)
+    experience_level = Column(Enum(ExperienceLevel, values_callable=lambda x: [e.value for e in x]), nullable=False)
     min_salary = Column(Float, nullable=False)
     max_salary = Column(Float, nullable=False)
-    pay_period = Column(Enum(PayPeriod), nullable=False, default=PayPeriod.PER_MONTH)
-    status = Column(Enum(JobStatus), default=JobStatus.ACTIVE)
+    pay_period = Column(Enum(PayPeriod, values_callable=lambda x: [e.value for e in x]), nullable=False, default=PayPeriod.PER_MONTH)
+    status = Column(Enum(JobStatus, values_callable=lambda x: [e.value for e in x]), default=JobStatus.ACTIVE)
     
     company_id = Column(Integer, ForeignKey("corporate_profiles.id"), nullable=False)
     category_id = Column(Integer, ForeignKey("categories.id"), nullable=False)
     subcategory_id = Column(Integer, ForeignKey("categories.id"), nullable=True)
     
     created_by_user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
-    created_by_role = Column(Enum(TeamMemberRole), nullable=False)
+    created_by_role = Column(Enum(TeamMemberRole, values_callable=lambda x: [e.value for e in x]), nullable=False)
     
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())

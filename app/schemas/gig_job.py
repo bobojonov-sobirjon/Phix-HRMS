@@ -6,10 +6,10 @@ from .location import Location
 
 
 class ExperienceLevel(str, Enum):
-    ENTRY_LEVEL = "ENTRY_LEVEL"
-    MID_LEVEL = "MID_LEVEL"
-    JUNIOR = "JUNIOR"
-    DIRECTOR = "DIRECTOR"
+    ENTRY = "entry"
+    JUNIOR = "junior"
+    MID = "mid"
+    DIRECTOR = "director"
 
 
 class GigJobStatus(str, Enum):

@@ -45,7 +45,7 @@ class ChatMessage(Base):
     room_id = Column(Integer, ForeignKey("chat_rooms.id"), nullable=False)
     sender_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     receiver_id = Column(Integer, ForeignKey("users.id"), nullable=False)
-    message_type = Column(Enum(MessageType), default=MessageType.TEXT)
+    message_type = Column(Enum(MessageType, values_callable=lambda x: [e.value for e in x]), default=MessageType.TEXT)
     content = Column(Text, nullable=True)
     file_name = Column(String(255), nullable=True)
     file_path = Column(String(500), nullable=True)

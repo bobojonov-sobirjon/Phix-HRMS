@@ -5,39 +5,40 @@ from enum import Enum
 
 
 class JobType(str, Enum):
-    FULL_TIME = "FULL_TIME"
-    PART_TIME = "PART_TIME"
-    CONTRACT = "CONTRACT"
-    INTERNSHIP = "INTERNSHIP"
+    FULL_TIME = "full_time"
+    PART_TIME = "part_time"
+    CONTRACT = "contract"
+    INTERNSHIP = "internship"
 
 
 class WorkMode(str, Enum):
-    ON_SITE = "ON_SITE"
-    REMOTE = "REMOTE"
-    HYBRID = "HYBRID"
+    ON_SITE = "on_site"
+    REMOTE = "remote"
+    HYBRID = "hybrid"
 
 
 class ExperienceLevel(str, Enum):
-    ENTRY_LEVEL = "ENTRY_LEVEL"
-    JUNIOR = "JUNIOR"
-    MID_LEVEL = "MID_LEVEL"
-    SENIOR = "SENIOR"
-    LEAD = "LEAD"
-    DIRECTOR = "DIRECTOR"
+    ENTRY = "entry"
+    JUNIOR = "junior"
+    MID = "mid"
+    SENIOR = "senior"
+    LEAD = "lead"
+    DIRECTOR = "director"
 
 
 class JobStatus(str, Enum):
-    ACTIVE = "ACTIVE"
-    CLOSED = "CLOSED"
-    DRAFT = "DRAFT"
+    DRAFT = "draft"
+    ACTIVE = "active"
+    CLOSED = "closed"
+    EXPIRED = "expired"
 
 
 class PayPeriod(str, Enum):
-    PER_HOUR = "PER_HOUR"
-    PER_DAY = "PER_DAY"
-    PER_WEEK = "PER_WEEK"
-    PER_MONTH = "PER_MONTH"
-    PER_YEAR = "PER_YEAR"
+    PER_HOUR = "per_hour"
+    PER_DAY = "per_day"
+    PER_WEEK = "per_week"
+    PER_MONTH = "per_month"
+    PER_YEAR = "per_year"
 
 
 class FullTimeJobBase(BaseModel):
