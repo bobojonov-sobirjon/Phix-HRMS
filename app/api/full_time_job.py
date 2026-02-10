@@ -397,8 +397,10 @@ async def get_full_time_job(
     profile = corporate_repo.get_by_id(corporate_profile_id)
     validate_entity_exists(profile, "Corporate profile")
     
-    if not profile.is_active:
-        raise not_found_error("Corporate profile is not active")
+    # Allow viewing jobs even if profile is not active (for owners/team members)
+    # Public users will be checked below
+    # if not profile.is_active:
+    #     raise not_found_error("Corporate profile is not active")
     
     is_owner_or_team_member = False
     if current_user:
@@ -413,7 +415,7 @@ async def get_full_time_job(
     
     if not is_owner_or_team_member:
         job_status = job_data.get('status', '')
-        if job_status != 'ACTIVE':
+        if job_status != 'active':  # Fixed: status is lowercase in database
             raise not_found_error("Full-time job not found")
     
     response_data = FullTimeJobResponse(**job_data)
