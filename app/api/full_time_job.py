@@ -147,12 +147,14 @@ async def create_full_time_job(
     if not can_create_jobs:
         raise forbidden_error("You don't have permission to create jobs for this company")
     
+    print(f"[DEBUG POST] Creating job with data: title={full_time_job.title}, status={full_time_job.status}, pay_period={full_time_job.pay_period}")
     formatted_job = job_repo.create_with_context(
         full_time_job, 
         corporate_profile_id, 
         current_user.id, 
         user_role
     )
+    print(f"[DEBUG POST] Job created successfully with ID: {formatted_job.get('id')}, status={formatted_job.get('status')}")
     
     return success_response(
         data=formatted_job,
@@ -386,11 +388,13 @@ async def get_full_time_job(
     db: Session = Depends(get_db)
 ):
     """Get full-time job by ID. Public access for ACTIVE jobs. Owners/team members can view any status."""
+    print(f"[DEBUG GET] Getting job by id={job_id}, current_user={current_user.id if current_user else None}")
     job_repo = FullTimeJobRepository(db)
     corporate_repo = CorporateProfileRepository(db)
     team_repo = TeamMemberRepository(db)
     
     job_data = job_repo.get_by_id(job_id, current_user.id if current_user else None)
+    print(f"[DEBUG GET] Job found: {job_data is not None}, status={job_data.get('status') if job_data else 'N/A'}")
     validate_entity_exists(job_data, "Full-time job")
     
     corporate_profile_id = job_data['company_id']
@@ -437,6 +441,9 @@ async def update_full_time_job(
     db: Session = Depends(get_db)
 ):
     """Update full-time job (requires UPDATE_JOB permission or admin)"""
+    print(f"[DEBUG PUT] Updating job_id={job_id} by user={current_user.id}")
+    print(f"[DEBUG PUT] Update data: {full_time_job.model_dump(exclude_unset=True)}")
+    
     if is_admin_user(current_user.email):
         job_repo = FullTimeJobRepository(db)
         job_data = job_repo.get_by_id(job_id, current_user.id)
@@ -452,9 +459,11 @@ async def update_full_time_job(
             else:
                 raise forbidden_error(error_msg)
     
+    print(f"[DEBUG PUT] Current job status before update: {job_data.get('status')}")
     job_repo = FullTimeJobRepository(db)
     updated_job = job_repo.update(job_id, full_time_job)
     validate_entity_exists(updated_job, "Full-time job")
+    print(f"[DEBUG PUT] Job updated successfully, new status: {updated_job.get('status')}")
     
     response_data = FullTimeJobResponse(**updated_job)
     

@@ -253,6 +253,7 @@ class FullTimeJobRepository:
         skill_ids = job_data.skill_ids if hasattr(job_data, 'skill_ids') else []
         
         job_dict = job_data.dict() if hasattr(job_data, 'dict') else job_data.model_dump()
+        print(f"[REPO DEBUG CREATE] job_dict before processing: {job_dict}")
         
         job_dict.pop('skill_ids', None)
         job_dict.pop('corporate_profile_id', None)
@@ -263,9 +264,11 @@ class FullTimeJobRepository:
             "created_by_role": created_by_role
         })
         
+        print(f"[REPO DEBUG CREATE] Final job_dict: status={job_dict.get('status')}, pay_period={job_dict.get('pay_period')}")
         db_job = FullTimeJob(**job_dict)
         self.db.add(db_job)
         self.db.flush()
+        print(f"[REPO DEBUG CREATE] Job created with ID={db_job.id}, status={db_job.status}, pay_period={db_job.pay_period}")
         
         if skill_ids:
             skills = self._get_skills_by_ids(skill_ids)
@@ -358,6 +361,7 @@ class FullTimeJobRepository:
     
     def get_by_id(self, job_id: int, current_user_id: Optional[int] = None) -> Optional[dict]:
         """Get full-time job by ID with skills"""
+        print(f"[REPO DEBUG GET] Querying job_id={job_id} from database")
         job = self.db.query(FullTimeJob).options(
             joinedload(FullTimeJob.skills),
             joinedload(FullTimeJob.company)
@@ -366,7 +370,11 @@ class FullTimeJobRepository:
         ).first()
         
         if job:
-            return self._prepare_full_time_job_response(job, current_user_id)
+            print(f"[REPO DEBUG GET] Job found: id={job.id}, status={job.status}, pay_period={job.pay_period}")
+            result = self._prepare_full_time_job_response(job, current_user_id)
+            print(f"[REPO DEBUG GET] Prepared response status: {result.get('status')}")
+            return result
+        print(f"[REPO DEBUG GET] Job {job_id} not found in database!")
         return None
 
     def get_object_by_id(self, job_id: int) -> Optional[FullTimeJob]:
@@ -545,10 +553,12 @@ class FullTimeJobRepository:
         """Update full-time job with skills"""
         db_job = self.db.query(FullTimeJob).filter(FullTimeJob.id == job_id).first()
         if not db_job:
+            print(f"[REPO DEBUG UPDATE] Job {job_id} not found in database!")
             return None
         
+        print(f"[REPO DEBUG UPDATE] Current job {job_id}: status={db_job.status}, pay_period={db_job.pay_period}")
         update_data = full_time_job.model_dump(exclude_unset=True)
-        print(f"[DEBUG] Updating job {job_id} with data: {update_data}")
+        print(f"[REPO DEBUG UPDATE] Updating job {job_id} with data: {update_data}")
         
         skill_ids = update_data.pop('skill_ids', None)
         
@@ -567,14 +577,18 @@ class FullTimeJobRepository:
             skills = self._get_skills_by_ids(skill_ids)
             db_job.skills = skills
         
+        print(f"[REPO DEBUG UPDATE] Before commit: status={db_job.status}, pay_period={db_job.pay_period}")
         self.db.commit()
         self.db.refresh(db_job)
+        print(f"[REPO DEBUG UPDATE] After commit: status={db_job.status}, pay_period={db_job.pay_period}")
         
         db_job.company = self.db.query(CorporateProfile).filter(
             CorporateProfile.id == db_job.company_id
         ).first()
         
-        return self._prepare_full_time_job_response(db_job)
+        result = self._prepare_full_time_job_response(db_job)
+        print(f"[REPO DEBUG UPDATE] Final result status: {result.get('status')}")
+        return result
     
     def delete(self, job_id: int) -> bool:
         """Delete full-time job"""
