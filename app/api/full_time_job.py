@@ -404,18 +404,23 @@ async def get_full_time_job(
     
     is_owner_or_team_member = False
     if current_user:
+        print(f"[DEBUG] current_user.id={current_user.id}, profile.user_id={profile.user_id}")
         if profile.user_id == current_user.id:
             is_owner_or_team_member = True
+            print(f"[DEBUG] User is owner! is_owner_or_team_member=True")
         else:
             team_member = team_repo.get_by_user_and_corporate_profile(
                 current_user.id, corporate_profile_id
             )
             if team_member and team_member.status == TeamMemberStatus.ACCEPTED:
                 is_owner_or_team_member = True
+                print(f"[DEBUG] User is team member! is_owner_or_team_member=True")
     
+    print(f"[DEBUG] is_owner_or_team_member={is_owner_or_team_member}, job_status={job_data.get('status', '')}")
     if not is_owner_or_team_member:
         job_status = job_data.get('status', '')
         if job_status != 'active':  # Fixed: status is lowercase in database
+            print(f"[DEBUG] Job status is not active: {job_status} - returning 404")
             raise not_found_error("Full-time job not found")
     
     response_data = FullTimeJobResponse(**job_data)
