@@ -34,11 +34,11 @@ class JobStatus(str, Enum):
 
 
 class PayPeriod(str, Enum):
-    PER_HOUR = "per_hour"
-    PER_DAY = "per_day"
-    PER_WEEK = "per_week"
-    PER_MONTH = "per_month"
-    PER_YEAR = "per_year"
+    PER_HOUR = "PER_HOUR"
+    PER_DAY = "PER_DAY"
+    PER_WEEK = "PER_WEEK"
+    PER_MONTH = "PER_MONTH"
+    PER_YEAR = "PER_YEAR"
 
 
 class FullTimeJobBase(BaseModel):
