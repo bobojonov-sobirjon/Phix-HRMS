@@ -13,7 +13,7 @@ from ..schemas.full_time_job import (
     UserFullTimeJobsResponse
 )
 from ..schemas.common import MessageResponse, SuccessResponse
-from ..utils.auth import get_current_user
+from ..utils.auth import get_current_user, get_current_user_optional
 from ..utils.decorators import handle_errors
 from ..utils.response_helpers import (
     success_response,
@@ -24,33 +24,11 @@ from ..utils.response_helpers import (
 )
 from ..utils.permissions import has_permission, Permission, is_admin_user, check_admin_or_owner
 from ..models.team_member import TeamMemberRole, TeamMemberStatus
-from ..models.user import User
 
 router = APIRouter(prefix="/full-time-jobs", tags=["Full Time Job"])
 
 
-def get_current_user_optional(authorization: Optional[str] = Header(None)) -> Optional[User]:
-    """Get current user if authorization header is provided, otherwise return None"""
-    if not authorization or not authorization.startswith("Bearer "):
-        return None
-    
-    try:
-        token = authorization.split(" ")[1]
-        from ..utils.auth import verify_token
-        from ..repositories.user_repository import UserRepository
-        from ..db.database import get_db
-        
-        db = next(get_db())
-        user_repo = UserRepository(db)
-        
-        payload = verify_token(token)
-        if payload and 'sub' in payload:
-            user_id = int(payload['sub'])
-            user = user_repo.get_by_id(user_id)
-            return user
-        return None
-    except Exception:
-        return None
+# Removed local get_current_user_optional - using the one from app.utils.auth instead
 
 
 def check_job_access_permission(
@@ -384,16 +362,16 @@ async def get_my_full_time_jobs_with_filters(
 @handle_errors
 async def get_full_time_job(
     job_id: int,
-    current_user: Optional[User] = Depends(get_current_user_optional),
+    current_user: Optional[dict] = Depends(get_current_user_optional),
     db: Session = Depends(get_db)
 ):
     """Get full-time job by ID. Public access for ACTIVE jobs. Owners/team members can view any status."""
-    print(f"[DEBUG GET] Getting job by id={job_id}, current_user={current_user.id if current_user else None}")
+    print(f"[DEBUG GET] Getting job by id={job_id}, current_user={current_user.get('id') if current_user else None}")
     job_repo = FullTimeJobRepository(db)
     corporate_repo = CorporateProfileRepository(db)
     team_repo = TeamMemberRepository(db)
     
-    job_data = job_repo.get_by_id(job_id, current_user.id if current_user else None)
+    job_data = job_repo.get_by_id(job_id, current_user.get('id') if current_user else None)
     print(f"[DEBUG GET] Job found: {job_data is not None}, status={job_data.get('status') if job_data else 'N/A'}")
     validate_entity_exists(job_data, "Full-time job")
     
@@ -408,13 +386,13 @@ async def get_full_time_job(
     
     is_owner_or_team_member = False
     if current_user:
-        print(f"[DEBUG] current_user.id={current_user.id}, profile.user_id={profile.user_id}")
-        if profile.user_id == current_user.id:
+        print(f"[DEBUG] current_user.id={current_user.get('id')}, profile.user_id={profile.user_id}")
+        if profile.user_id == current_user.get('id'):
             is_owner_or_team_member = True
             print(f"[DEBUG] User is owner! is_owner_or_team_member=True")
         else:
             team_member = team_repo.get_by_user_and_corporate_profile(
-                current_user.id, corporate_profile_id
+                current_user.get('id'), corporate_profile_id
             )
             if team_member and team_member.status == TeamMemberStatus.ACCEPTED:
                 is_owner_or_team_member = True
@@ -441,16 +419,16 @@ async def update_full_time_job(
     db: Session = Depends(get_db)
 ):
     """Update full-time job (requires UPDATE_JOB permission or admin)"""
-    print(f"[DEBUG PUT] Updating job_id={job_id} by user={current_user.id}")
+    print(f"[DEBUG PUT] Updating job_id={job_id} by user={current_user.get('id')}")
     print(f"[DEBUG PUT] Update data: {full_time_job.model_dump(exclude_unset=True)}")
     
-    if is_admin_user(current_user.email):
+    if is_admin_user(current_user.get('email')):
         job_repo = FullTimeJobRepository(db)
-        job_data = job_repo.get_by_id(job_id, current_user.id)
+        job_data = job_repo.get_by_id(job_id, current_user.get('id'))
         validate_entity_exists(job_data, "Full-time job")
     else:
         has_access, job_data, error_msg = check_job_access_permission(
-            current_user.id, job_id, Permission.UPDATE_JOB, db
+            current_user.get('id'), job_id, Permission.UPDATE_JOB, db
         )
         
         if not has_access:
