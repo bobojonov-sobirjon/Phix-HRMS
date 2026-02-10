@@ -552,8 +552,15 @@ class FullTimeJobRepository:
         
         skill_ids = update_data.pop('skill_ids', None)
         
+        # Convert enum objects to their string values
+        from enum import Enum
         for field, value in update_data.items():
-            print(f"[DEBUG] Setting {field} = {value} (type: {type(value)})")
+            # If value is an Enum, get its .value (string representation)
+            if isinstance(value, Enum):
+                value = value.value
+                print(f"[DEBUG] Setting {field} = {value} (converted from Enum)")
+            else:
+                print(f"[DEBUG] Setting {field} = {value} (type: {type(value)})")
             setattr(db_job, field, value)
         
         if skill_ids is not None:
