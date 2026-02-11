@@ -35,6 +35,11 @@ from typing import List, Optional
 
 router = APIRouter(prefix="/proposals", tags=["Proposals"])
 
+
+def get_user_id(user) -> int:
+    """Get user ID from either dict or User object"""
+    return user.get('id') if isinstance(user, dict) else user.id
+
 UPLOAD_DIR = "static/proposals"
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
@@ -190,6 +195,12 @@ async def create_proposal(
     - **gig_job_id**: ID of the gig job you're applying for (for gig jobs)
     - **full_time_job_id**: ID of the full-time job you're applying for (for full-time jobs)
     """
+    # Filter out invalid IDs (0 or negative)
+    if gig_job_id is not None and gig_job_id <= 0:
+        gig_job_id = None
+    if full_time_job_id is not None and full_time_job_id <= 0:
+        full_time_job_id = None
+    
     if not gig_job_id and not full_time_job_id:
         return JSONResponse(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -223,7 +234,7 @@ async def create_proposal(
                 }
             )
         
-        if gig_job['author']['id'] == current_user.id:
+        if gig_job['author']['id'] == get_user_id(current_user):
             return JSONResponse(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 content={
@@ -232,7 +243,7 @@ async def create_proposal(
                 }
             )
         
-        if repository.check_user_proposal_exists(current_user.id, gig_job_id, "gig"):
+        if repository.check_user_proposal_exists(get_user_id(current_user), gig_job_id, "gig"):
             return JSONResponse(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 content={
@@ -253,7 +264,7 @@ async def create_proposal(
                 }
             )
         
-        if repository.check_user_proposal_exists(current_user.id, full_time_job_id, "full_time"):
+        if repository.check_user_proposal_exists(get_user_id(current_user), full_time_job_id, "full_time"):
             return JSONResponse(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 content={
@@ -270,10 +281,11 @@ async def create_proposal(
         full_time_job_id=full_time_job_id
     )
     
-    proposal = repository.create(proposal_data, current_user.id)
+    user_id = get_user_id(current_user)
+    proposal = repository.create(proposal_data, user_id)
     
     if attachments:
-        file_info_list = save_uploaded_files(attachments, current_user.id, proposal.id)
+        file_info_list = save_uploaded_files(attachments, user_id, proposal.id)
         for file_info in file_info_list:
             attachment_repository.create(
                 proposal_id=proposal.id,
@@ -309,9 +321,9 @@ async def create_proposal(
                 job_title = full_time_job.title
                 print(f"DEBUG: Full-time job owner_id={job_owner_id}, title={job_title}")
         
-        print(f"DEBUG: Job owner ID: {job_owner_id}, Current user ID: {current_user.id}")
+        print(f"DEBUG: Job owner ID: {job_owner_id}, Current user ID: {user_id}")
         
-        if job_owner_id and job_owner_id != current_user.id:
+        if job_owner_id and job_owner_id != user_id:
             applicant_name = current_user.name or current_user.email or "Someone"
             position_name = job_title or "position"
             
@@ -333,7 +345,7 @@ async def create_proposal(
                 proposal_id=proposal.id,
                 job_id=job_id,
                 job_type="gig" if gig_job_id else "full_time",
-                applicant_id=current_user.id
+                applicant_id=user_id
             )
             
             send_proposal_notification(
@@ -346,12 +358,12 @@ async def create_proposal(
                     "proposal_id": str(proposal.id),
                     "job_id": str(job_id),
                     "job_type": "gig" if gig_job_id else "full_time",
-                    "applicant_id": str(current_user.id)
+                    "applicant_id": str(user_id)
                 }
             )
             print(f"DEBUG: Notification sent successfully")
         else:
-            print(f"DEBUG: Notification not sent - job_owner_id={job_owner_id}, current_user.id={current_user.id}")
+            print(f"DEBUG: Notification not sent - job_owner_id={job_owner_id}, get_user_id(current_user)={user_id}")
     except Exception as e:
         print(f"ERROR: Exception in proposal creation notification: {str(e)}")
         import traceback
@@ -406,7 +418,7 @@ async def get_my_gig_job_proposals(
     repository = ProposalRepository(db)
     pagination = PaginationParams(page=page, size=size)
     
-    proposals, total = repository.get_user_gig_job_proposals(current_user.id, pagination)
+    proposals, total = repository.get_user_gig_job_proposals(get_user_id(current_user), pagination)
     
     proposal_responses = [ProposalResponse.from_orm(proposal) for proposal in proposals]
     
@@ -433,7 +445,7 @@ async def get_my_full_time_job_proposals(
     repository = ProposalRepository(db)
     pagination = PaginationParams(page=page, size=size)
     
-    proposals, total = repository.get_user_full_time_job_proposals(current_user.id, pagination)
+    proposals, total = repository.get_user_full_time_job_proposals(get_user_id(current_user), pagination)
     
     proposal_responses = [ProposalResponse.from_orm(proposal) for proposal in proposals]
     
@@ -461,19 +473,19 @@ async def get_proposal_by_id(
     validate_entity_exists(proposal, "Proposal")
     
     is_job_owner = False
-    if proposal.user_id != current_user.id:
+    if proposal.user_id != get_user_id(current_user):
         has_permission = False
         
         if proposal.gig_job_id:
             gig_job_repository = GigJobRepository(db)
             gig_job = gig_job_repository.get_by_id(proposal.gig_job_id)
-            if gig_job and gig_job['author']['id'] == current_user.id:
+            if gig_job and gig_job['author']['id'] == get_user_id(current_user):
                 has_permission = True
                 is_job_owner = True
         elif proposal.full_time_job_id:
             full_time_job_repository = FullTimeJobRepository(db)
             full_time_job = full_time_job_repository.get_object_by_id(proposal.full_time_job_id)
-            if full_time_job and full_time_job.created_by_user_id == current_user.id:
+            if full_time_job and full_time_job.created_by_user_id == get_user_id(current_user):
                 has_permission = True
                 is_job_owner = True
         
@@ -555,7 +567,7 @@ async def get_gig_job_proposals(
     gig_job = gig_job_repository.get_by_id(gig_job_id)
     validate_entity_exists(gig_job, "Gig job")
     
-    if gig_job['author']['id'] != current_user.id:
+    if gig_job['author']['id'] != get_user_id(current_user):
         raise forbidden_error("You can only view proposals for your own gig jobs")
     
     repository = ProposalRepository(db)
@@ -592,7 +604,7 @@ async def get_full_time_job_proposals(
     full_time_job = full_time_job_repository.get_object_by_id(full_time_job_id)
     validate_entity_exists(full_time_job, "Full-time job")
     
-    if full_time_job.created_by_user_id != current_user.id:
+    if full_time_job.created_by_user_id != get_user_id(current_user):
         raise forbidden_error("You can only view proposals for your own full-time jobs")
     
     repository = ProposalRepository(db)
@@ -635,7 +647,7 @@ async def update_proposal(
     existing_proposal = repository.get_by_id(proposal_id)
     validate_entity_exists(existing_proposal, "Proposal")
     
-    if existing_proposal.user_id != current_user.id:
+    if existing_proposal.user_id != get_user_id(current_user):
         raise forbidden_error("You don't have permission to update this proposal")
     
     update_data = {}
@@ -649,7 +661,7 @@ async def update_proposal(
     if attachments:
         attachment_repository.delete_by_proposal_id(proposal_id)
         
-        file_info_list = save_uploaded_files(attachments, current_user.id, proposal_id)
+        file_info_list = save_uploaded_files(attachments, get_user_id(current_user), proposal_id)
         for file_info in file_info_list:
             attachment_repository.create(
                 proposal_id=proposal_id,
@@ -660,7 +672,7 @@ async def update_proposal(
     
     proposal_update = ProposalUpdate(**update_data)
     
-    updated_proposal = repository.update(proposal_id, proposal_update, current_user.id)
+    updated_proposal = repository.update(proposal_id, proposal_update, get_user_id(current_user))
     
     if not updated_proposal:
         return JSONResponse(
@@ -727,12 +739,12 @@ async def delete_proposal(
     existing_proposal = repository.get_by_id(proposal_id)
     validate_entity_exists(existing_proposal, "Proposal")
     
-    if existing_proposal.user_id != current_user.id:
+    if existing_proposal.user_id != get_user_id(current_user):
         raise forbidden_error("You don't have permission to delete this proposal")
     
     attachment_repository.delete_by_proposal_id(proposal_id)
     
-    success = repository.delete(proposal_id, current_user.id)
+    success = repository.delete(proposal_id, get_user_id(current_user))
     
     if not success:
         return JSONResponse(
@@ -783,12 +795,12 @@ async def mark_proposal_as_read(
     if proposal.gig_job_id:
         from app.models.gig_job import GigJob
         gig_job_model = db.query(GigJob).filter(GigJob.id == proposal.gig_job_id).first()
-        if gig_job_model and gig_job_model.author_id == current_user.id:
+        if gig_job_model and gig_job_model.author_id == get_user_id(current_user):
             is_job_owner = True
     elif proposal.full_time_job_id:
         full_time_job_repository = FullTimeJobRepository(db)
         full_time_job = full_time_job_repository.get_object_by_id(proposal.full_time_job_id)
-        if full_time_job and full_time_job.created_by_user_id == current_user.id:
+        if full_time_job and full_time_job.created_by_user_id == get_user_id(current_user):
             is_job_owner = True
     
     if not is_job_owner:
@@ -907,14 +919,14 @@ async def mark_all_proposals_as_read(
     
     from app.models.gig_job import GigJob
     user_gig_jobs = db.query(GigJob).filter(
-        GigJob.author_id == current_user.id,
+        GigJob.author_id == get_user_id(current_user),
         GigJob.is_deleted == False
     ).all()
     gig_job_ids = [job.id for job in user_gig_jobs]
     
     from app.models.full_time_job import FullTimeJob
     user_full_time_jobs = db.query(FullTimeJob).filter(
-        FullTimeJob.created_by_user_id == current_user.id
+        FullTimeJob.created_by_user_id == get_user_id(current_user)
     ).all()
     full_time_job_ids = [job.id for job in user_full_time_jobs]
     
