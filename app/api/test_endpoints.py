@@ -17,16 +17,29 @@ from datetime import datetime
 router = APIRouter(prefix="/test", tags=["Test"])
 
 
+def get_user_id(user) -> int:
+    """Get user ID from either dict or User object"""
+    return user.get('id') if isinstance(user, dict) else user.id
+
+
+def get_user_email(user) -> str:
+    """Get user email from either dict or User object"""
+    return user.get('email') if isinstance(user, dict) else user.email
+
+
 @router.post("/corporate-profile")
 async def test_corporate_profile(
     current_user: dict = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """Test Corporate Profile API: Create, Read, Update, Delete"""
+    user_id = get_user_id(current_user)
+    user_email = get_user_email(current_user)
+    
     results = {
         "test_name": "Corporate Profile API Test",
-        "user_id": current_user.get('id'),
-        "user_email": current_user.get('email'),
+        "user_id": user_id,
+        "user_email": user_email,
         "timestamp": datetime.now().isoformat(),
         "tests": []
     }
@@ -40,7 +53,7 @@ async def test_corporate_profile(
             "status": "running"
         })
         
-        existing_profile = corporate_repo.get_by_user_id(current_user.get('id'))
+        existing_profile = corporate_repo.get_by_user_id(user_id)
         if existing_profile:
             results["tests"][-1].update({
                 "status": "success",
@@ -63,7 +76,7 @@ async def test_corporate_profile(
         })
         
         profile_data = CorporateProfileCreate(
-            company_name=f"Test Company {current_user.get('id')}",
+            company_name=f"Test Company {user_id}",
             phone_number="+998901234567",
             country_code="+998",
             location_id=1,
@@ -73,7 +86,7 @@ async def test_corporate_profile(
             category_id=1
         )
         
-        created_profile = corporate_repo.create(profile_data, current_user.get('id'))
+        created_profile = corporate_repo.create(profile_data, user_id)
         
         results["tests"][-1].update({
             "status": "success",
@@ -116,9 +129,11 @@ async def test_full_time_job(
     db: Session = Depends(get_db)
 ):
     """Test Full-Time Job API: Create, Read, Update, Delete"""
+    user_id = get_user_id(current_user)
+    
     results = {
         "test_name": "Full-Time Job API Test",
-        "user_id": current_user.get('id'),
+        "user_id": user_id,
         "timestamp": datetime.now().isoformat(),
         "tests": []
     }
@@ -133,7 +148,7 @@ async def test_full_time_job(
             "status": "running"
         })
         
-        profile = corporate_repo.get_by_user_id(current_user.get('id'))
+        profile = corporate_repo.get_by_user_id(user_id)
         if not profile:
             results["tests"][-1].update({
                 "status": "error",
@@ -175,7 +190,7 @@ async def test_full_time_job(
         created_job = job_repo.create_with_context(
             job_data,
             profile.id,
-            current_user.get('id'),
+            user_id,
             TeamMemberRole.OWNER
         )
         
@@ -196,7 +211,7 @@ async def test_full_time_job(
         })
         
         job_id = created_job.get('id')
-        read_job = job_repo.get_by_id(job_id, current_user.get('id'))
+        read_job = job_repo.get_by_id(job_id, user_id)
         
         results["tests"][-1].update({
             "status": "success",
@@ -222,10 +237,13 @@ async def test_all_apis(
     db: Session = Depends(get_db)
 ):
     """Test ALL APIs: Corporate Profile, Jobs, Chat, Proposals, etc."""
+    user_id = get_user_id(current_user)
+    user_email = get_user_email(current_user)
+    
     results = {
         "test_name": "Complete API Test Suite",
-        "user_id": current_user.get('id'),
-        "user_email": current_user.get('email'),
+        "user_id": user_id,
+        "user_email": user_email,
         "timestamp": datetime.now().isoformat(),
         "tests": [],
         "summary": {}
@@ -240,11 +258,11 @@ async def test_all_apis(
         })
         
         corporate_repo = CorporateProfileRepository(db)
-        profile = corporate_repo.get_by_user_id(current_user.get('id'))
+        profile = corporate_repo.get_by_user_id(user_id)
         
         if not profile:
             profile_data = CorporateProfileCreate(
-                company_name=f"Test Company {current_user.get('id')}",
+                company_name=f"Test Company {user_id}",
                 phone_number="+998901234567",
                 country_code="+998",
                 location_id=1,
@@ -253,7 +271,7 @@ async def test_all_apis(
                 company_size="1-10",
                 category_id=1
             )
-            profile = corporate_repo.create(profile_data, current_user.get('id'))
+            profile = corporate_repo.create(profile_data, user_id)
             results["tests"][-1].update({
                 "status": "success",
                 "message": f"Corporate profile created (ID: {profile.id})"
@@ -295,7 +313,7 @@ async def test_all_apis(
         created_job = job_repo.create_with_context(
             job_data,
             profile_id,
-            current_user.get('id'),
+            user_id,
             TeamMemberRole.OWNER
         )
         
@@ -329,7 +347,7 @@ async def test_all_apis(
             location_id=1
         )
         
-        created_gig = gig_repo.create(gig_data, current_user.get('id'))
+        created_gig = gig_repo.create(gig_data, user_id)
         
         results["tests"][-1].update({
             "status": "success",
@@ -348,7 +366,7 @@ async def test_all_apis(
         
         saved_repo = SavedJobRepository(db)
         saved_job = saved_repo.save_full_time_job(
-            user_id=current_user.get('id'),
+            user_id=user_id,
             job_id=created_job.get('id')
         )
         
@@ -374,9 +392,9 @@ async def test_all_apis(
         user_repo = UserRepository(db)
         other_user = user_repo.get_user_by_email("admin@admin.com")
         
-        if other_user and other_user.id != current_user.get('id'):
+        if other_user and other_user.id != user_id:
             chat_room = chat_repo.get_or_create_room(
-                user1_id=current_user.get('id'),
+                user1_id=user_id,
                 user2_id=other_user.id
             )
             
@@ -385,7 +403,7 @@ async def test_all_apis(
                 "message": f"Chat room created/found (ID: {chat_room.id})",
                 "data": {
                     "room_id": chat_room.id,
-                    "participant_ids": [current_user.get('id'), other_user.id]
+                    "participant_ids": [user_id, other_user.id]
                 }
             })
         else:
@@ -412,7 +430,7 @@ async def test_all_apis(
             delivery_time=7
         )
         
-        created_proposal = proposal_repo.create(proposal_data, current_user.get('id'))
+        created_proposal = proposal_repo.create(proposal_data, user_id)
         
         results["tests"][-1].update({
             "status": "success",
