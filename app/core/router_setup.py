@@ -6,7 +6,7 @@ from ..api import (
     auth, profile, contact_us, faq, skills, roles, languages, locations,
     user_skills, data_management, company, education_facility, certification_center,
     gig_jobs, proposals, saved_jobs, corporate_profile, full_time_job, team_member,
-    category, chat, notifications, admin
+    category, chat, notifications, admin, test_endpoints
 )
 
 
@@ -37,6 +37,7 @@ def register_routers(app: FastAPI):
         (chat.router, "/api/v1/chat"),
         (notifications.router, "/api/v1"),
         (admin.router, "/api/v1"),
+        (test_endpoints.router, "/api/v1"),
     ]
     
     for router, prefix in routers:
