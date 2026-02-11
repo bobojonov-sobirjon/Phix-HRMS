@@ -505,7 +505,7 @@ async def delete_full_time_job(
 @handle_errors
 async def change_job_status(
     job_id: int,
-    new_status: str = Query(..., regex="^(ACTIVE|CLOSED|DRAFT)$"),
+    new_status: str = Query(..., regex="^(active|closed|draft)$"),
     current_user: dict = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):

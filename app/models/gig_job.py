@@ -6,10 +6,10 @@ import enum
 
 
 class ExperienceLevel(str, enum.Enum):
-    ENTRY_LEVEL = "ENTRY_LEVEL"
-    MID_LEVEL = "MID_LEVEL"
-    JUNIOR = "JUNIOR"
-    DIRECTOR = "DIRECTOR"
+    ENTRY_LEVEL = "entry_level"
+    MID_LEVEL = "mid_level"
+    JUNIOR = "junior"
+    DIRECTOR = "director"
 
 
 class GigJobStatus(str, enum.Enum):
@@ -20,10 +20,10 @@ class GigJobStatus(str, enum.Enum):
 
 
 class ProjectLength(str, enum.Enum):
-    LESS_THAN_ONE_MONTH = "LESS_THAN_ONE_MONTH"
-    ONE_TO_THREE_MONTHS = "ONE_TO_THREE_MONTHS"
-    THREE_TO_SIX_MONTHS = "THREE_TO_SIX_MONTHS"
-    MORE_THAN_SIX_MONTHS = "MORE_THAN_SIX_MONTHS"
+    LESS_THAN_ONE_MONTH = "less_than_one_month"
+    ONE_TO_THREE_MONTHS = "one_to_three_months"
+    THREE_TO_SIX_MONTHS = "three_to_six_months"
+    MORE_THAN_SIX_MONTHS = "more_than_six_months"
 
 
 class GigJob(Base):

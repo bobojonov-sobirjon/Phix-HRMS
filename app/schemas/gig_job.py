@@ -13,29 +13,29 @@ class ExperienceLevel(str, Enum):
 
 
 class GigJobStatus(str, Enum):
-    ACTIVE = "ACTIVE"
-    IN_PROGRESS = "IN_PROGRESS"
-    COMPLETED = "COMPLETED"
-    CANCELLED = "CANCELLED"
+    ACTIVE = "active"
+    IN_PROGRESS = "in_progress"
+    COMPLETED = "completed"
+    CANCELLED = "cancelled"
 
 
 class ProjectLength(str, Enum):
-    LESS_THAN_ONE_MONTH = "LESS_THAN_ONE_MONTH"
-    ONE_TO_THREE_MONTHS = "ONE_TO_THREE_MONTHS"
-    THREE_TO_SIX_MONTHS = "THREE_TO_SIX_MONTHS"
-    MORE_THAN_SIX_MONTHS = "MORE_THAN_SIX_MONTHS"
+    LESS_THAN_ONE_MONTH = "less_than_one_month"
+    ONE_TO_THREE_MONTHS = "one_to_three_months"
+    THREE_TO_SIX_MONTHS = "three_to_six_months"
+    MORE_THAN_SIX_MONTHS = "more_than_six_months"
 
 
 class DatePosted(str, Enum):
-    ANY_TIME = "ANY_TIME"
-    PAST_24_HOURS = "PAST_24_HOURS"
-    PAST_WEEK = "PAST_WEEK"
-    PAST_MONTH = "PAST_MONTH"
+    ANY_TIME = "any_time"
+    PAST_24_HOURS = "past_24_hours"
+    PAST_WEEK = "past_week"
+    PAST_MONTH = "past_month"
 
 
 class SortBy(str, Enum):
-    MOST_RECENT = "MOST_RECENT"
-    MOST_RELEVANT = "MOST_RELEVANT"
+    MOST_RECENT = "most_recent"
+    MOST_RELEVANT = "most_relevant"
 
 
 class GigJobBase(BaseModel):

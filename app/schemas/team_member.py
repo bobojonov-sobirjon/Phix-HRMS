@@ -5,17 +5,17 @@ from enum import Enum
 
 
 class TeamMemberRole(str, Enum):
-    OWNER = "OWNER"
-    ADMIN = "ADMIN"
-    HR_MANAGER = "HR_MANAGER"
-    RECRUITER = "RECRUITER"
-    VIEWER = "VIEWER"
+    OWNER = "owner"
+    ADMIN = "admin"
+    HR_MANAGER = "hr_manager"
+    RECRUITER = "recruiter"
+    VIEWER = "viewer"
 
 
 class TeamMemberStatus(str, Enum):
-    PENDING = "PENDING"
-    ACCEPTED = "ACCEPTED"
-    REJECTED = "REJECTED"
+    PENDING = "pending"
+    ACCEPTED = "accepted"
+    REJECTED = "rejected"
 
 
 class TeamMemberBase(BaseModel):
