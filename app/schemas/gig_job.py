@@ -6,9 +6,9 @@ from .location import Location
 
 
 class ExperienceLevel(str, Enum):
-    ENTRY = "entry"
+    ENTRY_LEVEL = "entry_level"
+    MID_LEVEL = "mid_level"
     JUNIOR = "junior"
-    MID = "mid"
     DIRECTOR = "director"
 
 

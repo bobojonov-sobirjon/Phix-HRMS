@@ -337,7 +337,7 @@ async def test_all_apis(
         gig_data = GigJobCreate(
             title=f"Test Gig {datetime.now().strftime('%H%M%S')}",
             description="Test gig job for API testing",
-            experience_level=GigExperienceLevel.MID,
+            experience_level=GigExperienceLevel.MID_LEVEL,
             project_length=ProjectLength.ONE_TO_THREE_MONTHS,
             skill_ids=[1],
             min_salary=500.0,
