@@ -18,11 +18,9 @@ class WorkMode(str, Enum):
 
 
 class ExperienceLevel(str, Enum):
-    ENTRY = "entry"
+    ENTRY_LEVEL = "entry_level"
     JUNIOR = "junior"
-    MID = "mid"
-    SENIOR = "senior"
-    LEAD = "lead"
+    MID_LEVEL = "mid_level"
     DIRECTOR = "director"
 
 

@@ -20,11 +20,9 @@ class WorkMode(str, enum.Enum):
 
 
 class ExperienceLevel(str, enum.Enum):
-    ENTRY = "entry"
+    ENTRY_LEVEL = "entry_level"
     JUNIOR = "junior"
-    MID = "mid"
-    SENIOR = "senior"
-    LEAD = "lead"
+    MID_LEVEL = "mid_level"
     DIRECTOR = "director"
 
 
