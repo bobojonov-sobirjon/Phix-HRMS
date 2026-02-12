@@ -363,12 +363,13 @@ async def test_all_apis(
         })
         
         from ..repositories.saved_job_repository import SavedJobRepository
+        from ..schemas.saved_job import SavedJobCreate
         
         saved_repo = SavedJobRepository(db)
-        saved_job = saved_repo.save_full_time_job(
-            user_id=user_id,
-            job_id=created_job.get('id')
+        saved_job_data = SavedJobCreate(
+            full_time_job_id=created_job.get('id')
         )
+        saved_job = saved_repo.create(saved_job_data, user_id)
         
         results["tests"][-1].update({
             "status": "success",
