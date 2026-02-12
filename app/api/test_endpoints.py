@@ -421,13 +421,13 @@ async def test_all_apis(
         })
         
         from ..repositories.proposal_repository import ProposalRepository
-        from ..schemas.proposals import ProposalCreate
+        from ..schemas.proposal import ProposalCreate
         
         proposal_repo = ProposalRepository(db)
         proposal_data = ProposalCreate(
             gig_job_id=created_gig.get('id'),
             cover_letter="Test proposal cover letter",
-            proposed_amount=1000.0,
+            offer_amount=1000.0,
             delivery_time=7
         )
         
