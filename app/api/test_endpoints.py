@@ -351,8 +351,8 @@ async def test_all_apis(
         
         results["tests"][-1].update({
             "status": "success",
-            "message": f"Gig job created (ID: {created_gig.id})",
-            "data": {"gig_id": created_gig.id}
+            "message": f"Gig job created (ID: {created_gig.get('id')})",
+            "data": {"gig_id": created_gig.get('id')}
         })
         
         # ===== 4. SAVED JOB =====
@@ -424,7 +424,7 @@ async def test_all_apis(
         
         proposal_repo = ProposalRepository(db)
         proposal_data = ProposalCreate(
-            gig_job_id=created_gig.id,
+            gig_job_id=created_gig.get('id'),
             cover_letter="Test proposal cover letter",
             proposed_amount=1000.0,
             delivery_time=7
