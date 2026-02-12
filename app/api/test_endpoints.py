@@ -394,7 +394,7 @@ async def test_all_apis(
         other_user = user_repo.get_user_by_email("admin@admin.com")
         
         if other_user and other_user.id != user_id:
-            chat_room = chat_repo.get_or_create_room(
+            chat_room = chat_repo.create_direct_room(
                 user1_id=user_id,
                 user2_id=other_user.id
             )
