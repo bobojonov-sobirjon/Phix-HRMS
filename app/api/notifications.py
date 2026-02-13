@@ -20,6 +20,11 @@ from app.models.user import User
 router = APIRouter(prefix="/notifications", tags=["Notifications"])
 
 
+def get_user_id(user) -> int:
+    """Get user ID from either dict or User object"""
+    return user.get('id') if isinstance(user, dict) else user.id
+
+
 @router.get("/applications", response_model=NotificationListResponse)
 async def get_applications(
     page: int = Query(1, ge=1, description="Page number"),
@@ -37,12 +42,12 @@ async def get_applications(
     pagination = PaginationParams(page=page, size=size)
     
     notifications, total = repository.get_applications(
-        user_id=current_user.id,
+        user_id=get_user_id(current_user),
         pagination=pagination
     )
     
     unread_count = repository.get_unread_count(
-        user_id=current_user.id,
+        user_id=get_user_id(current_user),
         notification_type=NotificationType.APPLICATION
     )
     
@@ -106,12 +111,12 @@ async def get_my_proposals(
     pagination = PaginationParams(page=page, size=size)
     
     notifications, total = repository.get_my_proposals(
-        user_id=current_user.id,
+        user_id=get_user_id(current_user),
         pagination=pagination
     )
     
     unread_count = repository.get_unread_count(
-        user_id=current_user.id,
+        user_id=get_user_id(current_user),
         notification_type=NotificationType.PROPOSAL_VIEWED
     )
     
@@ -163,17 +168,17 @@ async def get_notification_counts(
     repository = NotificationRepository(db)
     
     applications_unread = repository.get_unread_count(
-        user_id=current_user.id,
+        user_id=get_user_id(current_user),
         notification_type=NotificationType.APPLICATION
     )
     
     my_proposals_unread = repository.get_unread_count(
-        user_id=current_user.id,
+        user_id=get_user_id(current_user),
         notification_type=NotificationType.PROPOSAL_VIEWED
     )
     
     chat_messages_unread = repository.get_unread_count(
-        user_id=current_user.id,
+        user_id=get_user_id(current_user),
         notification_type=NotificationType.CHAT_MESSAGE
     )
     
@@ -200,12 +205,12 @@ async def get_chat_messages(
     pagination = PaginationParams(page=page, size=size)
     
     notifications, total = repository.get_chat_messages(
-        user_id=current_user.id,
+        user_id=get_user_id(current_user),
         pagination=pagination
     )
     
     unread_count = repository.get_unread_count(
-        user_id=current_user.id,
+        user_id=get_user_id(current_user),
         notification_type=NotificationType.CHAT_MESSAGE
     )
     
@@ -260,7 +265,7 @@ async def mark_notification_as_read(
 ):
     """Mark a notification as read"""
     repository = NotificationRepository(db)
-    success = repository.mark_as_read(notification_id, current_user.id)
+    success = repository.mark_as_read(notification_id, get_user_id(current_user))
     
     if not success:
         raise HTTPException(

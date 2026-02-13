@@ -439,6 +439,33 @@ async def test_all_apis(
             "data": {"proposal_id": created_proposal.id}
         })
         
+        # ===== 7. NOTIFICATIONS =====
+        results["tests"].append({
+            "api": "Notifications",
+            "step": "7. Get my proposals notifications",
+            "status": "running"
+        })
+        
+        from ..repositories.notification_repository import NotificationRepository
+        
+        notif_repo = NotificationRepository(db)
+        pagination = PaginationParams(page=1, size=10)
+        
+        # Get notifications
+        notifications, total = notif_repo.get_my_proposals(
+            user_id=user_id,
+            pagination=pagination
+        )
+        
+        results["tests"][-1].update({
+            "status": "success",
+            "message": f"Retrieved {total} notifications",
+            "data": {
+                "total_notifications": total,
+                "notifications_count": len(notifications)
+            }
+        })
+        
         # ===== SUMMARY =====
         results["overall_status"] = "success"
         results["message"] = "All API tests completed successfully!"
