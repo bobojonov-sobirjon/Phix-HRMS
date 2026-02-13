@@ -48,7 +48,7 @@ async def get_applications(
     
     unread_count = repository.get_unread_count(
         user_id=get_user_id(current_user),
-        notification_type=NotificationType.APPLICATION
+        notification_type=NotificationType.PROPOSAL_RECEIVED
     )
     
     notification_responses = []
@@ -117,7 +117,7 @@ async def get_my_proposals(
     
     unread_count = repository.get_unread_count(
         user_id=get_user_id(current_user),
-        notification_type=NotificationType.PROPOSAL_VIEWED
+        notification_type=NotificationType.PROPOSAL_ACCEPTED
     )
     
     notification_responses = []
@@ -174,12 +174,12 @@ async def get_notification_counts(
     
     my_proposals_unread = repository.get_unread_count(
         user_id=get_user_id(current_user),
-        notification_type=NotificationType.PROPOSAL_VIEWED
+        notification_type=NotificationType.PROPOSAL_ACCEPTED
     )
     
     chat_messages_unread = repository.get_unread_count(
         user_id=get_user_id(current_user),
-        notification_type=NotificationType.CHAT_MESSAGE
+        notification_type=NotificationType.MESSAGE_RECEIVED
     )
     
     return NotificationCountResponse(
@@ -211,7 +211,7 @@ async def get_chat_messages(
     
     unread_count = repository.get_unread_count(
         user_id=get_user_id(current_user),
-        notification_type=NotificationType.CHAT_MESSAGE
+        notification_type=NotificationType.MESSAGE_RECEIVED
     )
     
     notification_responses = []

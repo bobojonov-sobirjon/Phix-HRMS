@@ -250,15 +250,17 @@
 
 ```json
 {
-  "type": "application" | "message" | "system" | "job_update"
+  "type": "job_posted" | "message_received" | "proposal_accepted" | "proposal_received" | "proposal_rejected" | "system"
 }
 ```
 
 **Available Values**:
-- `application` - Job application notification
-- `message` - Chat message notification
+- `job_posted` - New job posted notification
+- `message_received` - Chat message received notification
+- `proposal_accepted` - Proposal accepted notification
+- `proposal_received` - Proposal received notification
+- `proposal_rejected` - Proposal rejected notification
 - `system` - System notification
-- `job_update` - Job update notification
 
 ---
 

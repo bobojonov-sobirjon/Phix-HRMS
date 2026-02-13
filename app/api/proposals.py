@@ -338,7 +338,7 @@ async def create_proposal(
             from app.utils.websocket_manager import manager
             notification_repo = NotificationRepository(db)
             notification = notification_repo.create(
-                type=NotificationType.APPLICATION,
+                type=NotificationType.PROPOSAL_RECEIVED,
                 title=title,
                 body=body,
                 recipient_user_id=job_owner_id,
@@ -518,7 +518,7 @@ async def get_proposal_by_id(
                 from app.models.notification import NotificationType
                 notification_repo = NotificationRepository(db)
                 notification_repo.create(
-                    type=NotificationType.PROPOSAL_VIEWED,
+                    type=NotificationType.PROPOSAL_ACCEPTED,
                     title=title,
                     body=body,
                     recipient_user_id=proposal_sender_id,
@@ -1001,7 +1001,7 @@ async def mark_all_proposals_as_read(
                         from app.models.notification import NotificationType
                         notification_repo = NotificationRepository(db)
                         notification_repo.create(
-                            type=NotificationType.PROPOSAL_VIEWED,
+                            type=NotificationType.PROPOSAL_ACCEPTED,
                             title=title,
                             body=body,
                             recipient_user_id=proposal_sender_id,

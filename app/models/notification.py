@@ -6,9 +6,12 @@ import enum
 
 
 class NotificationType(str, enum.Enum):
-    APPLICATION = "application"
-    PROPOSAL_VIEWED = "proposal_viewed"
-    CHAT_MESSAGE = "chat_message"
+    JOB_POSTED = "job_posted"
+    MESSAGE_RECEIVED = "message_received"
+    PROPOSAL_ACCEPTED = "proposal_accepted"
+    PROPOSAL_RECEIVED = "proposal_received"
+    PROPOSAL_REJECTED = "proposal_rejected"
+    SYSTEM = "system"
 
 
 class Notification(Base):

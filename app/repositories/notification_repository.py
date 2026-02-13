@@ -109,7 +109,7 @@ class NotificationRepository:
         """Get application notifications (when someone applies to user's jobs)"""
         return self.get_user_notifications(
             user_id=user_id,
-            notification_type=NotificationType.APPLICATION,
+            notification_type=NotificationType.PROPOSAL_RECEIVED,
             is_read=False,
             pagination=pagination
         )
@@ -122,7 +122,7 @@ class NotificationRepository:
         """Get proposal viewed notifications (when user's proposals are viewed)"""
         return self.get_user_notifications(
             user_id=user_id,
-            notification_type=NotificationType.PROPOSAL_VIEWED,
+            notification_type=NotificationType.PROPOSAL_ACCEPTED,
             is_read=False,
             pagination=pagination
         )
@@ -135,7 +135,7 @@ class NotificationRepository:
         """Get chat message notifications (when user receives chat messages)"""
         return self.get_user_notifications(
             user_id=user_id,
-            notification_type=NotificationType.CHAT_MESSAGE,
+            notification_type=NotificationType.MESSAGE_RECEIVED,
             is_read=False,
             pagination=pagination
         )

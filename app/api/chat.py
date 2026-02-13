@@ -1138,7 +1138,7 @@ async def _websocket_endpoint_handler(websocket: WebSocket):
                                 notification_body = f"{sender_name} sent a message"
                             
                             notification_repo.create(
-                                type=NotificationType.CHAT_MESSAGE,
+                                type=NotificationType.MESSAGE_RECEIVED,
                                 title=notification_title,
                                 body=notification_body,
                                 recipient_user_id=receiver_id,
