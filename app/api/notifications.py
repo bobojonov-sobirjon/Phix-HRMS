@@ -169,7 +169,7 @@ async def get_notification_counts(
     
     applications_unread = repository.get_unread_count(
         user_id=get_user_id(current_user),
-        notification_type=NotificationType.APPLICATION
+        notification_type=NotificationType.PROPOSAL_RECEIVED
     )
     
     my_proposals_unread = repository.get_unread_count(

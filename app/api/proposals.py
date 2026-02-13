@@ -862,7 +862,7 @@ async def mark_proposal_as_read(
             from app.models.notification import NotificationType
             notification_repo = NotificationRepository(db)
             notification_repo.create(
-                type=NotificationType.PROPOSAL_VIEWED,
+                type=NotificationType.PROPOSAL_ACCEPTED,
                 title=title,
                 body=body,
                 recipient_user_id=proposal_sender_id,
